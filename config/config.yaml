@@ -16,7 +16,7 @@ data:
   # 数据频率: 1d(日线), 1h(小时线), 30m(30分钟线)
   frequency: "1d"
   # 历史数据天数
-  history_days: 500
+  history_days: 1000
   # 数据缓存目录
   cache_dir: "cache"
   # 历史数据文件路径 (如果从文件加载数据)

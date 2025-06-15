@@ -47,8 +47,8 @@ def predict_single_day(predict_date_str: str):
 
         # 1. 获取训练数据 (预测日期之前的所有数据)
         # 为了确保有足够的历史数据进行特征计算，我们获取 predict_date 之前足够长的数据
-        # 假设我们需要至少 history_days 的数据来计算特征
-        history_days_needed = config["data"]["history_days"] + 60 # 额外多一些天数确保计算指标
+        # 假设我们需要至少 history_days 的数据来计算特征ß
+        history_days_needed = config["data"]["history_days"] # 额外多一些天数确保计算指标
         start_date_for_training = predict_date - timedelta(days=history_days_needed)
         
         logger.info(f"获取训练数据从 {start_date_for_training.strftime('%Y-%m-%d')} 到 {predict_date.strftime('%Y-%m-%d')}")

@@ -56,8 +56,9 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             logger.info(f"\n--- 滚动回测日期: {current_date.strftime('%Y-%m-%d')} ---")
 
             # 1. 获取训练数据 (当前日期之前的训练窗口数据)
-            training_start_date = current_date - timedelta(days=training_window_days)
-            training_end_date = current_date - timedelta(days=1) # 训练数据截止到预测日期的前一天
+            history_days_needed = config["data"]["history_days"]
+            training_start_date = current_date - timedelta(days=history_days_needed)
+            training_end_date = current_date  # 包含预测当天
             
             logger.info(f"获取训练数据从 {training_start_date.strftime('%Y-%m-%d')} 到 {training_end_date.strftime('%Y-%m-%d')}")
             training_data = data_module.get_history_data(
@@ -82,32 +83,25 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 continue
             logger.info("AI模型训练成功，测试集准确率: %.2f%%", train_result["accuracy"] * 100)
 
-            # 3. 获取预测日期的数据
-            predict_day_data = data_module.get_history_data(
-                start_date=current_date.strftime('%Y-%m-%d'),
-                end_date=current_date.strftime('%Y-%m-%d')
-            )
-            
-            if predict_day_data.empty:
-                logger.warning(f"预测日期 {current_date.strftime('%Y-%m-%d')} 数据为空，跳过。")
-                current_date += timedelta(days=1)
-                continue
+            # 3. 预测当前日期是否为相对低点
+            # 从训练数据中提取最后一行作为预测数据
+            predict_day_data = training_data.iloc[-1:].copy()
 
-            predict_day_data = data_module.preprocess_data(predict_day_data)
-
-            # 4. 预测当前日期是否为相对低点
             prediction_result = ai_optimizer.predict_low_point(predict_day_data)
             is_predicted_low_point = prediction_result["is_low_point"]
             confidence = prediction_result["confidence"]
 
             logger.info(f"预测结果: {current_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，置信度: {confidence:.2f}")
 
-            # 5. 验证预测结果 (获取预测日期之后的数据)
+            # 4. 验证预测结果 (获取预测日期之后的数据)
             # 获取预测日期后 max_days + 10 个交易日的数据，用于验证
             validation_end_date = current_date + timedelta(days=config["strategy"]["max_days"] + 10) # 额外多一些天数
+            # 为了确保backtest能够正确评估current_date，我们需要current_date之前的数据
+            # 并且backtest方法会从每个点开始向后看，所以验证数据需要包含current_date之前的数据
+            validation_start_date = current_date - timedelta(days=config["strategy"]["max_days"] + 10) # 额外多一些天数
             
             validation_data = data_module.get_history_data(
-                start_date=current_date.strftime('%Y-%m-%d'),
+                start_date=validation_start_date.strftime('%Y-%m-%d'),
                 end_date=validation_end_date.strftime('%Y-%m-%d')
             )
             
@@ -118,25 +112,34 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 days_to_rise = None
             else:
                 full_validation_set = data_module.preprocess_data(validation_data)
-                # 仅对当前预测日期进行回测验证
-                backtest_validation_results = strategy_module.backtest(full_validation_set)
-                
-                predicted_day_validation = backtest_validation_results[
-                    backtest_validation_results['date'] == pd.to_datetime(current_date.strftime('%Y-%m-%d'))
-                ]
-
-                if not predicted_day_validation.empty:
-                    actual_is_low_point = predicted_day_validation.iloc[0]['is_low_point']
-                    future_max_rise = predicted_day_validation.iloc[0]['future_max_rise']
-                    days_to_rise = predicted_day_validation.iloc[0]['days_to_rise']
-                    logger.info(f"实际是否为相对低点: {'是' if actual_is_low_point else '否'}")
-                    logger.info(f"未来最大涨幅: {future_max_rise:.2%}")
-                    logger.info(f"达到目标涨幅所需天数: {days_to_rise} 天")
-                else:
+                # 直接计算当前预测日期的"实际是否为相对低点"、"未来最大涨幅"和"达到目标涨幅所需天数"
+                predict_date_data = full_validation_set[full_validation_set['date'] == pd.to_datetime(current_date.strftime('%Y-%m-%d'))]
+                if predict_date_data.empty:
                     logger.warning(f"无法在验证数据中找到 {current_date.strftime('%Y-%m-%d')} 的记录，无法验证预测结果。")
                     actual_is_low_point = None
                     future_max_rise = None
                     days_to_rise = None
+                else:
+                    predict_price = predict_date_data.iloc[0]['close']
+                    future_data = full_validation_set[full_validation_set['date'] > pd.to_datetime(current_date.strftime('%Y-%m-%d'))]
+                    if future_data.empty:
+                        logger.warning(f"无法获取 {current_date.strftime('%Y-%m-%d')} 之后的数据，无法验证预测结果。")
+                        actual_is_low_point = None
+                        future_max_rise = None
+                        days_to_rise = None
+                    else:
+                        max_rise = 0.0
+                        days_to_rise = 0
+                        for i, row in future_data.iterrows():
+                            rise_rate = (row['close'] - predict_price) / predict_price
+                            if rise_rate > max_rise:
+                                max_rise = rise_rate
+                                days_to_rise = (row['date'] - pd.to_datetime(current_date.strftime('%Y-%m-%d'))).days
+                        actual_is_low_point = max_rise >= config["strategy"]["rise_threshold"]
+                        future_max_rise = max_rise
+                        logger.info(f"实际是否为相对低点: {'是' if actual_is_low_point else '否'}")
+                        logger.info(f"未来最大涨幅: {future_max_rise:.2%}")
+                        logger.info(f"达到目标涨幅所需天数: {days_to_rise} 天")
 
             results.append({
                 'date': current_date,
@@ -188,14 +191,48 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.grid(True)
             plt.tight_layout()
             
+            # 在图片下方添加判定记录文本
+            plt.figtext(0.5, 0.01, f"总预测日期数 (可验证): {total_predictions}\n正确预测数: {correct_predictions}\n预测成功率: {success_rate:.2f}%", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+            
             # 设置日期格式
-            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            plt.gca().xaxis.set_major_locator(mdates.DayLocator())
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+            plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=1))
             plt.gcf().autofmt_xdate() # 自动调整日期倾斜
 
-            chart_path = os.path.join(os.path.dirname(__file__), 'results', 'rolling_backtest_results.png')
+            chart_path = os.path.join(os.path.dirname(__file__), 'results', f'rolling_backtest_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path)
             logger.info(f"滚动回测结果图已保存至: {chart_path}")
+
+            # 生成第二张图片，记录每次预测情况
+            plt.figure(figsize=(15, 10))
+            plt.axis('off')
+            table_data = []
+            for date, row in results_df.iterrows():
+                table_data.append([
+                    date.strftime('%Y-%m-%d'),
+                    '是' if row['predicted_low_point'] else '否',
+                    '是' if row['actual_low_point'] else '否',
+                    f"{row['confidence']:.2f}",
+                    f"{row['future_max_rise']:.2%}" if pd.notna(row['future_max_rise']) else 'N/A',
+                    f"{row['days_to_rise']}" if pd.notna(row['days_to_rise']) else 'N/A',
+                    '是' if row['prediction_correct'] else '否'
+                ])
+            table = plt.table(cellText=table_data, colLabels=['日期', '预测结果', '实际结果', '置信度', '未来最大涨幅', '达到目标涨幅所需天数', '预测是否成功'], loc='center', cellLoc='center')
+            table.auto_set_font_size(False)
+            table.set_fontsize(9)
+            table.scale(1.2, 1.5)
+            # 设置单元格颜色
+            for i, row in enumerate(table_data):
+                cell = table.get_celld()[(i+1, 6)]
+                if row[-1] == '是':
+                    cell.set_facecolor('#b6fcb6')  # 绿色
+                else:
+                    cell.set_facecolor('#ffb6b6')  # 红色
+            plt.title('每次预测情况记录', fontsize=12)
+            plt.tight_layout()
+            chart_path2 = os.path.join(os.path.dirname(__file__), 'results', f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            plt.savefig(chart_path2, bbox_inches='tight')
+            logger.info(f"每次预测情况记录图已保存至: {chart_path2}")
         else:
             logger.warning("没有可验证的预测结果来生成统计图。")
 
