@@ -131,14 +131,14 @@ dmypy.json
 # 项目特定文件
 cache/
 logs/
-results/
-charts/
+# results/
+# charts/
 models/
-*.pkl
-*.csv
-*.png
-*.jpg
-*.jpeg
+# *.pkl
+# *.csv
+# *.png
+# *.jpg
+# *.jpeg
 
 # IDE文件
 .vscode/
