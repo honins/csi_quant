@@ -9,13 +9,9 @@
 import os
 import logging
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, Any, Tuple, Optional
+from datetime import datetime
+from typing import Dict, Any, Optional
 import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'Arial Unicode MS']
-plt.rcParams['axes.unicode_minus'] = False
-import seaborn as sns
 
 class StrategyModule:
     """策略执行模块类"""
@@ -36,7 +32,7 @@ class StrategyModule:
         self.max_days = strategy_config.get('max_days', 20)
         
         # 创建结果目录
-        self.results_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'results')
+        self.results_dir = strategy_config.get('results_dir', os.path.join(os.path.dirname(__file__), '..', '..', 'results'))
         if not os.path.exists(self.results_dir):
             os.makedirs(self.results_dir)
             

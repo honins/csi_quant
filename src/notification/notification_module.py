@@ -33,7 +33,7 @@ class NotificationModule:
         self.email_config = notification_config.get('email', {})
         
         # 创建日志目录
-        self.logs_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
+        self.logs_dir = notification_config.get('logs_dir', os.path.join(os.path.dirname(__file__), '..', '..', 'logs'))
         if not os.path.exists(self.logs_dir):
             os.makedirs(self.logs_dir)
             

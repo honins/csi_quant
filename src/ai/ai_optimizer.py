@@ -172,54 +172,27 @@ class AIOptimizer:
         
         return labels
         
-    def train_prediction_model(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
+    def train_model(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
         """
-        训练预测模型
-        
-        参数:
-        data: 历史数据
-        strategy_module: 策略模块实例
-        
-        返回:
-        dict: 训练结果
+        只负责训练模型并保存，不做评估。
         """
-        self.logger.info("开始训练预测模型")
-        
+        self.logger.info("开始训练模型（不做验证评估）")
         try:
-            # 准备特征和标签
             features, feature_names = self.prepare_features(data)
             labels = self.prepare_labels(data, strategy_module)
-            
             if len(features) == 0 or len(labels) == 0:
                 self.logger.error("特征或标签为空，无法训练模型")
                 return {'success': False, 'error': '特征或标签为空'}
-                
-            # 确保特征和标签长度一致
             min_length = min(len(features), len(labels))
             features = features[:min_length]
             labels = labels[:min_length]
-            
-            # 获取与截断后的特征/标签对应的日期
             aligned_data = data.iloc[:min_length].copy()
-
-            # 划分训练集和测试集
-            # 采用时间序列划分，确保测试集在训练集之后
             split_ratio = self.config.get("ai", {}).get("train_test_split_ratio", 0.8)
             split_index = int(len(features) * split_ratio)
-
-            X_train, X_test = features[:split_index], features[split_index:]
-            y_train, y_test = labels[:split_index], labels[split_index:]
+            X_train = features[:split_index]
+            y_train = labels[:split_index]
             train_dates = aligned_data["date"].iloc[:split_index]
-
-            # 计算样本权重
             sample_weights = self._calculate_sample_weights(train_dates)
-
-            # 检查正样本数量
-            positive_count_train = np.sum(y_train)
-            if positive_count_train < 5:
-                self.logger.warning("训练集中正样本数量太少 (%d)，模型可能不稳定", positive_count_train)
-
-            # 创建模型管道
             if self.model_type == 'machine_learning':
                 model = Pipeline([
                     ('scaler', StandardScaler()),
@@ -227,70 +200,76 @@ class AIOptimizer:
                         n_estimators=100,
                         max_depth=10,
                         min_samples_split=5,
-                        min_samples_leaf=2,                        random_state=42,
-                        class_weight='balanced' # 处理样本不平衡
+                        min_samples_leaf=2,
+                        random_state=42,
+                        class_weight='balanced'
                     ))
                 ])
             else:
-                # 默认使用随机森林
                 model = Pipeline([
-                    (
-                        'scaler',
-                        StandardScaler()
-                    ),
+                    ('scaler', StandardScaler()),
                     ('classifier', RandomForestClassifier(
                         n_estimators=100,
                         random_state=42,
-                        class_weight='balanced' # 处理样本不平衡
+                        class_weight='balanced'
                     ))
                 ])
-
-            # 训练模型，传入样本权重
             self.logger.info(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}, sample_weights shape: {sample_weights.shape}")
             model.fit(X_train, y_train, classifier__sample_weight=sample_weights)
+            self.model = model
+            self.feature_names = feature_names
+            self._save_model()
+            self.logger.info("模型训练完成")
+            return {'success': True, 'train_samples': len(X_train), 'feature_count': len(feature_names)}
+        except Exception as e:
+            self.logger.error("训练模型失败: %s", str(e))
+            return {'success': False, 'error': str(e)}
 
-            # 预测和评估 (在测试集上)
-            y_pred = model.predict(X_test)
-            
+    def validate_model(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
+        """
+        只负责评估模型在验证集上的表现。
+        """
+        self.logger.info("开始验证模型（只做评估，不训练）")
+        try:
+            if self.model is None:
+                self.logger.warning("模型未训练，尝试加载已保存的模型")
+                if not self._load_model():
+                    return {'success': False, 'error': '模型未训练且无法加载已保存的模型'}
+            features, feature_names = self.prepare_features(data)
+            labels = self.prepare_labels(data, strategy_module)
+            if len(features) == 0 or len(labels) == 0:
+                self.logger.error("特征或标签为空，无法验证模型")
+                return {'success': False, 'error': '特征或标签为空'}
+            min_length = min(len(features), len(labels))
+            features = features[:min_length]
+            labels = labels[:min_length]
+            split_ratio = self.config.get("ai", {}).get("train_test_split_ratio", 0.8)
+            split_index = int(len(features) * split_ratio)
+            X_test = features[split_index:]
+            y_test = labels[split_index:]
+            if len(X_test) == 0 or len(y_test) == 0:
+                self.logger.warning("验证集为空，无法评估模型")
+                return {'success': False, 'error': '验证集为空'}
+            y_pred = self.model.predict(X_test)
             accuracy = accuracy_score(y_test, y_pred)
             precision = precision_score(y_test, y_pred, zero_division=0)
             recall = recall_score(y_test, y_pred, zero_division=0)
             f1 = f1_score(y_test, y_pred, zero_division=0)
-            
-            # 记录测试集正样本数量
             positive_count_test = np.sum(y_test)
-            
-            self.logger.info("模型在测试集上评估完成，准确率: %.4f, 精确率: %.4f, 召回率: %.4f, F1: %.4f", 
-                           accuracy, precision, recall, f1)
-            
-            # 保存模型
-            self.model = model
-            self.feature_names = feature_names
-            self._save_model()
-            
-            # 构建训练结果
-            result = {
+            self.logger.info("模型在验证集上评估完成，准确率: %.4f, 精确率: %.4f, 召回率: %.4f, F1: %.4f", accuracy, precision, recall, f1)
+            return {
                 'success': True,
                 'accuracy': accuracy,
                 'precision': precision,
                 'recall': recall,
                 'f1_score': f1,
-                'feature_count': len(feature_names),
-                'train_samples': len(X_train),
                 'test_samples': len(X_test),
-                'positive_samples_train': positive_count_train,
                 'positive_samples_test': positive_count_test
             }
-            
-            self.logger.info("模型训练完成，准确率: %.4f, 精确率: %.4f, 召回率: %.4f, F1: %.4f", 
-                           accuracy, precision, recall, f1)
-            
-            return result
-            
         except Exception as e:
-            self.logger.error("训练预测模型失败: %s", str(e))
+            self.logger.error("验证模型失败: %s", str(e))
             return {'success': False, 'error': str(e)}
-            
+
     def predict_low_point(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
         预测相对低点
@@ -346,9 +325,10 @@ class AIOptimizer:
                 'prediction_proba': prediction_proba.tolist()
             }
             
-            self.logger.info("AI预测结果: %s, 置信度: %.4f", 
+            self.logger.info("----------------------------------------------------");
+            self.logger.info("AI预测结果: \033[1m%s\033[0m, 置信度: \033[1m%.4f\033[0m", 
                            "相对低点" if prediction else "非相对低点", confidence)
-            
+            self.logger.info("----------------------------------------------------");
             return result
             
         except Exception as e:
@@ -603,8 +583,6 @@ class AIOptimizer:
             )
             
         return mutated
-
-
 
     def _calculate_sample_weights(self, dates: pd.Series) -> np.ndarray:
         """

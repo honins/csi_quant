@@ -33,7 +33,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
     logger = logging.getLogger("RollingBacktest")
 
     try:
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
         config = load_config(config_path=config_path)
         
         # 初始化模块
@@ -47,7 +47,16 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         results = []
         current_date = start_date
 
+        # 预先获取所有可用交易日
+        all_data = data_module.get_history_data(start_date=start_date, end_date=end_date)
+        all_data = data_module.preprocess_data(all_data)
+        available_dates = set(pd.to_datetime(all_data['date']).dt.date)
+
         while current_date <= end_date:
+            # 新增：判断该日期是否在交易数据源中
+            if current_date.date() not in available_dates:
+                current_date += timedelta(days=1)
+                continue
             if not is_trading_day(current_date.date()):
                 current_date += timedelta(days=1)
                 continue
@@ -64,14 +73,21 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 logger=logger
             )
 
-            if result is not None:
+            if result is not None and result.get('date') is not None:
                 results.append(result)
 
             current_date += timedelta(days=1) # 移动到下一个日期
 
         # 统计和可视化结果
         results_df = pd.DataFrame(results)
+        if 'date' not in results_df.columns:
+            logger.error(f"结果DataFrame缺少date列，实际列: {results_df.columns.tolist()}")
+            raise ValueError("结果DataFrame缺少date列")
+        # 确保date为datetime类型
+        results_df['date'] = pd.to_datetime(results_df['date'])
         results_df.set_index('date', inplace=True)
+        # 确保prediction_correct为bool类型
+        results_df['prediction_correct'] = results_df['prediction_correct'].fillna(False).astype(bool)
 
         # 过滤掉无法验证的行
         results_df_validated = results_df.dropna(subset=['prediction_correct'])
@@ -95,8 +111,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             correct_dates = results_df_validated[results_df_validated['prediction_correct']].index
             incorrect_dates = results_df_validated[~results_df_validated['prediction_correct']].index
             
-            plt.plot(correct_dates, results_df.reindex(correct_dates)['predicted_low_point'], 'go', markersize=8, label='Correct Prediction')
-            plt.plot(incorrect_dates, results_df.reindex(incorrect_dates)['predicted_low_point'], 'ro', markersize=8, label='Incorrect Prediction')
+            plt.plot(correct_dates, results_df.loc[correct_dates, 'predicted_low_point'], 'go', markersize=8, label='Correct Prediction')
+            plt.plot(incorrect_dates, results_df.loc[incorrect_dates, 'predicted_low_point'], 'ro', markersize=8, label='Incorrect Prediction')
 
             plt.title('AI Prediction Model Rolling Backtest Results')
             plt.xlabel('Date')
@@ -108,14 +124,19 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.tight_layout()
             
             # Add summary text below the chart
-            plt.figtext(0.5, 0.01, f"Total validated predictions: {total_predictions}\nCorrect predictions: {correct_predictions}\nSuccess rate: {success_rate:.2f}%", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+            last_data_date = results_df.index.max().strftime('%Y-%m-%d')
+            plt.figtext(0.5, 0.01, f"Total validated predictions: {total_predictions}\nCorrect predictions: {correct_predictions}\nSuccess rate: {success_rate:.2f}%\n(Data available up to: {last_data_date})", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
             
             # Set date format
             plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
             plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=1))
             plt.gcf().autofmt_xdate() # Auto rotate date labels
 
-            chart_path = os.path.join(os.path.dirname(__file__), 'results', f'rolling_backtest_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            # 确保results目录存在
+            results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
+            if not os.path.exists(results_dir):
+                os.makedirs(results_dir)
+            chart_path = os.path.join(results_dir, f'rolling_backtest_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path)
             logger.info(f"Rolling backtest result chart saved to: {chart_path}")
 
@@ -132,15 +153,28 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     close_value = row['close']
                 else:
                     close_value = 'N/A'
+                # 判断是否验证数据不足
+                if pd.isna(row['actual_low_point']):
+                    actual = 'Insufficient Data'
+                    confidence = 'Insufficient Data'
+                    max_rise = 'Insufficient Data'
+                    days_to_rise = 'Insufficient Data'
+                    prediction_correct = 'Insufficient Data'
+                else:
+                    actual = 'Yes' if row['actual_low_point'] else 'No'
+                    confidence = f"{row['confidence']:.2f}"
+                    max_rise = f"{row['future_max_rise']:.2%}" if pd.notna(row['future_max_rise']) else 'N/A'
+                    days_to_rise = f"{row['days_to_rise']}" if pd.notna(row['days_to_rise']) else 'N/A'
+                    prediction_correct = 'Yes' if row['prediction_correct'] else 'No'
                 table_data.append([
                     date.strftime('%Y-%m-%d'),
                     f"{close_value:.2f}" if close_value != 'N/A' and close_value is not None else 'N/A',
                     'Yes' if row['predicted_low_point'] else 'No',
-                    'Yes' if row['actual_low_point'] else 'No',
-                    f"{row['confidence']:.2f}",
-                    f"{row['future_max_rise']:.2%}" if pd.notna(row['future_max_rise']) else 'N/A',
-                    f"{row['days_to_rise']}" if pd.notna(row['days_to_rise']) else 'N/A',
-                    'Yes' if row['prediction_correct'] else 'No'
+                    actual,
+                    confidence,
+                    max_rise,
+                    days_to_rise,
+                    prediction_correct
                 ])
             table = plt.table(cellText=table_data, colLabels=['Date', 'Close', 'Predicted', 'Actual', 'Confidence', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
@@ -151,11 +185,15 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 cell = table.get_celld()[(i+1, 7)]
                 if row[-1] == 'Yes':
                     cell.set_facecolor('#b6fcb6')  # Green
-                else:
+                elif row[-1] == 'No':
                     cell.set_facecolor('#ffb6b6')  # Red
+                else:
+                    cell.set_facecolor('white')  # 数据不足为白色
             plt.title('Prediction Details', fontsize=12)
             plt.tight_layout()
-            chart_path2 = os.path.join(os.path.dirname(__file__), 'results', f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            # 在表格下方加数据截止日期
+            plt.figtext(0.5, 0.01, f"Data available up to: {last_data_date}", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+            chart_path2 = os.path.join(results_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
             logger.info(f"Prediction details chart saved to: {chart_path2}")
         else:

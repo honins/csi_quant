@@ -55,25 +55,47 @@ def predict_and_validate(
         
         if training_data.empty:
             logger.error("训练数据为空，无法进行预测。")
-            return None
+            return {
+                'date': predict_date,
+                'predicted_low_point': None,
+                'actual_low_point': None,
+                'confidence': None,
+                'future_max_rise': None,
+                'days_to_rise': None,
+                'prediction_correct': None
+            }
 
         # 预处理数据
         training_data = data_module.preprocess_data(training_data)
 
         # 2. 训练AI模型
         logger.info("开始训练AI模型...")
-        train_result = ai_optimizer.train_prediction_model(training_data, strategy_module)
+        train_result = ai_optimizer.train_model(training_data, strategy_module)
+        validate_result = ai_optimizer.validate_model(training_data, strategy_module)
+        print('训练结果:', train_result)
+        print('验证结果:', validate_result)
         
-        if not train_result["success"]:
+        if not train_result.get("success"):
             logger.error(f"AI模型训练失败: {train_result.get('error', '未知错误')}")
-            return None
-        logger.info("AI模型训练成功，测试集准确率: %.2f%%", train_result["accuracy"] * 100)
+            return {
+                'date': predict_date,
+                'predicted_low_point': None,
+                'actual_low_point': None,
+                'confidence': None,
+                'future_max_rise': None,
+                'days_to_rise': None,
+                'prediction_correct': None
+            }
+        if not validate_result.get("success"):
+            logger.error(f"AI模型验证失败: {validate_result.get('error', '未知错误')}")
+        # 训练成功后再输出验证集准确率
+        logger.info("AI模型训练成功，验证集准确率: %.2f%%", (validate_result.get("accuracy") or 0) * 100)
 
         # 3. 预测输入日期是否为相对低点
         predict_day_data = training_data.iloc[-1:].copy()
         prediction_result = ai_optimizer.predict_low_point(predict_day_data)
-        is_predicted_low_point = prediction_result["is_low_point"]
-        confidence = prediction_result["confidence"]
+        is_predicted_low_point = prediction_result.get("is_low_point")
+        confidence = prediction_result.get("confidence")
 
         logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，置信度: {confidence:.2f}")
 
@@ -157,4 +179,12 @@ def predict_and_validate(
 
     except Exception as e:
         logger.error(f"预测和验证过程发生错误: {e}")
-        return None 
+        return {
+            'date': predict_date if 'predict_date' in locals() else None,
+            'predicted_low_point': None,
+            'actual_low_point': None,
+            'confidence': None,
+            'future_max_rise': None,
+            'days_to_rise': None,
+            'prediction_correct': None
+        } 

@@ -31,7 +31,7 @@ class DataModule:
         self.frequency = config.get('data', {}).get('frequency', '1d')
         
         # 创建缓存目录
-        self.cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'cache')
+        self.cache_dir = config.get('data', {}).get('cache_dir', os.path.join(os.path.dirname(__file__), '..', '..', 'cache'))
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
             
@@ -63,7 +63,7 @@ class DataModule:
         try:
             # 读取CSV文件
             # 假设日期列名为 'date'，并且需要解析为datetime对象
-            df = pd.read_csv(full_data_path, parse_dates=['date'], infer_datetime_format=True)
+            df = pd.read_csv(full_data_path, parse_dates=['date'])
             
             # 确保日期列是datetime类型
             if not pd.api.types.is_datetime64_any_dtype(df['date']):

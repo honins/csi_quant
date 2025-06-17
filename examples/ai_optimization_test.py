@@ -101,21 +101,23 @@ def main():
         print("\n🤖 AI模型训练测试...")
         timer.start()
         
-        training_result = ai_optimizer.train_prediction_model(processed_data, strategy_module)
+        training_result = ai_optimizer.train_model(processed_data, strategy_module)
+        validation_result = ai_optimizer.validate_model(processed_data, strategy_module)
+        print('训练结果:', training_result)
+        print('验证结果:', validation_result)
+        if training_result.get('success'):
+            print(f"   - 训练样本数: {training_result.get('train_samples')}")
+            print(f"   - 特征数: {training_result.get('feature_count')}")
+        if validation_result.get('success'):
+            print(f"   - 验证集准确率: {validation_result.get('accuracy'):.4f}")
+            print(f"   - 精确率: {validation_result.get('precision'):.4f}")
+            print(f"   - 召回率: {validation_result.get('recall'):.4f}")
+            print(f"   - F1: {validation_result.get('f1_score'):.4f}")
+            print(f"   - 验证样本数: {validation_result.get('test_samples')}")
+            print(f"   - 验证集正样本数: {validation_result.get('positive_samples_test')}")
         
         timer.stop()
         print(f"✅ AI模型训练完成 (耗时: {timer.elapsed_str()})")
-        
-        if training_result['success']:
-            print(f"   - 准确率: {training_result['accuracy']:.4f}")
-            print(f"   - 精确率: {training_result['precision']:.4f}")
-            print(f"   - 召回率: {training_result['recall']:.4f}")
-            print(f"   - F1得分: {training_result['f1_score']:.4f}")
-            print(f"   - 特征数量: {training_result['feature_count']}")
-            print(f"   - 训练样本: {training_result['train_samples']}")
-            print(f"   - 测试样本: {training_result['test_samples']}")
-        else:
-            print(f"   - 训练失败: {training_result.get('error', '未知错误')}")
         
         # 5. AI预测测试
         if training_result['success']:
