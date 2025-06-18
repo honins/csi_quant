@@ -1,32 +1,30 @@
 # 中证1000指数相对低点识别量化系统
 
-一个基于掘金量化平台的量化交易程序，旨在识别中证1000指数的相对低点，并在当天或第二天向用户发出提示。
+一个基于Python的量化交易系统，旨在识别中证1000指数的相对低点，支持AI优化、LLM驱动策略、可视化回测和多种通知方式。
 
 ## 功能特点
 
-- 🎯 **相对低点识别**：基于定义和技术指标识别相对低点
-- 🤖 **AI自优化**：支持多种AI优化方法提高识别准确率，引入时间序列数据有效性加权，并优化训练集/测试集划分
-- 🧠 **LLM驱动策略优化**：新增LLM驱动的策略参数自动调整和优化功能
-- 📊 **全面回测**：支持多种回测方式验证策略效果，并提供测试集评估以缓解过拟合
-- 📧 **实时通知**：在识别到相对低点时及时通知用户
+- 🎯 **相对低点识别**：基于技术指标和自定义规则识别相对低点
+- 🤖 **AI自优化**：支持机器学习、遗传算法等多种AI优化方法
+- 🧠 **LLM驱动策略优化**：自动调整策略参数，提升策略表现
+- 📊 **全面回测与可视化**：支持滚动回测、单日预测、结果表格美化和多种图表输出
+- 📧 **实时通知**：支持控制台和邮件通知
 - 🔧 **模块化设计**：便于扩展和维护
 
 ## 环境要求
 
 - Python 3.8+
-- 虚拟环境（推荐使用）
+- 推荐使用虚拟环境
 
 ## 快速开始
 
 ### 1. 创建并激活虚拟环境
 
 ```bash
+python -m venv venv
 # Windows
-python -m venv venv
 .\venv\Scripts\activate
-
 # Linux/Mac
-python -m venv venv
 source venv/bin/activate
 ```
 
@@ -38,37 +36,34 @@ pip install -r requirements.txt
 
 ### 3. 配置系统
 
-编辑 `config/config.yaml` 文件，设置您的参数，包括：
-- AI优化参数
-- 数据有效性配置
-- 回测参数
-- 通知设置
+编辑 `config/config.yaml`，设置AI、策略、回测、通知等参数。
 
-### 4. 运行示例
+### 4. 典型用法
 
-- **运行基本回测**
-
+- **基础回测**
   ```bash
   python run.py basic
   ```
-
-- **运行AI优化回测**
-
+- **AI优化回测**
   ```bash
-  python run.py ai_optimization
+  python run.py ai
   ```
-
+- **滚动回测（含表格美化）**
+  ```bash
+  python examples/run_rolling_backtest.py 2023-01-01 2023-06-30
+  # 结果表格Prediction Details自动高亮Yes/No
+  ```
 - **单日低点预测**
-
   ```bash
-  python predict_single_day.py <YYYY-MM-DD>
-  # 示例：python predict_single_day.py 2024-06-01
+  python predict_single_day.py 2024-06-01
   ```
-
 - **LLM驱动策略优化**
-
   ```bash
   python llm_strategy_optimizer.py
+  ```
+- **运行所有测试**
+  ```bash
+  python run.py all
   ```
 
 ## 项目结构
@@ -76,59 +71,55 @@ pip install -r requirements.txt
 ```
 csi1000_quant/
 ├── src/                    # 源代码
-│   ├── data/              # 数据获取模块
-│   ├── strategy/          # 策略执行模块
-│   ├── ai/                # AI优化模块
-│   ├── notification/      # 通知模块
-│   └── utils/             # 工具模块
-├── tests/                 # 测试代码
+│   ├── data/              # 数据获取与处理
+│   ├── strategy/          # 策略与回测
+│   ├── ai/                # AI优化
+│   ├── notification/      # 通知
+│   └── utils/             # 工具
+├── examples/              # 典型用法脚本
 ├── config/                # 配置文件
-├── docs/                  # 文档
-├── examples/              # 示例代码
-├── data/                  # 数据存储目录
-├── logs/                  # 日志文件
-├── models/                # 模型存储目录
-├── requirements.txt       # 依赖列表
-├── predict_single_day.py  # 单日预测脚本
-├── llm_strategy_optimizer.py # LLM驱动策略优化脚本
-└── README.md             # 项目说明
+├── data/                  # 历史数据
+├── results/               # 回测与预测结果
+├── logs/                  # 日志
+├── models/                # AI模型
+├── requirements.txt       # 依赖
+├── run.py                 # 快速入口
+├── predict_single_day.py  # 单日预测
+├── llm_strategy_optimizer.py # LLM策略优化
+└── README.md              # 项目说明
 ```
 
-## 相对低点定义
+## 配置说明
 
-从当天起到20个交易日内，直至某一天指数能够上涨5%，则当天被认为是该指数的相对低点。
+主要配置文件：`config/config.yaml`
+- 策略参数：`strategy.rise_threshold`（涨幅阈值）、`strategy.max_days`（最大交易日数）
+- AI参数：`ai.model_type`、`ai.enable`
+- 通知参数：`notification.methods`、`notification.email`
+- 回测参数：`backtest.default_start_date`、`backtest.default_end_date`
 
-## 主要依赖
+## 结果解读
 
-- **基础数据处理**：numpy, pandas, scipy
-- **数据可视化**：matplotlib, seaborn
-- **机器学习**：scikit-learn, xgboost, lightgbm
-- **配置管理**：PyYAML
-- **网络请求**：requests
-- **开发工具**：pytest, black, flake8
+- **Prediction Details表格**：所有"Yes"单元格为淡绿，"No"为淡红，直观展示预测正确性
+- **回测图表**：自动保存到results目录，含预测点、实际点、成功率等
+- **日志**：详细记录每一步执行与异常，便于排查
 
-## 使用说明
+## 常见问题
 
-详细使用说明请参考：
-- `docs/` 目录下的文档
-- `QUICKSTART.md` 快速入门指南
-- `examples/` 目录下的示例代码
-
-## 开发指南
-
-1. 克隆仓库
-2. 创建并激活虚拟环境
-3. 安装开发依赖
-4. 运行测试确保环境正常
-5. 开始开发
+- **Q: 如何只训练一次模型？**
+  A: 默认每个预测日都重新训练，保证回测严谨。若需只训练一次，可在examples/run_rolling_backtest.py中调整训练逻辑。
+- **Q: 如何自定义表格配色？**
+  A: 修改run_rolling_backtest.py中table.get_celld()的set_facecolor部分。
+- **Q: 如何集成真实数据？**
+  A: 修改src/data/data_module.py的数据获取逻辑。
+- **Q: 如何配置邮件通知？**
+  A: 配置config/config.yaml的notification.email，并在notification_module.py中启用邮件功能。
 
 ## 贡献指南
 
 1. Fork 项目
 2. 创建特性分支
 3. 提交更改
-4. 推送到分支
-5. 创建 Pull Request
+4. 创建 Pull Request
 
 ## 许可证
 
@@ -136,6 +127,6 @@ MIT License
 
 ## 更新日志
 
-详细更新历史请参考 `CHANGELOG.md`。
+详见 `CHANGELOG.md`。
 
 
