@@ -152,7 +152,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 return str(val)
 
             for date, row in results_df.iterrows():
-                close_value = safe_str(row['close'])
+                predict_price = safe_str(row['predict_price'])
                 predicted = "Yes" if row['predicted_low_point'] else "No"
                 actual = "Yes" if row['actual_low_point'] else "No"
                 confidence = safe_str(row['confidence'])
@@ -168,7 +168,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     prediction_correct = 'Insufficient Data'
                 table_data.append([
                     date.strftime('%Y-%m-%d'),
-                    close_value,
+                    predict_price,
                     predicted,
                     actual,
                     confidence,
@@ -176,20 +176,33 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     days_to_rise,
                     prediction_correct
                 ])
-            table = plt.table(cellText=table_data, colLabels=['Date', 'Close', 'Predicted', 'Actual', 'Confidence', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
+            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Actual', 'Confidence', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
             table.set_fontsize(10)
             table.scale(1.2, 1.5)
             # Set cell color
             for i, row in enumerate(table_data):
-                cell = table.get_celld()[(i+1, 7)]
-                val = str(row[-1]).strip().lower()
-                if val == 'yes':
-                    cell.set_facecolor('#b6fcb6')  # Green
-                elif val == 'no':
-                    cell.set_facecolor('#ffb6b6')  # Red
-                else:
-                    cell.set_facecolor('white')  # 其它情况为白色
+                    # Predict Price
+                table.get_celld()[(i+1, 1)].set_facecolor('#e3f2fd')
+                # Predicted
+                table.get_celld()[(i+1, 2)].set_facecolor('#fff9c4')
+                # Actual
+                table.get_celld()[(i+1, 3)].set_facecolor('#ffe0b2')
+                # Confidence
+                table.get_celld()[(i+1, 4)].set_facecolor('#ede7f6')
+                # Max Future Rise
+                table.get_celld()[(i+1, 5)].set_facecolor('#e8f5e9')
+                # Days to Target Rise
+                table.get_celld()[(i+1, 6)].set_facecolor('#f5f5f5')
+
+                for j, cell_val in enumerate(row):
+                    cell = table.get_celld()[(i+1, j)]
+                    val = str(cell_val).strip().lower()
+                    if val == 'yes':
+                        cell.set_facecolor('#e8f5e9')  # 淡绿
+                    elif val == 'no':
+                        cell.set_facecolor('#ffebee')  # 淡红
+
             plt.title('Prediction Details', fontsize=12)
             plt.tight_layout()
             # 在表格下方加数据截止日期
