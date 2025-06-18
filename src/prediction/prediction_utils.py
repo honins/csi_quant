@@ -9,6 +9,19 @@
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class PredictionResult:
+    date: datetime
+    predicted_low_point: Optional[bool]
+    actual_low_point: Optional[bool]
+    confidence: Optional[float]
+    future_max_rise: Optional[float]
+    days_to_rise: Optional[int]
+    prediction_correct: Optional[bool]
+    predict_price: Optional[float]
 
 def setup_logging(log_level=logging.INFO):
     """设置日志配置"""
@@ -27,7 +40,7 @@ def predict_and_validate(
     ai_optimizer,
     config,
     logger
-):
+) -> PredictionResult:
     """
     预测指定日期是否为相对低点并验证结果
     
@@ -40,7 +53,7 @@ def predict_and_validate(
         logger: 日志记录器
     
     Returns:
-        dict: 包含预测和验证结果的字典
+        PredictionResult: 包含预测和验证结果的对象
     """
     try:
         # 1. 获取训练数据
@@ -55,15 +68,16 @@ def predict_and_validate(
         
         if training_data.empty:
             logger.error("训练数据为空，无法进行预测。")
-            return {
-                'date': predict_date,
-                'predicted_low_point': None,
-                'actual_low_point': None,
-                'confidence': None,
-                'future_max_rise': None,
-                'days_to_rise': None,
-                'prediction_correct': None
-            }
+            return PredictionResult(
+                date=predict_date,
+                predicted_low_point=None,
+                actual_low_point=None,
+                confidence=None,
+                future_max_rise=None,
+                days_to_rise=None,
+                prediction_correct=None,
+                predict_price=None
+            )
 
         # 预处理数据
         training_data = data_module.preprocess_data(training_data)
@@ -77,15 +91,16 @@ def predict_and_validate(
         
         if not train_result.get("success"):
             logger.error(f"AI模型训练失败: {train_result.get('error', '未知错误')}")
-            return {
-                'date': predict_date,
-                'predicted_low_point': None,
-                'actual_low_point': None,
-                'confidence': None,
-                'future_max_rise': None,
-                'days_to_rise': None,
-                'prediction_correct': None
-            }
+            return PredictionResult(
+                date=predict_date,
+                predicted_low_point=None,
+                actual_low_point=None,
+                confidence=None,
+                future_max_rise=None,
+                days_to_rise=None,
+                prediction_correct=None,
+                predict_price=None
+            )
         if not validate_result.get("success"):
             logger.error(f"AI模型验证失败: {validate_result.get('error', '未知错误')}")
         # 训练成功后再输出验证集准确率
@@ -110,15 +125,16 @@ def predict_and_validate(
 
         if validation_data.empty:
             logger.warning("验证数据为空，无法验证预测结果。")
-            return {
-                'date': predict_date,
-                'predicted_low_point': is_predicted_low_point,
-                'actual_low_point': None,
-                'confidence': confidence,
-                'future_max_rise': None,
-                'days_to_rise': None,
-                'prediction_correct': None
-            }
+            return PredictionResult(
+                date=predict_date,
+                predicted_low_point=is_predicted_low_point,
+                actual_low_point=None,
+                confidence=confidence,
+                future_max_rise=None,
+                days_to_rise=None,
+                prediction_correct=None,
+                predict_price=None
+            )
 
         # 预处理验证数据
         full_validation_set = data_module.preprocess_data(validation_data)
@@ -126,38 +142,43 @@ def predict_and_validate(
         
         if predict_date_data.empty:
             logger.warning(f"无法在验证数据中找到 {predict_date.strftime('%Y-%m-%d')} 的记录，无法验证预测结果。")
-            return {
-                'date': predict_date,
-                'predicted_low_point': is_predicted_low_point,
-                'actual_low_point': None,
-                'confidence': confidence,
-                'future_max_rise': None,
-                'days_to_rise': None,
-                'prediction_correct': None
-            }
+            return PredictionResult(
+                date=predict_date,
+                predicted_low_point=is_predicted_low_point,
+                actual_low_point=None,
+                confidence=confidence,
+                future_max_rise=None,
+                days_to_rise=None,
+                prediction_correct=None,
+                predict_price=None
+            )
 
         predict_price = predict_date_data.iloc[0]['close']
         future_data = full_validation_set[full_validation_set['date'] > predict_date]
         
         if future_data.empty:
             logger.warning(f"无法获取 {predict_date.strftime('%Y-%m-%d')} 之后的数据，无法验证预测结果。")
-            return {
-                'date': predict_date,
-                'predicted_low_point': is_predicted_low_point,
-                'actual_low_point': None,
-                'confidence': confidence,
-                'future_max_rise': None,
-                'days_to_rise': None,
-                'prediction_correct': None
-            }
+            return PredictionResult(
+                date=predict_date,
+                predicted_low_point=is_predicted_low_point,
+                actual_low_point=None,
+                confidence=confidence,
+                future_max_rise=None,
+                days_to_rise=None,
+                prediction_correct=None,
+                predict_price=predict_price
+            )
 
+        # 获取预测日的index
+        predict_index = predict_date_data.iloc[0]['index']
         max_rise = 0.0
         days_to_rise = 0
+        # 计算未来最大涨幅和达到目标涨幅所需天数
         for i, row in future_data.iterrows():
             rise_rate = (row['close'] - predict_price) / predict_price
             if rise_rate > max_rise:
                 max_rise = rise_rate
-                days_to_rise = (row['date'] - predict_date).days
+                days_to_rise = row['index'] - predict_index  # 用index相减，代表交易日天数
 
         actual_is_low_point = max_rise >= config["strategy"]["rise_threshold"]
 
@@ -167,24 +188,26 @@ def predict_and_validate(
         logger.info(f"未来最大涨幅: {max_rise:.2%}")
         logger.info(f"达到目标涨幅所需天数: {days_to_rise} 天")
 
-        return {
-            'date': predict_date,
-            'predicted_low_point': is_predicted_low_point,
-            'actual_low_point': actual_is_low_point,
-            'confidence': confidence,
-            'future_max_rise': max_rise,
-            'days_to_rise': days_to_rise,
-            'prediction_correct': is_predicted_low_point == actual_is_low_point
-        }
+        return PredictionResult(
+            date=predict_date,
+            predicted_low_point=is_predicted_low_point,
+            actual_low_point=actual_is_low_point,
+            confidence=confidence,
+            future_max_rise=max_rise,
+            days_to_rise=days_to_rise,
+            prediction_correct=is_predicted_low_point == actual_is_low_point,
+            predict_price=predict_price
+        )
 
     except Exception as e:
         logger.error(f"预测和验证过程发生错误: {e}")
-        return {
-            'date': predict_date if 'predict_date' in locals() else None,
-            'predicted_low_point': None,
-            'actual_low_point': None,
-            'confidence': None,
-            'future_max_rise': None,
-            'days_to_rise': None,
-            'prediction_correct': None
-        } 
+        return PredictionResult(
+            date=predict_date if 'predict_date' in locals() else None,
+            predicted_low_point=None,
+            actual_low_point=None,
+            confidence=None,
+            future_max_rise=None,
+            days_to_rise=None,
+            prediction_correct=None,
+            predict_price=None
+        ) 

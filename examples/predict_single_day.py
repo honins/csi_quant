@@ -54,8 +54,8 @@ def predict_single_day(predict_date_str: str):
             logger.error("预测和验证过程失败")
             return False
 
-        if result['prediction_correct'] is not None:
-            if result['prediction_correct']:
+        if result.prediction_correct is not None:
+            if result.prediction_correct:
                 logger.info("预测与实际相符！")
             else:
                 logger.warning("预测与实际不符！")

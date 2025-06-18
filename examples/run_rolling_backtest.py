@@ -73,13 +73,13 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 logger=logger
             )
 
-            if result is not None and result.get('date') is not None:
+            if result is not None and getattr(result, 'date', None) is not None:
                 results.append(result)
 
             current_date += timedelta(days=1) # 移动到下一个日期
 
         # 统计和可视化结果
-        results_df = pd.DataFrame(results)
+        results_df = pd.DataFrame([vars(r) for r in results])
         if 'date' not in results_df.columns:
             logger.error(f"结果DataFrame缺少date列，实际列: {results_df.columns.tolist()}")
             raise ValueError("结果DataFrame缺少date列")
@@ -144,15 +144,21 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.figure(figsize=(15, 10))
             plt.axis('off')
             table_data = []
+            def safe_str(val, float_fmt="{:.2f}"):
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    return "N/A"
+                if isinstance(val, float):
+                    return float_fmt.format(val)
+                return str(val)
+
             for date, row in results_df.iterrows():
-                # 获取当日收盘价
-                close_value = None
-                if 'close' in results_df.columns:
-                    close_value = row['close']
-                elif 'close' in row:
-                    close_value = row['close']
-                else:
-                    close_value = 'N/A'
+                close_value = safe_str(row['close'])
+                predicted = "Yes" if row['predicted_low_point'] else "No"
+                actual = "Yes" if row['actual_low_point'] else "No"
+                confidence = safe_str(row['confidence'])
+                max_rise = safe_str(row['future_max_rise'], "{:.2%}")
+                days_to_rise = safe_str(row['days_to_rise'], "{:.0f}")
+                prediction_correct = "Yes" if row['prediction_correct'] else "No"
                 # 判断是否验证数据不足
                 if pd.isna(row['actual_low_point']):
                     actual = 'Insufficient Data'
@@ -160,16 +166,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     max_rise = 'Insufficient Data'
                     days_to_rise = 'Insufficient Data'
                     prediction_correct = 'Insufficient Data'
-                else:
-                    actual = 'Yes' if row['actual_low_point'] else 'No'
-                    confidence = f"{row['confidence']:.2f}"
-                    max_rise = f"{row['future_max_rise']:.2%}" if pd.notna(row['future_max_rise']) else 'N/A'
-                    days_to_rise = f"{row['days_to_rise']}" if pd.notna(row['days_to_rise']) else 'N/A'
-                    prediction_correct = 'Yes' if row['prediction_correct'] else 'No'
                 table_data.append([
                     date.strftime('%Y-%m-%d'),
-                    f"{close_value:.2f}" if close_value != 'N/A' and close_value is not None else 'N/A',
-                    'Yes' if row['predicted_low_point'] else 'No',
+                    close_value,
+                    predicted,
                     actual,
                     confidence,
                     max_rise,
@@ -178,21 +178,22 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 ])
             table = plt.table(cellText=table_data, colLabels=['Date', 'Close', 'Predicted', 'Actual', 'Confidence', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
-            table.set_fontsize(9)
+            table.set_fontsize(10)
             table.scale(1.2, 1.5)
             # Set cell color
             for i, row in enumerate(table_data):
                 cell = table.get_celld()[(i+1, 7)]
-                if row[-1] == 'Yes':
+                val = str(row[-1]).strip().lower()
+                if val == 'yes':
                     cell.set_facecolor('#b6fcb6')  # Green
-                elif row[-1] == 'No':
+                elif val == 'no':
                     cell.set_facecolor('#ffb6b6')  # Red
                 else:
-                    cell.set_facecolor('white')  # 数据不足为白色
+                    cell.set_facecolor('white')  # 其它情况为白色
             plt.title('Prediction Details', fontsize=12)
             plt.tight_layout()
             # 在表格下方加数据截止日期
-            plt.figtext(0.5, 0.01, f"Data available up to: {last_data_date}", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
+            plt.figtext(0.5, 0.01, f"Data available up to: {last_data_date}", ha='center', fontsize=14, bbox=dict(facecolor='white', alpha=0.8))
             chart_path2 = os.path.join(results_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
             logger.info(f"Prediction details chart saved to: {chart_path2}")
