@@ -177,38 +177,42 @@ class StrategyModule:
             backtest_data['future_max_rise'] = 0.0
             backtest_data['days_to_rise'] = 0
             backtest_data['max_rise_date'] = None
-            
-            # 遍历每个交易日（除了最后max_days天）
+
+            # index为交易日序号，date为实际交易日，未出现的日期视为非交易日
+            # 只遍历到倒数max_days个交易日，保证未来最多只看max_days个交易日
             for i in range(len(backtest_data) - self.max_days):
                 current_price = backtest_data.iloc[i]['close']
                 current_date = backtest_data.iloc[i]['date']
-                
-                # 计算未来max_days天内的最大涨幅和天数
+                # 当前index可用：backtest_data.iloc[i]['index']
+
                 max_rise = 0.0
                 days_to_rise = 0
                 max_rise_date = None
-                
-                for j in range(1, min(self.max_days + 1, len(backtest_data) - i)):
+
+                # 只统计未来max_days个交易日（严格以index为步进，date为实际交易日）
+                for j in range(1, self.max_days + 1):
+                    if i + j >= len(backtest_data):
+                        break  # 超出数据范围
                     future_price = backtest_data.iloc[i + j]['close']
                     future_date = backtest_data.iloc[i + j]['date']
                     rise_rate = (future_price - current_price) / current_price
-                    
+
                     if rise_rate > max_rise:
                         max_rise = rise_rate
                         max_rise_date = future_date
-                        
+
                     if rise_rate >= self.rise_threshold and days_to_rise == 0:
-                        days_to_rise = j
-                        
+                        days_to_rise = j  # j即为x个交易日后
+
                 # 更新数据
                 backtest_data.loc[i, 'future_max_rise'] = max_rise
                 backtest_data.loc[i, 'days_to_rise'] = days_to_rise
                 backtest_data.loc[i, 'max_rise_date'] = max_rise_date
-                
+
                 # 判断是否为相对低点
                 if days_to_rise > 0:
                     backtest_data.loc[i, 'is_low_point'] = True
-                    
+                
             self.logger.info("回测完成")
             return backtest_data
             

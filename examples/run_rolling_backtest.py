@@ -196,11 +196,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             chart_path2 = os.path.join(results_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
             logger.info(f"Prediction details chart saved to: {chart_path2}")
+            return True
         else:
             logger.warning("没有可验证的预测结果来生成统计图。")
+            return False
 
     except Exception as e:
         logger.error(f"滚动回测脚本运行失败: {e}")
+        return False
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

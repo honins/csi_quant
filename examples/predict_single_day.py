@@ -37,7 +37,7 @@ def predict_single_day(predict_date_str: str):
         predict_date = datetime.strptime(predict_date_str, "%Y-%m-%d")
         if not is_trading_day(predict_date.date()):
             logger.warning(f"{predict_date_str} 不是A股交易日，跳过预测。")
-            return
+            return False
         logger.info(f"开始预测日期: {predict_date.strftime('%Y-%m-%d')} 是否为相对低点")
 
         # 使用公共模块进行预测和验证
@@ -52,16 +52,17 @@ def predict_single_day(predict_date_str: str):
 
         if result is None:
             logger.error("预测和验证过程失败")
-            return
+            return False
 
         if result['prediction_correct'] is not None:
             if result['prediction_correct']:
                 logger.info("预测与实际相符！")
             else:
                 logger.warning("预测与实际不符！")
-
+        return True
     except Exception as e:
         logger.error(f"单日预测脚本运行失败: {e}")
+        return False
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

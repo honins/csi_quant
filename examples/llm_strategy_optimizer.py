@@ -64,62 +64,62 @@ class LLMStrategyOptimizer:
 
     def optimize_strategy(self, num_iterations: int = 10):
         self.logger.info(f"开始LLM驱动的策略优化，迭代次数: {num_iterations}")
-        
-        # 获取所有历史数据用于优化
-        end_date = datetime.now().strftime("%Y-%m-%d")
-        start_date = (datetime.now() - timedelta(days=365 * 5)).strftime("%Y-%m-%d") # 过去5年数据
-        
-        self.logger.info(f"获取历史数据从 {start_date} 到 {end_date} 用于策略优化")
-        historical_data = self.data_module.get_history_data(start_date, end_date)
-        historical_data = self.data_module.preprocess_data(historical_data)
-
-        if historical_data.empty:
-            self.logger.error("历史数据为空，无法进行策略优化。")
-            return
-
-        current_params = self.strategy_module.get_params()
-        self.best_params = current_params.copy()
-        self.best_score = -1.0
-        
-        feedback = ""
-
-        for i in range(num_iterations):
-            self.logger.info(f"--- 优化迭代 {i+1}/{num_iterations} ---")
+        try:
+            # 获取所有历史数据用于优化
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=365 * 5)).strftime("%Y-%m-%d") # 过去5年数据
             
-            # LLM生成新参数
-            new_params = self._simulate_llm_suggestion(current_params, feedback)
-            self.strategy_module.update_params(new_params)
-            current_params = new_params.copy()
-            self.logger.info(f"LLM建议参数: {new_params}")
+            self.logger.info(f"获取历史数据从 {start_date} 到 {end_date} 用于策略优化")
+            historical_data = self.data_module.get_history_data(start_date, end_date)
+            historical_data = self.data_module.preprocess_data(historical_data)
 
-            # 运行回测
-            self.logger.info("运行回测...")
-            backtest_results = self.strategy_module.backtest(historical_data)
+            if historical_data.empty:
+                self.logger.error("历史数据为空，无法进行策略优化。")
+                return False
+
+            current_params = self.strategy_module.get_params()
+            self.best_params = current_params.copy()
+            self.best_score = -1.0
             
-            # 评估策略
-            evaluation_results = self.strategy_module.evaluate_strategy(backtest_results)
-            current_score = evaluation_results["score"]
-            self.logger.info(f"当前策略得分: {current_score:.4f}")
+            feedback = ""
 
-            # 更新最佳参数
-            if current_score > self.best_score:
-                self.best_score = current_score
-                self.best_params = current_params.copy()
-                self.logger.info(f"发现新最佳策略，得分: {self.best_score:.4f}, 参数: {self.best_params}")
-                feedback = "表现良好，尝试进一步优化。"
-            else:
-                feedback = "表现不佳，尝试调整方向。"
-            
-            # 可视化回测结果 (可选)
-            # self.strategy_module.visualize_backtest(backtest_results, save_path=f"./results/llm_opt_iter_{i+1}.png")
+            for i in range(num_iterations):
+                self.logger.info(f"--- 优化迭代 {i+1}/{num_iterations} ---")
+                
+                # LLM生成新参数
+                new_params = self._simulate_llm_suggestion(current_params, feedback)
+                self.strategy_module.update_params(new_params)
+                current_params = new_params.copy()
+                self.logger.info(f"LLM建议参数: {new_params}")
 
-        self.logger.info("\n--- 策略优化完成 ---")
-        self.logger.info(f"最佳策略得分: {self.best_score:.4f}")
-        self.logger.info(f"最佳策略参数: {self.best_params}")
+                # 运行回测
+                self.logger.info("运行回测...")
+                backtest_results = self.strategy_module.backtest(historical_data)
+                
+                # 评估策略
+                evaluation_results = self.strategy_module.evaluate_strategy(backtest_results)
+                current_score = evaluation_results["score"]
+                self.logger.info(f"当前策略得分: {current_score:.4f}")
 
-        # 可以选择将最佳参数保存到配置文件
-        # config["strategy"].update(self.best_params)
-        # save_config(config, config_path)
+                # 更新最佳参数
+                if current_score > self.best_score:
+                    self.best_score = current_score
+                    self.best_params = current_params.copy()
+                    self.logger.info(f"发现新最佳策略，得分: {self.best_score:.4f}, 参数: {self.best_params}")
+                    feedback = "表现良好，尝试进一步优化。"
+                else:
+                    feedback = "表现不佳，尝试调整方向。"
+                
+                # 可视化回测结果 (可选)
+                # self.strategy_module.visualize_backtest(backtest_results, save_path=f"./results/llm_opt_iter_{i+1}.png")
+
+            self.logger.info("\n--- 策略优化完成 ---")
+            self.logger.info(f"最佳策略得分: {self.best_score:.4f}")
+            self.logger.info(f"最佳策略参数: {self.best_params}")
+            return True
+        except Exception as e:
+            self.logger.error(f"LLM策略优化过程中发生异常: {e}")
+            return False
 
 if __name__ == "__main__":
     setup_logging()
