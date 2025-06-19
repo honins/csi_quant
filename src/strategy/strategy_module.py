@@ -49,7 +49,7 @@ class StrategyModule:
         返回:
         dict: 识别结果
         """
-        self.logger.info("识别相对低点")
+        # self.logger.info("识别相对低点")
         
         try:
             if len(data) == 0:
@@ -142,8 +142,8 @@ class StrategyModule:
                 }
             }
             
-            self.logger.info("相对低点识别结果: %s, 置信度: %.2f", 
-                           "是" if is_low_point else "否", confidence)
+            # self.logger.info("相对低点识别结果: %s, 置信度: %.2f", 
+            #                    "是" if is_low_point else "否", confidence)
             return result
             
         except Exception as e:
@@ -209,9 +209,10 @@ class StrategyModule:
                 backtest_data.loc[i, 'days_to_rise'] = days_to_rise
                 backtest_data.loc[i, 'max_rise_date'] = max_rise_date
 
-                # 判断是否为相对低点
-                if days_to_rise > 0:
-                    backtest_data.loc[i, 'is_low_point'] = True
+                # 使用策略识别相对低点（基于技术指标，而不是未来结果）
+                current_data = backtest_data.iloc[i:i+1].copy()
+                identification_result = self.identify_relative_low(current_data)
+                backtest_data.loc[i, 'is_low_point'] = identification_result['is_low_point']
                 
             self.logger.info("回测完成")
             return backtest_data

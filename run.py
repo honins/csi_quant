@@ -47,7 +47,8 @@ def run_rolling_backtest(start_date, end_date):
 
 def run_single_day_test(predict_date):
     from examples.predict_single_day import predict_single_day
-    return predict_single_day(predict_date)
+    # 默认使用已训练模型，如果需要重新训练可以添加参数
+    return predict_single_day(predict_date, use_trained_model=True)
 
 def run_strategy_test(iterations):
     from examples.llm_strategy_optimizer import LLMStrategyOptimizer
@@ -60,20 +61,25 @@ def run_strategy_test(iterations):
 
 def main():
     """主函数"""
+    print("="*60)
+    print("中证1000指数相对低点识别系统")
+    print("="*60)
+
     parser = argparse.ArgumentParser(description='中证1000指数相对低点识别系统')
-    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt'], 
-                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, all=全部')
+    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai'], 
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=高级优化, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')
     parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
     parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
     parser.add_argument('-i', '--iter', type=int, default=10, help='迭代次数 (默认: 10)')
     
     args = parser.parse_args()
-    
-    print("="*60)
-    print("中证1000指数相对低点识别系统")
-    print("="*60)
-    
+
+    # 加载配置，确保config在所有分支前定义
+    from utils.utils import load_config
+    config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
+    config = load_config(config_path)
+
     success = True
     
     if args.command == 'b':
@@ -94,6 +100,11 @@ def main():
         success = run_single_day_test(args.start)
     elif args.command == 'opt':
         success = run_strategy_test(args.iter)
+    elif args.command == 'ai':
+        print("🤖 启动AI优化...")
+        from examples.ai_optimization_test import run_ai_optimization
+        success = run_ai_optimization(config)
+        return success
     elif args.command == 'all':
         print("\n1. 运行基础测试...")
         success &= run_basic_test()

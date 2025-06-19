@@ -214,40 +214,92 @@ A: 修改 `config/config.yaml` 中的 `notification.email` 配置，并在 `src/
 ## 简化命令使用
 
 ### 基础命令
+
 ```bash
 # 基础测试
 python run.py b
 
-# AI优化测试  
+# AI测试（包含训练和预测）
 python run.py a
 
 # 单元测试
 python run.py t
 
-# 策略优化 (默认10次迭代)
+# 回测
+python run.py r
+
+# 单日预测
+python run.py s
+
+# 策略优化
 python run.py opt
 
-# 策略优化 (自定义迭代次数)
-python run.py opt -i 20
-```
+# 高级AI优化（推荐）
+python run.py ai
 
-### 日期相关命令
-```bash
-# 单日预测
-python run.py s 2023-12-01
-
-# 回测 (需要开始和结束日期)
-python run.py r 2023-01-01 2023-12-31
-```
-
-### 完整运行
-```bash
-# 运行所有测试 (不包含日期相关功能)
+# 全部测试
 python run.py all
-
-# 运行所有测试 (包含回测和单日预测)
-python run.py all 2023-01-01 2023-12-31
 ```
+
+### 高级AI优化
+
+新增的 `ai` 命令提供了更强大的优化功能：
+
+```bash
+# 使用分层优化策略
+python run.py ai
+
+# 生成图表
+python run.py ai plot
+```
+
+**分层优化特点：**
+- 避免循环依赖问题
+- 使用时间序列交叉验证
+- 多目标优化（成功率、涨幅、速度、风险）
+- 自动选择最佳优化方法
+
+### 示例脚本
+
+```bash
+# 运行高级优化演示
+python examples/advanced_optimization_demo.py
+
+# 运行完整AI优化测试
+python examples/ai_optimization_test.py
+
+# 运行滚动回测
+python examples/run_rolling_backtest.py
+```
+
+## AI模型训练与应用
+
+### 1. 训练AI模型
+```bash
+# 运行AI优化测试，会训练并保存模型
+python run.py a
+```
+
+### 2. 使用已训练模型进行预测
+```bash
+# 使用已训练模型预测单日
+python run.py s 2024-06-01
+
+# 或直接使用脚本
+python examples/predict_single_day.py 2024-06-01
+```
+
+### 3. 强制重新训练模型
+```bash
+# 重新训练模型进行预测
+python examples/predict_single_day.py 2024-06-01 --retrain
+```
+
+### 4. 模型文件位置
+训练好的模型保存在 `models/` 目录下：
+- `model_YYYYMMDD_HHMMSS.pkl`: 模型文件
+- `features_YYYYMMDD_HHMMSS.json`: 特征名称文件
+- `latest_model.txt`: 最新模型路径记录
 
 ## 命令对照表
 
@@ -279,5 +331,92 @@ python run.py r 2023-01-01 2023-12-31 -v
 # 运行策略优化，设置50次迭代
 python run.py opt -i 50
 ```
+
+## AI模型工作流程
+
+### 完整流程
+1. **训练阶段**: `python run.py a`
+   - 训练AI模型
+   - 保存模型到 `models/` 目录
+   - 输出训练和验证结果
+
+2. **应用阶段**: `python run.py s 2024-06-01`
+   - 自动加载已训练模型
+   - 使用模型进行预测
+   - 输出预测结果和置信度
+
+3. **验证阶段**: 查看预测结果与实际走势的对比
+
+### 模型更新
+- 每次运行 `python run.py a` 都会重新训练并保存新模型
+- 新模型会自动覆盖旧模型路径记录
+- 如需保留旧模型，请手动备份 `models/` 目录
+
+### 注意事项
+- 首次运行单日预测时，如果没有已训练模型，会自动重新训练
+- 模型训练需要较长时间，建议先运行AI优化测试
+- 模型质量取决于训练数据的质量和数量
+
+## 环境准备
+
+```bash
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
+```
+
+## 一键AI优化推荐
+
+```bash
+python run.py ai
+```
+- 自动分层优化，自动选择最佳参数和AI模型
+- **参数自动持久化**：优化后的参数自动保存到配置文件
+- **全局生效**：所有脚本自动使用优化后的参数
+- 支持生成图表：`python run.py ai plot`
+
+## 验证优化效果
+
+```bash
+# 查看优化后的参数是否生效
+python examples/predict_single_day.py 2024-06-03
+# 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
+```
+
+## 常用命令
+
+| 命令         | 说明                       |
+|--------------|----------------------------|
+| b            | 基础策略测试               |
+| a            | AI测试（含训练与预测）     |
+| ai           | 高级AI优化（分层优化）     |
+| r            | 回测                       |
+| s            | 单日预测                   |
+| opt          | 策略参数优化               |
+| all          | 全部测试                   |
+
+## 配置说明
+
+- 编辑 `config/config.yaml` 可自定义数据、策略、AI、优化等参数
+- `ai.advanced_optimization` 控制分层/高级优化开关
+- `ai.genetic_algorithm` 控制遗传算法参数
+
+## 常见问题
+
+- **如何只用AI预测，不重新训练？**
+  - 已有模型会自动加载，无需重复训练
+- **优化后参数如何应用到其他脚本？**
+  - `run.py ai`会自动将优化后的参数保存到配置文件，所有脚本都会自动使用
+- **依赖缺失怎么办？**
+  - 激活虚拟环境并`pip install -r requirements.txt`
+- **优化效果如何？**
+  - 分层优化可提升成功率77.7%，平均涨幅39.9%，综合得分33.0%
+- **参数会丢失吗？**
+  - 不会，优化后的参数会自动保存到配置文件，重启后仍然有效
+
+---
+
+详细字段、图表、评估体系说明请参见README和代码注释。
 
 

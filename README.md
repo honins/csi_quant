@@ -17,97 +17,111 @@
 - Python 3.8+
 - 推荐使用虚拟环境
 
-## 快速开始
+## 🏁 快速开始
 
-### 1. 创建并激活虚拟环境
+1. 安装依赖（建议使用虚拟环境）
 
 ```bash
 python -m venv venv
-# Windows
-.\venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-```
-
-### 2. 安装依赖
-
-```bash
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
-### 3. 配置系统
+2. 配置参数
 
-编辑 `config/config.yaml`，设置AI、策略、回测、通知等参数。
+编辑 `config/config.yaml`，可自定义数据、策略、AI、优化等参数。
 
-### 4. 简化命令使用
+3. 运行基础与AI优化
 
-#### 基础命令
 ```bash
-# 基础测试
+# 基础策略测试
 python run.py b
 
-# AI优化测试  
-python run.py a
+# AI优化（推荐，自动分层优化+参数持久化）
+python run.py ai
 
-# 单元测试
-python run.py t
-
-# 策略优化 (默认10次迭代)
-python run.py opt
-
-# 策略优化 (自定义迭代次数)
-python run.py opt -i 20
+# 生成图表
+python run.py ai plot
 ```
 
-#### 日期相关命令
+4. 运行示例脚本
+
 ```bash
-# 单日预测
-python run.py s 2023-12-01
-
-# 回测 (需要开始和结束日期)
-python run.py r 2023-01-01 2023-12-31
+# 高级优化演示
+python examples/advanced_optimization_demo.py
+# 完整AI优化测试
+python examples/ai_optimization_test.py
+# 滚动回测
+python examples/run_rolling_backtest.py
 ```
 
-#### 完整运行
+5. 验证优化效果
+
 ```bash
-# 运行所有测试 (不包含日期相关功能)
-python run.py all
-
-# 运行所有测试 (包含回测和单日预测)
-python run.py all 2023-01-01 2023-12-31
+# 查看优化后的参数
+python examples/predict_single_day.py 2024-06-03
+# 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
 ```
 
-### 5. 命令对照表
+## ⚙️ 主要命令说明
 
-| 简化命令 | 原命令 | 功能 |
-|---------|--------|------|
-| `b` | `basic` | 基础测试 |
-| `a` | `ai` | AI优化测试 |
-| `t` | `test` | 单元测试 |
-| `r` | `rolling` | 回测 |
-| `s` | `single` | 单日预测 |
-| `opt` | `strategy` | 策略优化 |
-| `all` | `all` | 全部运行 |
+| 命令         | 说明                       |
+|--------------|----------------------------|
+| b            | 基础策略测试               |
+| a            | AI测试（含训练与预测）     |
+| ai           | 高级AI优化（分层优化+参数持久化） |
+| r            | 回测                       |
+| s            | 单日预测                   |
+| opt          | 策略参数优化               |
+| all          | 全部测试                   |
 
-### 6. 高级用法
+**ai命令特点**：
+- 🏗️ 自动分层优化
+- 💾 参数自动持久化到配置文件
+- 🌐 全局生效，所有脚本自动使用优化参数
+- 📊 显示优化效果对比
 
-- **滚动回测（含表格美化）**
-  ```bash
-  python run.py r 2023-01-01 2023-06-30
-  # 结果表格Prediction Details自动高亮Yes/No，Confidence字段紧跟在Predicted后面
-  ```
-- **单日低点预测**
-  ```bash
-  python run.py s 2024-06-01
-  ```
-- **LLM驱动策略优化**
-  ```bash
-  python run.py opt -i 50
-  ```
-- **运行所有测试**
-  ```bash
-  python run.py all 2023-01-01 2023-12-31
-  ```
+## 🧠 分层优化与高级AI优化
+
+- 避免循环依赖，先用技术指标识别低点，再用未来涨幅验证
+- 多目标评估（成功率、涨幅、速度、风险）
+- 时间序列交叉验证，防止未来数据泄漏
+- 支持遗传算法、scipy数值优化
+- **参数自动持久化**：优化后的参数自动保存到配置文件，全局生效
+- 配置项详见 `config/config.yaml`，可灵活开关各优化模块
+
+## 📝 配置文件说明
+
+- `data`：数据源、频率、缓存等
+- `strategy`：涨幅阈值、最大天数、技术指标参数
+- `ai`：模型类型、优化参数、遗传算法、分层优化开关
+- `backtest`：回测窗口、步长、起止日期
+- `logging`/`results`/`notification`：日志、结果、通知等
+
+## ❓ 常见问题
+
+- **Q: 如何只用AI预测，不重新训练？**
+  A: 只要模型已保存，`predict_single_day.py`会自动加载，无需重复训练。
+
+- **Q: 优化后参数如何应用到其他脚本？**
+  A: `run.py ai`会自动将优化后的参数保存到配置文件，所有脚本都会自动使用。
+
+- **Q: 如何切换优化方式？**
+  A: 修改`config.yaml`中`ai.advanced_optimization`相关开关。
+
+- **Q: 依赖缺失怎么办？**
+  A: 激活虚拟环境并`pip install -r requirements.txt`。
+
+- **Q: 优化效果如何？**
+  A: 分层优化可提升成功率77.7%，平均涨幅39.9%，综合得分33.0%。
+
+- **Q: 参数会丢失吗？**
+  A: 不会，优化后的参数会自动保存到配置文件，重启后仍然有效。
+
+---
+
+如需详细字段、图表、评估体系说明，请参见下文"生成图片字段说明"及代码注释。
 
 ## 项目结构
 
@@ -269,5 +283,97 @@ MIT License
 ## 更新日志
 
 详见 `CHANGELOG.md`。
+
+## 🚀 高级优化功能
+
+### 分层优化策略
+
+系统实现了分层优化策略，避免循环依赖问题：
+
+1. **第一层：策略参数优化**
+   - 使用基准策略生成固定标签
+   - 基于固定标签优化策略参数
+   - 避免策略优化和AI训练的循环依赖
+
+2. **第二层：AI模型训练**
+   - 基于优化后的策略训练AI模型
+   - 使用样本权重平衡正负样本
+
+3. **第三层：时间序列交叉验证**
+   - 按时间顺序分割数据
+   - 在训练集上优化，在测试集上验证
+   - 避免未来信息泄露
+
+4. **第四层：高级优化**
+   - 使用scipy进行数值优化
+   - 多目标优化考虑成功率、涨幅、速度、风险
+
+### 参数持久化与全局生效
+
+✅ **一次优化，全局生效**：
+- 优化后的参数自动保存到 `config/config.yaml`
+- 所有脚本（如 `predict_single_day.py`）自动使用优化后的参数
+- 无需手动更新每个脚本的参数
+
+✅ **参数持久化示例**：
+```bash
+# 运行AI优化
+python run.py ai
+# 输出：✅ 参数已保存: {'rise_threshold': 0.03, 'max_days': 30}
+
+# 其他脚本自动使用优化后的参数
+python examples/predict_single_day.py 2024-06-03
+# 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
+```
+
+### 评估指标改进
+
+新的评估体系包含多个维度：
+
+- **成功率权重 (40%)**: 是否达到目标涨幅
+- **涨幅权重 (30%)**: 相对于10%的基准的实际涨幅
+- **速度权重 (20%)**: 达到目标涨幅所需天数
+- **风险调整 (10%)**: 避免过度冒险的惩罚机制
+
+### 使用方法
+
+```bash
+# 一键AI优化（推荐）
+python run.py ai
+
+# 运行高级优化演示
+python examples/advanced_optimization_demo.py
+
+# 运行完整AI优化测试
+python examples/ai_optimization_test.py
+```
+
+### 配置选项
+
+在 `config/config.yaml` 中可以配置高级优化选项：
+
+```yaml
+ai:
+  advanced_optimization:
+    enabled: true
+    use_scipy: true
+    use_hierarchical: true
+    use_time_series_cv: true
+  genetic_algorithm:
+    population_size: 20
+    generations: 10
+    mutation_rate: 0.1
+    crossover_rate: 0.8
+```
+
+### 优化效果对比
+
+| 优化方法 | 成功率提升 | 平均涨幅 | 综合得分 |
+|---------|-----------|----------|----------|
+| 基准策略 | 25.75% | 4.11% | 0.4520 |
+| 分层优化 | 45.75% | 5.75% | 0.6014 |
+| 改进幅度 | +77.7% | +39.9% | +33.0% |
+
+## 📊 生成图片字段说明
 
 

@@ -1,114 +1,100 @@
-# 中证1000指数相对低点识别系统配置文件
-
-# 系统配置
-system:
-  # 运行模式: backtest(回测), simulation(模拟), live(实盘)
-  mode: backtest
-  # 日志级别: DEBUG, INFO, WARNING, ERROR
-  log_level: INFO
-  # 日志文件路径（可选，如果不设置则只输出到控制台）
-  log_file: logs/system.log
-
-# 数据配置
-data:
-  # 中证1000指数代码
-  index_code: "SHSE.000852"
-  # 数据频率: 1d(日线), 1h(小时线), 30m(30分钟线)
-  frequency: "1d"
-  # 历史数据天数
-  history_days: 1000
-  # 数据缓存目录
-  cache_dir: "cache"
-  # 历史数据文件路径 (如果从文件加载数据)
-  data_file_path: "data/SHSE.000852_1d.csv"
-
-# 策略配置
-strategy:
-  # 上涨阈值（5%）
-  rise_threshold: 0.05
-  # 最大交易日数
-  max_days: 20
-  # 结果保存目录
-  results_dir: "results"
-
-# AI配置
 ai:
-  # 是否启用AI优化
-  enable: true
-  # 模型类型: machine_learning, deep_learning, reinforcement_learning
-  model_type: "machine_learning"
-  # 训练集/测试集划分比例 (例如 0.8 表示 80%训练集，20%测试集)
-  train_test_split_ratio: 0.8
-  # 数据衰减率 (根据分析报告，约为0.3-0.5)
+  advanced_optimization:
+    enabled: true
+    use_hierarchical: true
+    use_scipy: true
+    use_time_series_cv: true
   data_decay_rate: 0.4
-  # 优化间隔（天）
-  optimization_interval: 30
-  # 模型保存目录
-  models_dir: "models"
-
-# 通知配置
-notification:
-  # 通知方式: email, console, sms
-  methods: ["console", "email"]
-  
-  # 邮件配置
-  email:
-    # 收件人列表
-    recipients: 
-      - "your_email@example.com"
-    # SMTP服务器配置（实际使用时需要配置）
-    smtp_server: "smtp.example.com"
-    smtp_port: 587
-    username: "your_username"
-    password: "your_password"
-    # 发件人
-    sender: "quant_system@example.com"
-    
-  # 通知日志目录
-  logs_dir: "logs"
-
-# 风险控制配置
-risk:
-  # 最小置信度阈值
-  min_confidence: 0.6
-  # 最大单日识别数量
-  max_daily_signals: 3
-  # 冷却期（天）
-  cooldown_days: 5
-
-# 回测配置
-backtest:
-  # 默认回测开始日期
-  default_start_date: "2023-01-01"
-  # 默认回测结束日期
-  default_end_date: "2024-12-31"
-  # 是否生成图表
-  generate_charts: true
-  # 图表保存目录
-  charts_dir: "charts"
-
-# 优化配置
-optimization:
-  # 参数搜索范围
-  param_ranges:
-    rise_threshold:
-      min: 0.03
-      max: 0.08
-      step: 0.005
-    max_days:
-      min: 10
-      max: 30
-      step: 2
-      
-  # 遗传算法配置
+  enable: true
   genetic_algorithm:
-    population_size: 20
+    crossover_rate: 0.8
     generations: 10
     mutation_rate: 0.1
+    population_size: 20
+  model_save_path: models/ai_model.pkl
+  model_type: machine_learning
+  models_dir: models
+  optimization_interval: 30
+  train_test_split_ratio: 0.8
+backtest:
+  charts_dir: charts
+  default_end_date: '2024-12-31'
+  default_start_date: '2023-01-01'
+  end_date: '2025-06-19'
+  generate_charts: true
+  rolling_step: 63
+  rolling_window: 252
+  start_date: '2022-01-01'
+data:
+  cache_dir: cache
+  cache_enabled: true
+  data_file_path: data/SHSE.000852_1d.csv
+  data_source: akshare
+  frequency: 1d
+  history_days: 1000
+  index_code: SHSE.000852
+logging:
+  backup_count: 5
+  file: logs/system.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_bytes: 10485760
+notification:
+  email:
+    password: your_password
+    recipients:
+    - your_email@example.com
+    sender: quant_system@example.com
+    smtp_port: 587
+    smtp_server: smtp.example.com
+    username: your_username
+  logs_dir: logs
+  methods:
+  - console
+  - email
+optimization:
+  genetic_algorithm:
     crossover_rate: 0.8
-    
-  # 网格搜索配置
+    generations: 10
+    mutation_rate: 0.1
+    population_size: 20
   grid_search:
     cv_folds: 5
-    scoring: "f1"
-
+    scoring: f1
+  param_ranges:
+    max_days:
+      max: 30
+      min: 10
+      step: 2
+    rise_threshold:
+      max: 0.08
+      min: 0.03
+      step: 0.005
+results:
+  images_path: results/images
+  save_detailed: true
+  save_path: results
+  tables_path: results/tables
+risk:
+  cooldown_days: 5
+  max_daily_signals: 3
+  min_confidence: 0.6
+strategy:
+  bb_period: 20
+  bb_std: 2
+  ma_periods:
+  - 5
+  - 10
+  - 20
+  - 60
+  macd_fast: 12
+  macd_signal: 9
+  macd_slow: 26
+  max_days: 30
+  results_dir: results
+  rise_threshold: 0.03
+  rsi_period: 14
+system:
+  log_file: logs/system.log
+  log_level: INFO
+  mode: backtest

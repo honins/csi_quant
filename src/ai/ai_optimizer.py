@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 import pickle
 import json
+from ..strategy.strategy_module import StrategyModule
 
 # 机器学习相关
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -54,7 +55,7 @@ class AIOptimizer:
         
     def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        优化策略参数
+        优化策略参数 - 改进版本，避免循环依赖
         
         参数:
         strategy_module: 策略模块实例
@@ -63,10 +64,17 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("开始优化策略参数")
+        self.logger.info("开始优化策略参数（改进版本）")
         
         try:
-            # 定义参数搜索空间
+            # 1. 使用基准策略生成固定标签，避免循环依赖
+            baseline_strategy = StrategyModule(self.config)
+            baseline_backtest = baseline_strategy.backtest(data)
+            fixed_labels = baseline_backtest['is_low_point'].astype(int).values
+            
+            self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
+            
+            # 2. 定义参数搜索空间
             param_grid = {
                 'rise_threshold': np.arange(0.03, 0.08, 0.005),
                 'max_days': np.arange(10, 31, 2)
@@ -75,7 +83,7 @@ class AIOptimizer:
             best_score = -1
             best_params = None
             
-            # 网格搜索
+            # 3. 基于固定标签优化策略参数
             for rise_threshold in param_grid['rise_threshold']:
                 for max_days in param_grid['max_days']:
                     params = {
@@ -83,17 +91,10 @@ class AIOptimizer:
                         'max_days': int(max_days)
                     }
                     
-                    # 更新策略参数
-                    strategy_module.update_params(params)
-                    
-                    # 运行回测
-                    backtest_results = strategy_module.backtest(data)
-                    
-                    # 评估策略
-                    evaluation = strategy_module.evaluate_strategy(backtest_results)
-                    
-                    # 计算得分
-                    score = evaluation['score']
+                    # 使用固定标签评估参数
+                    score = self._evaluate_params_with_fixed_labels(
+                        data, fixed_labels, rise_threshold, max_days
+                    )
                     
                     if score > best_score:
                         best_score = score
@@ -109,7 +110,100 @@ class AIOptimizer:
                 'rise_threshold': 0.05,
                 'max_days': 20
             }
+    
+    def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
+                                         rise_threshold: float, max_days: int) -> float:
+        """
+        使用固定标签评估策略参数
+        
+        参数:
+        data: 历史数据
+        fixed_labels: 固定的标签（相对低点标识）
+        rise_threshold: 涨幅阈值
+        max_days: 最大天数
+        
+        返回:
+        float: 策略得分
+        """
+        try:
+            # 1. 计算每个识别点的未来表现
+            scores = []
+            low_point_indices = np.where(fixed_labels == 1)[0]
             
+            for idx in low_point_indices:
+                if idx >= len(data) - max_days:
+                    continue
+                    
+                current_price = data.iloc[idx]['close']
+                max_rise = 0.0
+                days_to_rise = 0
+                
+                # 计算未来max_days内的最大涨幅
+                for j in range(1, max_days + 1):
+                    if idx + j >= len(data):
+                        break
+                    future_price = data.iloc[idx + j]['close']
+                    rise_rate = (future_price - current_price) / current_price
+                    
+                    if rise_rate > max_rise:
+                        max_rise = rise_rate
+                        
+                    if rise_rate >= rise_threshold and days_to_rise == 0:
+                        days_to_rise = j
+                
+                # 计算单个点的得分
+                success = max_rise >= rise_threshold
+                point_score = self._calculate_point_score(success, max_rise, days_to_rise, max_days)
+                scores.append(point_score)
+            
+            # 2. 计算总体得分
+            if len(scores) == 0:
+                return 0.0
+                
+            return np.mean(scores)
+            
+        except Exception as e:
+            self.logger.error("评估参数失败: %s", str(e))
+            return 0.0
+    
+    def _calculate_point_score(self, success: bool, max_rise: float, days_to_rise: int, max_days: int) -> float:
+        """
+        计算单个识别点的得分
+        
+        参数:
+        success: 是否成功达到目标涨幅
+        max_rise: 最大涨幅
+        days_to_rise: 达到目标涨幅的天数
+        max_days: 最大观察天数
+        
+        返回:
+        float: 单个点得分
+        """
+        # 成功率权重：40%
+        success_score = 1.0 if success else 0.0
+        
+        # 涨幅权重：30%（相对于10%的基准）
+        rise_score = min(max_rise / 0.1, 1.0)
+        
+        # 速度权重：20%（天数越少越好）
+        if days_to_rise > 0:
+            speed_score = min(max_days / days_to_rise, 1.0)
+        else:
+            speed_score = 0.0
+        
+        # 风险调整：10%（避免过度冒险）
+        risk_score = min(max_rise / 0.2, 1.0)  # 超过20%的涨幅给予风险惩罚
+        
+        # 综合得分
+        total_score = (
+            success_score * 0.4 +
+            rise_score * 0.3 +
+            speed_score * 0.2 +
+            risk_score * 0.1
+        )
+        
+        return total_score
+        
     def prepare_features(self, data: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
         """
         准备机器学习特征
@@ -620,5 +714,185 @@ class AIOptimizer:
                         np.max(weights), np.min(weights))
         
         return weights
+
+    def optimize_strategy_parameters_advanced(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        高级策略参数优化 - 使用多目标优化
+        
+        参数:
+        strategy_module: 策略模块实例
+        data: 历史数据
+        
+        返回:
+        dict: 优化后的参数
+        """
+        self.logger.info("开始高级策略参数优化")
+        
+        try:
+            from scipy.optimize import minimize
+            
+            def objective(params):
+                rise_threshold, max_days = params
+                
+                # 使用固定标签评估
+                baseline_strategy = StrategyModule(self.config)
+                baseline_backtest = baseline_strategy.backtest(data)
+                fixed_labels = baseline_backtest['is_low_point'].astype(int).values
+                
+                score = self._evaluate_params_with_fixed_labels(
+                    data, fixed_labels, rise_threshold, int(max_days)
+                )
+                
+                return -score  # 最小化负得分 = 最大化得分
+            
+            # 约束条件
+            bounds = [(0.03, 0.08), (10, 30)]
+            
+            # 初始值
+            x0 = [0.05, 20]
+            
+            # 优化
+            result = minimize(objective, x0, bounds=bounds, method='L-BFGS-B')
+            
+            if result.success:
+                best_params = {
+                    'rise_threshold': result.x[0],
+                    'max_days': int(result.x[1])
+                }
+                best_score = -result.fun
+                
+                self.logger.info("高级优化完成，最佳参数: %s, 得分: %.4f", best_params, best_score)
+                return best_params
+            else:
+                self.logger.warning("高级优化失败，使用网格搜索")
+                return self.optimize_strategy_parameters(strategy_module, data)
+                
+        except ImportError:
+            self.logger.warning("scipy未安装，使用网格搜索")
+            return self.optimize_strategy_parameters(strategy_module, data)
+        except Exception as e:
+            self.logger.error("高级优化失败: %s", str(e))
+            return self.optimize_strategy_parameters(strategy_module, data)
+    
+    def time_series_cv_evaluation(self, data: pd.DataFrame, strategy_module) -> float:
+        """
+        时间序列交叉验证评估
+        
+        参数:
+        data: 历史数据
+        strategy_module: 策略模块实例
+        
+        返回:
+        float: 平均得分
+        """
+        self.logger.info("开始时间序列交叉验证评估")
+        
+        try:
+            total_score = 0
+            cv_folds = 5
+            fold_scores = []
+            
+            for i in range(cv_folds):
+                # 按时间分割数据
+                split_point = int(len(data) * (i + 1) / cv_folds)
+                train_data = data.iloc[:split_point]
+                test_data = data.iloc[split_point:min(split_point + 100, len(data))]  # 测试窗口
+                
+                if len(test_data) < 20:  # 测试数据太少，跳过
+                    continue
+                
+                # 在训练数据上优化策略参数
+                temp_strategy = StrategyModule(self.config)
+                optimized_params = self.optimize_strategy_parameters(temp_strategy, train_data)
+                temp_strategy.update_params(optimized_params)
+                
+                # 在测试数据上评估
+                backtest_results = temp_strategy.backtest(test_data)
+                evaluation = temp_strategy.evaluate_strategy(backtest_results)
+                score = evaluation['score']
+                
+                fold_scores.append(score)
+                total_score += score
+                
+                self.logger.info(f"第{i+1}折得分: {score:.4f}")
+            
+            if len(fold_scores) == 0:
+                return 0.0
+                
+            avg_score = total_score / len(fold_scores)
+            self.logger.info(f"时间序列交叉验证平均得分: {avg_score:.4f}")
+            
+            return avg_score
+            
+        except Exception as e:
+            self.logger.error("时间序列交叉验证失败: %s", str(e))
+            return 0.0
+    
+    def hierarchical_optimization(self, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        分层优化策略
+        
+        参数:
+        data: 历史数据
+        
+        返回:
+        dict: 优化结果
+        """
+        self.logger.info("开始分层优化策略")
+        
+        try:
+            # 第一层：策略参数优化
+            strategy_module = StrategyModule(self.config)
+            strategy_params = self.optimize_strategy_parameters(strategy_module, data)
+            
+            # 第二层：基于优化后的策略训练AI模型
+            strategy_module.update_params(strategy_params)
+            
+            # 第三层：时间序列交叉验证
+            cv_score = self.time_series_cv_evaluation(data, strategy_module)
+            
+            # 第四层：高级优化（如果可用）
+            try:
+                advanced_params = self.optimize_strategy_parameters_advanced(strategy_module, data)
+                advanced_score = self._evaluate_params_with_fixed_labels(
+                    data, 
+                    strategy_module.backtest(data)['is_low_point'].astype(int).values,
+                    advanced_params['rise_threshold'],
+                    advanced_params['max_days']
+                )
+                
+                # 选择更好的参数
+                if advanced_score > cv_score:
+                    final_params = advanced_params
+                    final_score = advanced_score
+                    self.logger.info("选择高级优化参数")
+                else:
+                    final_params = strategy_params
+                    final_score = cv_score
+                    self.logger.info("选择交叉验证参数")
+                    
+            except Exception as e:
+                self.logger.warning("高级优化失败，使用基础优化结果: %s", str(e))
+                final_params = strategy_params
+                final_score = cv_score
+            
+            result = {
+                'strategy_params': final_params,
+                'cv_score': cv_score,
+                'final_score': final_score,
+                'optimization_method': 'hierarchical'
+            }
+            
+            self.logger.info("分层优化完成，最终参数: %s, 最终得分: %.4f", final_params, final_score)
+            return result
+            
+        except Exception as e:
+            self.logger.error("分层优化失败: %s", str(e))
+            return {
+                'strategy_params': {'rise_threshold': 0.05, 'max_days': 20},
+                'cv_score': 0.0,
+                'final_score': 0.0,
+                'optimization_method': 'fallback'
+            }
 
 
