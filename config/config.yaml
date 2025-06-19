@@ -90,7 +90,7 @@ strategy:
   macd_fast: 12
   macd_signal: 9
   macd_slow: 26
-  max_days: 30
+  max_days: 20
   results_dir: results
   rise_threshold: 0.03
   rsi_period: 14
