@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 import pickle
 import json
-from ..strategy.strategy_module import StrategyModule
+from strategy.strategy_module import StrategyModule
 
 # 机器学习相关
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -74,31 +74,33 @@ class AIOptimizer:
             
             self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
             
-            # 2. 定义参数搜索空间
+            # 2. 定义参数搜索空间（只优化rise_threshold，max_days从config读取）
             param_grid = {
-                'rise_threshold': np.arange(0.03, 0.08, 0.005),
-                'max_days': np.arange(10, 31, 2)
+                'rise_threshold': np.arange(0.03, 0.08, 0.005)
             }
+            
+            # 从config读取max_days，不参与优化
+            max_days = self.config.get('strategy', {}).get('max_days', 20)
+            self.logger.info(f"使用配置中的max_days: {max_days}（不参与优化）")
             
             best_score = -1
             best_params = None
             
             # 3. 基于固定标签优化策略参数
             for rise_threshold in param_grid['rise_threshold']:
-                for max_days in param_grid['max_days']:
-                    params = {
-                        'rise_threshold': rise_threshold,
-                        'max_days': int(max_days)
-                    }
-                    
-                    # 使用固定标签评估参数
-                    score = self._evaluate_params_with_fixed_labels(
-                        data, fixed_labels, rise_threshold, max_days
-                    )
-                    
-                    if score > best_score:
-                        best_score = score
-                        best_params = params.copy()
+                params = {
+                    'rise_threshold': rise_threshold,
+                    'max_days': max_days  # 使用配置中的值
+                }
+                
+                # 使用固定标签评估参数
+                score = self._evaluate_params_with_fixed_labels(
+                    data, fixed_labels, rise_threshold, max_days
+                )
+                
+                if score > best_score:
+                    best_score = score
+                    best_params = params.copy()
                         
             self.logger.info("参数优化完成，最佳参数: %s, 得分: %.4f", best_params, best_score)
             return best_params
@@ -108,7 +110,7 @@ class AIOptimizer:
             # 返回默认参数
             return {
                 'rise_threshold': 0.05,
-                'max_days': 20
+                'max_days': self.config.get('strategy', {}).get('max_days', 20)
             }
     
     def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
@@ -732,32 +734,38 @@ class AIOptimizer:
             from scipy.optimize import minimize
             
             def objective(params):
-                rise_threshold, max_days = params
+                rise_threshold = params[0]
                 
                 # 使用固定标签评估
                 baseline_strategy = StrategyModule(self.config)
                 baseline_backtest = baseline_strategy.backtest(data)
                 fixed_labels = baseline_backtest['is_low_point'].astype(int).values
                 
+                # 从config读取max_days，不参与优化
+                max_days = self.config.get('strategy', {}).get('max_days', 20)
+                
                 score = self._evaluate_params_with_fixed_labels(
-                    data, fixed_labels, rise_threshold, int(max_days)
+                    data, fixed_labels, rise_threshold, max_days
                 )
                 
                 return -score  # 最小化负得分 = 最大化得分
             
-            # 约束条件
-            bounds = [(0.03, 0.08), (10, 30)]
+            # 约束条件（只优化rise_threshold）
+            bounds = [(0.03, 0.08)]
             
             # 初始值
-            x0 = [0.05, 20]
+            x0 = [0.05]
             
             # 优化
             result = minimize(objective, x0, bounds=bounds, method='L-BFGS-B')
             
             if result.success:
+                # 从config读取max_days
+                max_days = self.config.get('strategy', {}).get('max_days', 20)
+                
                 best_params = {
                     'rise_threshold': result.x[0],
-                    'max_days': int(result.x[1])
+                    'max_days': max_days
                 }
                 best_score = -result.fun
                 

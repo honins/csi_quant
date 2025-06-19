@@ -63,9 +63,9 @@ optimization:
     scoring: f1
   param_ranges:
     max_days:
-      max: 30
-      min: 10
-      step: 2
+      max: 20
+      min: 2
+      step: 1
     rise_threshold:
       max: 0.08
       min: 0.03

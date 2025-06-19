@@ -139,8 +139,14 @@ def run_ai_optimization(config):
             optimized_params = optimized_params
             
         print("💾 保存优化后的参数到配置文件...")
-        save_optimized_params_to_config(config, optimized_params)
-        print(f"✅ 参数已保存: {optimized_params}")
+        # 只保存rise_threshold，max_days保持原值
+        params_to_save = {
+            'rise_threshold': optimized_params['rise_threshold']
+            # max_days 不保存，保持配置文件中的原值
+        }
+        save_optimized_params_to_config(config, params_to_save)
+        print(f"✅ 参数已保存: {params_to_save}")
+        print(f"📝 注意: max_days 保持配置文件中的原值: {config.get('strategy', {}).get('max_days', 20)}")
         
         return True
         
