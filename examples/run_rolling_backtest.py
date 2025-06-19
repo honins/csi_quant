@@ -86,8 +86,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         # 确保date为datetime类型
         results_df['date'] = pd.to_datetime(results_df['date'])
         results_df.set_index('date', inplace=True)
-        # 确保prediction_correct为bool类型
-        results_df['prediction_correct'] = results_df['prediction_correct'].fillna(False).astype(bool)
+        # 确保prediction_correct为bool类型 - 修复FutureWarning
+        results_df['prediction_correct'] = results_df['prediction_correct'].fillna(False).infer_objects(copy=False).astype(bool)
 
         # 过滤掉无法验证的行
         results_df_validated = results_df.dropna(subset=['prediction_correct'])
@@ -154,15 +154,15 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             for date, row in results_df.iterrows():
                 predict_price = safe_str(row['predict_price'])
                 predicted = "Yes" if row['predicted_low_point'] else "No"
-                actual = "Yes" if row['actual_low_point'] else "No"
                 confidence = safe_str(row['confidence'])
+                actual = "Yes" if row['actual_low_point'] else "No"
                 max_rise = safe_str(row['future_max_rise'], "{:.2%}")
                 days_to_rise = safe_str(row['days_to_rise'], "{:.0f}")
                 prediction_correct = "Yes" if row['prediction_correct'] else "No"
+         
                 # 判断是否验证数据不足
                 if pd.isna(row['actual_low_point']):
                     actual = 'Insufficient Data'
-                    confidence = 'Insufficient Data'
                     max_rise = 'Insufficient Data'
                     days_to_rise = 'Insufficient Data'
                     prediction_correct = 'Insufficient Data'
@@ -170,13 +170,13 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     date.strftime('%Y-%m-%d'),
                     predict_price,
                     predicted,
-                    actual,
                     confidence,
+                    actual,
                     max_rise,
                     days_to_rise,
                     prediction_correct
                 ])
-            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Actual', 'Confidence', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
+            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Confidence', 'Actual', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
             table.set_fontsize(10)
             table.scale(1.2, 1.5)
@@ -186,10 +186,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 table.get_celld()[(i+1, 1)].set_facecolor('#e3f2fd')
                 # Predicted
                 table.get_celld()[(i+1, 2)].set_facecolor('#fff9c4')
-                # Actual
-                table.get_celld()[(i+1, 3)].set_facecolor('#ffe0b2')
                 # Confidence
-                table.get_celld()[(i+1, 4)].set_facecolor('#ede7f6')
+                table.get_celld()[(i+1, 3)].set_facecolor('#ede7f6')
+                # Actual
+                table.get_celld()[(i+1, 4)].set_facecolor('#ffe0b2')
                 # Max Future Rise
                 table.get_celld()[(i+1, 5)].set_facecolor('#e8f5e9')
                 # Days to Target Rise

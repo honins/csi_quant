@@ -211,4 +211,73 @@ A: 修改 `config/config.yaml` 中的 `notification.email` 配置，并在 `src/
 
 祝您使用愉快！🎉
 
+## 简化命令使用
+
+### 基础命令
+```bash
+# 基础测试
+python run.py b
+
+# AI优化测试  
+python run.py a
+
+# 单元测试
+python run.py t
+
+# 策略优化 (默认10次迭代)
+python run.py opt
+
+# 策略优化 (自定义迭代次数)
+python run.py opt -i 20
+```
+
+### 日期相关命令
+```bash
+# 单日预测
+python run.py s 2023-12-01
+
+# 回测 (需要开始和结束日期)
+python run.py r 2023-01-01 2023-12-31
+```
+
+### 完整运行
+```bash
+# 运行所有测试 (不包含日期相关功能)
+python run.py all
+
+# 运行所有测试 (包含回测和单日预测)
+python run.py all 2023-01-01 2023-12-31
+```
+
+## 命令对照表
+
+| 简化命令 | 原命令 | 功能 |
+|---------|--------|------|
+| `b` | `basic` | 基础测试 |
+| `a` | `ai` | AI优化测试 |
+| `t` | `test` | 单元测试 |
+| `r` | `rolling` | 回测 |
+| `s` | `single` | 单日预测 |
+| `opt` | `strategy` | 策略优化 |
+| `all` | `all` | 全部运行 |
+
+## 参数说明
+
+- `-v`: 详细输出
+- `-i` 或 `--iter`: 设置迭代次数 (默认: 10)
+- 位置参数: 直接输入日期，无需 `--start-date` 等长参数
+
+## 示例
+
+```bash
+# 快速运行基础测试
+python run.py b
+
+# 运行回测并查看详细输出
+python run.py r 2023-01-01 2023-12-31 -v
+
+# 运行策略优化，设置50次迭代
+python run.py opt -i 50
+```
+
 

@@ -61,14 +61,12 @@ def run_strategy_test(iterations):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description='中证1000指数相对低点识别系统')
-    parser.add_argument('command', choices=['basic', 'ai', 'test', 'all', 'rolling', 'single', 'strategy'], 
-                       help='要运行的命令')
-    parser.add_argument('--verbose', '-v', action='store_true', 
-                       help='详细输出')
-    parser.add_argument('--start-date', type=str, help='回测开始日期 (YYYY-MM-DD)')
-    parser.add_argument('--end-date', type=str, help='回测结束日期 (YYYY-MM-DD)')
-    parser.add_argument('--predict-date', type=str, help='单日预测日期 (YYYY-MM-DD)')
-    parser.add_argument('--iterations', type=int, default=10, help='策略优化迭代次数')
+    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt'], 
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, all=全部')
+    parser.add_argument('-v', action='store_true', help='详细输出')
+    parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
+    parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
+    parser.add_argument('-i', '--iter', type=int, default=10, help='迭代次数 (默认: 10)')
     
     args = parser.parse_args()
     
@@ -78,24 +76,24 @@ def main():
     
     success = True
     
-    if args.command == 'basic':
+    if args.command == 'b':
         success = run_basic_test()
-    elif args.command == 'ai':
+    elif args.command == 'a':
         success = run_ai_test()
-    elif args.command == 'test':
+    elif args.command == 't':
         success = run_unit_tests()
-    elif args.command == 'rolling':
-        if not args.start_date or not args.end_date:
-            print('请使用 --start-date 和 --end-date 指定回测区间')
+    elif args.command == 'r':
+        if not args.start or not args.end:
+            print('回测需要指定开始和结束日期: python run.py r 2023-01-01 2023-12-31')
             return 1
-        success = run_rolling_backtest(args.start_date, args.end_date)
-    elif args.command == 'single':
-        if not args.predict_date:
-            print('请使用 --predict-date 指定预测日期')
+        success = run_rolling_backtest(args.start, args.end)
+    elif args.command == 's':
+        if not args.start:
+            print('单日预测需要指定日期: python run.py s 2023-12-01')
             return 1
-        success = run_single_day_test(args.predict_date)
-    elif args.command == 'strategy':
-        success = run_strategy_test(args.iterations)
+        success = run_single_day_test(args.start)
+    elif args.command == 'opt':
+        success = run_strategy_test(args.iter)
     elif args.command == 'all':
         print("\n1. 运行基础测试...")
         success &= run_basic_test()
@@ -106,14 +104,16 @@ def main():
         print("\n3. 运行单元测试...")
         success &= run_unit_tests()
 
-        print("\n4. 运行回测...")
-        success &= run_rolling_backtest(args.start_date, args.end_date)
+        if args.start and args.end:
+            print("\n4. 运行回测...")
+            success &= run_rolling_backtest(args.start, args.end)
 
-        print("\n5. 运行单日预测...")
-        success &= run_single_day_test(args.predict_date)
+        if args.start:
+            print("\n5. 运行单日预测...")
+            success &= run_single_day_test(args.start)
 
         print("\n6. 运行策略优化...")
-        success &= run_strategy_test(args.iterations)
+        success &= run_strategy_test(args.iter)
 
     print("\n" + "="*60)
     if success:
