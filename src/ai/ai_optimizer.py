@@ -77,41 +77,79 @@ class AIOptimizer:
             # 2. 从配置文件获取参数搜索范围
             optimization_config = self.config.get('optimization', {})
             param_ranges = optimization_config.get('param_ranges', {})
+            
+            # 获取各个参数的搜索范围
             rise_threshold_range = param_ranges.get('rise_threshold', {})
+            max_days_range = param_ranges.get('max_days', {})
+            rsi_oversold_range = param_ranges.get('rsi_oversold_threshold', {})
+            rsi_low_range = param_ranges.get('rsi_low_threshold', {})
+            final_threshold_range = param_ranges.get('final_threshold', {})
             
-            # 从配置获取rise_threshold的范围和步长
-            min_threshold = rise_threshold_range.get('min', 0.03)
-            max_threshold = rise_threshold_range.get('max', 0.08)
-            step_threshold = rise_threshold_range.get('step', 0.005)
-            
-            # 定义参数搜索空间（只优化rise_threshold，max_days从config读取）
+            # 定义参数搜索空间
             param_grid = {
-                'rise_threshold': np.arange(min_threshold, max_threshold + step_threshold, step_threshold)
+                'rise_threshold': np.arange(
+                    rise_threshold_range.get('min', 0.03),
+                    rise_threshold_range.get('max', 0.08) + rise_threshold_range.get('step', 0.005),
+                    rise_threshold_range.get('step', 0.005)
+                ),
+                'max_days': np.arange(
+                    max_days_range.get('min', 10),
+                    max_days_range.get('max', 30) + max_days_range.get('step', 1),
+                    max_days_range.get('step', 1)
+                ),
+                'rsi_oversold_threshold': np.arange(
+                    rsi_oversold_range.get('min', 25),
+                    rsi_oversold_range.get('max', 35) + rsi_oversold_range.get('step', 1),
+                    rsi_oversold_range.get('step', 1)
+                ),
+                'rsi_low_threshold': np.arange(
+                    rsi_low_range.get('min', 35),
+                    rsi_low_range.get('max', 45) + rsi_low_range.get('step', 1),
+                    rsi_low_range.get('step', 1)
+                ),
+                'final_threshold': np.arange(
+                    final_threshold_range.get('min', 0.3),
+                    final_threshold_range.get('max', 0.7) + final_threshold_range.get('step', 0.05),
+                    final_threshold_range.get('step', 0.05)
+                )
             }
             
-            # 从config读取max_days，不参与优化
-            max_days = self.config.get('strategy', {}).get('max_days', 20)
-            self.logger.info(f"使用配置中的max_days: {max_days}（不参与优化）")
-            self.logger.info(f"rise_threshold搜索范围: {min_threshold} - {max_threshold}, 步长: {step_threshold}")
+            self.logger.info(f"参数搜索范围:")
+            for param, values in param_grid.items():
+                self.logger.info(f"  {param}: {values[0]} - {values[-1]}, 步长: {values[1]-values[0] if len(values)>1 else 'N/A'}")
             
             best_score = -1
             best_params = None
+            total_combinations = 1
+            for values in param_grid.values():
+                total_combinations *= len(values)
+            
+            self.logger.info(f"总搜索组合数: {total_combinations}")
             
             # 3. 基于固定标签优化策略参数
-            for rise_threshold in param_grid['rise_threshold']:
+            # 为了减少计算量，我们使用随机采样而不是全网格搜索
+            max_iterations = min(100, total_combinations)  # 最多100次迭代
+            self.logger.info(f"使用随机采样，最大迭代次数: {max_iterations}")
+            
+            for iteration in range(max_iterations):
+                # 随机选择参数组合
                 params = {
-                    'rise_threshold': rise_threshold,
-                    'max_days': max_days  # 使用配置中的值
+                    'rise_threshold': np.random.choice(param_grid['rise_threshold']),
+                    'max_days': int(np.random.choice(param_grid['max_days'])),
+                    'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
+                    'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
+                    'final_threshold': np.random.choice(param_grid['final_threshold'])
                 }
                 
                 # 使用固定标签评估参数
-                score = self._evaluate_params_with_fixed_labels(
-                    data, fixed_labels, rise_threshold, max_days
+                score = self._evaluate_params_with_fixed_labels_advanced(
+                    data, fixed_labels, params
                 )
                 
                 if score > best_score:
                     best_score = score
                     best_params = params.copy()
+                    self.logger.info(f"发现更好的参数组合 (迭代 {iteration+1}): {best_params}, 得分: {best_score:.4f}")
                         
             self.logger.info("参数优化完成，最佳参数: %s, 得分: %.4f", best_params, best_score)
             return best_params
@@ -121,7 +159,10 @@ class AIOptimizer:
             # 返回默认参数
             return {
                 'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05),
-                'max_days': self.config.get('strategy', {}).get('max_days', 20)
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rsi_oversold_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_oversold_threshold', 30),
+                'rsi_low_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_low_threshold', 40),
+                'final_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold', 0.5)
             }
     
     def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
@@ -965,5 +1006,62 @@ class AIOptimizer:
                 'final_score': 0.0,
                 'optimization_method': 'fallback'
             }
+
+    def _evaluate_params_with_fixed_labels_advanced(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
+                                                  params: Dict[str, Any]) -> float:
+        """
+        使用固定标签评估多参数策略
+        
+        参数:
+        data: 历史数据
+        fixed_labels: 固定的标签（相对低点标识）
+        params: 参数字典，包含rise_threshold, max_days, rsi_oversold_threshold, rsi_low_threshold, final_threshold
+        
+        返回:
+        float: 策略得分
+        """
+        try:
+            # 1. 计算每个识别点的未来表现
+            scores = []
+            low_point_indices = np.where(fixed_labels == 1)[0]
+            
+            rise_threshold = params['rise_threshold']
+            max_days = params['max_days']
+            
+            for idx in low_point_indices:
+                if idx >= len(data) - max_days:
+                    continue
+                    
+                current_price = data.iloc[idx]['close']
+                max_rise = 0.0
+                days_to_rise = 0
+                
+                # 计算未来max_days内的最大涨幅
+                for j in range(1, max_days + 1):
+                    if idx + j >= len(data):
+                        break
+                    future_price = data.iloc[idx + j]['close']
+                    rise_rate = (future_price - current_price) / current_price
+                    
+                    if rise_rate > max_rise:
+                        max_rise = rise_rate
+                        
+                    if rise_rate >= rise_threshold and days_to_rise == 0:
+                        days_to_rise = j
+                
+                # 计算单个点的得分
+                success = max_rise >= rise_threshold
+                point_score = self._calculate_point_score(success, max_rise, days_to_rise, max_days)
+                scores.append(point_score)
+            
+            # 2. 计算总体得分
+            if len(scores) == 0:
+                return 0.0
+                
+            return np.mean(scores)
+            
+        except Exception as e:
+            self.logger.error("评估多参数失败: %s", str(e))
+            return 0.0
 
 

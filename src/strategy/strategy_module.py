@@ -359,7 +359,7 @@ class StrategyModule:
                 ax1.scatter(low_points['date'], low_points['close'], 
                           color='red', marker='^', s=50, label='相对低点', zorder=5)
             
-            ax1.set_title('价格走势与相对低点')
+            ax1.set_title(f'价格走势与相对低点\n(涨幅阈值: {self.rise_threshold:.1%}, 最大观察天数: {self.max_days}天)')
             ax1.set_xlabel('日期')
             ax1.set_ylabel('价格')
             ax1.legend()
@@ -372,7 +372,7 @@ class StrategyModule:
                 ax2.hist(rises, bins=20, alpha=0.7, color='skyblue', edgecolor='black')
                 ax2.axvline(x=self.rise_threshold * 100, color='red', linestyle='--', 
                           label=f'目标涨幅: {self.rise_threshold:.1%}')
-                ax2.set_title('相对低点后的最大涨幅分布')
+                ax2.set_title(f'相对低点后的最大涨幅分布\n(目标: {self.rise_threshold:.1%}, 最大观察: {self.max_days}天)')
                 ax2.set_xlabel('涨幅 (%)')
                 ax2.set_ylabel('频次')
                 ax2.legend()
@@ -380,7 +380,7 @@ class StrategyModule:
             else:
                 ax2.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
                         transform=ax2.transAxes, fontsize=14)
-                ax2.set_title('相对低点后的最大涨幅分布')
+                ax2.set_title(f'相对低点后的最大涨幅分布\n(目标: {self.rise_threshold:.1%}, 最大观察: {self.max_days}天)')
             
             # 3. 达到目标涨幅的天数分布
             ax3 = axes[1, 0]
@@ -390,18 +390,21 @@ class StrategyModule:
                     days = successful_points['days_to_rise']
                     ax3.hist(days, bins=range(1, self.max_days + 2), alpha=0.7, 
                            color='lightgreen', edgecolor='black')
-                    ax3.set_title('达到目标涨幅所需天数分布')
+                    ax3.axvline(x=self.max_days, color='orange', linestyle='--', 
+                              label=f'最大观察天数: {self.max_days}天')
+                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
                     ax3.set_xlabel('天数')
                     ax3.set_ylabel('频次')
+                    ax3.legend()
                     ax3.grid(True, alpha=0.3)
                 else:
                     ax3.text(0.5, 0.5, '无成功案例', ha='center', va='center', 
                             transform=ax3.transAxes, fontsize=14)
-                    ax3.set_title('达到目标涨幅所需天数分布')
+                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
             else:
                 ax3.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
                         transform=ax3.transAxes, fontsize=14)
-                ax3.set_title('达到目标涨幅所需天数分布')
+                ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
             
             # 4. 策略评估指标
             ax4 = axes[1, 1]
@@ -416,7 +419,7 @@ class StrategyModule:
             ]
             
             bars = ax4.bar(metrics, values, color=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99'])
-            ax4.set_title('策略评估指标')
+            ax4.set_title(f'策略评估指标\n(涨幅阈值: {self.rise_threshold:.1%}, 最大天数: {self.max_days}天)')
             ax4.set_ylabel('数值')
             ax4.set_ylim(0, 1)
             
@@ -436,7 +439,14 @@ class StrategyModule:
             
             ax4.grid(True, alpha=0.3)
             
+            # 在图表底部添加策略参数信息
+            confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
+            param_info = f"策略参数: 涨幅阈值={self.rise_threshold:.1%}, 最大观察天数={self.max_days}天, RSI超卖阈值={confidence_weights.get('rsi_oversold_threshold', 30)}, RSI偏低阈值={confidence_weights.get('rsi_low_threshold', 40)}, 置信度阈值={confidence_weights.get('final_threshold', 0.5):.2f}"
+            plt.figtext(0.5, 0.02, param_info, ha='center', fontsize=10, 
+                       bbox=dict(facecolor='lightgray', alpha=0.8))
+            
             plt.tight_layout()
+            plt.subplots_adjust(bottom=0.08)  # 为底部参数信息留出空间
             
             # 保存图表
             if save_path is None:
@@ -468,6 +478,22 @@ class StrategyModule:
         if 'max_days' in params:
             self.max_days = params['max_days']
             
+        # 更新置信度权重参数
+        if 'rsi_oversold_threshold' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['rsi_oversold_threshold'] = params['rsi_oversold_threshold']
+            
+        if 'rsi_low_threshold' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['rsi_low_threshold'] = params['rsi_low_threshold']
+            
+        if 'final_threshold' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['final_threshold'] = params['final_threshold']
+            
         self.logger.info("策略参数已更新: rise_threshold=%.4f, max_days=%d", 
                         self.rise_threshold, self.max_days)
                         
@@ -478,8 +504,12 @@ class StrategyModule:
         返回:
         dict: 当前参数
         """
+        confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
         return {
             'rise_threshold': self.rise_threshold,
-            'max_days': self.max_days
+            'max_days': self.max_days,
+            'rsi_oversold_threshold': confidence_weights.get('rsi_oversold_threshold', 30),
+            'rsi_low_threshold': confidence_weights.get('rsi_low_threshold', 40),
+            'final_threshold': confidence_weights.get('final_threshold', 0.5)
         }
 

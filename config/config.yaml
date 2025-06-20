@@ -69,6 +69,10 @@ optimization:
     cv_folds: 5
     scoring: f1
   param_ranges:
+    final_threshold:
+      max: 0.7
+      min: 0.3
+      step: 0.05
     max_days:
       max: 20
       min: 2
@@ -77,6 +81,14 @@ optimization:
       max: 0.15
       min: 0.05
       step: 0.005
+    rsi_low_threshold:
+      max: 45
+      min: 35
+      step: 1
+    rsi_oversold_threshold:
+      max: 35
+      min: 25
+      step: 1
 results:
   images_path: results/images
   save_detailed: true
@@ -93,15 +105,15 @@ strategy:
     bb_lower_near: 0.2
     bb_near_threshold: 1.02
     decline_threshold: -0.05
-    final_threshold: 0.5
+    final_threshold: 0.5999999999999999
     ma_all_below: 0.3
     ma_partial_below: 0.2
     macd_negative: 0.1
     recent_decline: 0.2
     rsi_low: 0.2
-    rsi_low_threshold: 40
+    rsi_low_threshold: 36
     rsi_oversold: 0.3
-    rsi_oversold_threshold: 30
+    rsi_oversold_threshold: 33
   ma_periods:
   - 5
   - 10

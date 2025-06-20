@@ -103,7 +103,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             logger.info(f"预测成功率: {success_rate:.2f}%")
 
             # 生成统计图
-            plt.figure(figsize=(15, 7))
+            plt.figure(figsize=(15, 8))  # 增加高度为参数信息留出空间
             plt.plot(results_df.index, results_df['predicted_low_point'], 'o', label='Predicted Low Point', alpha=0.7)
             plt.plot(results_df.index, results_df['actual_low_point'], 'x', label='Actual Low Point', alpha=0.7)
             
@@ -114,24 +114,40 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.plot(correct_dates, results_df.loc[correct_dates, 'predicted_low_point'], 'go', markersize=8, label='Correct Prediction')
             plt.plot(incorrect_dates, results_df.loc[incorrect_dates, 'predicted_low_point'], 'ro', markersize=8, label='Incorrect Prediction')
 
-            plt.title('AI Prediction Model Rolling Backtest Results')
+            # 获取策略参数
+            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.05)
+            max_days = config.get('strategy', {}).get('max_days', 20)
+            confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
+            rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)
+            rsi_low = confidence_weights.get('rsi_low_threshold', 40)
+            final_threshold = confidence_weights.get('final_threshold', 0.5)
+
+            plt.title(f'AI Prediction Model Rolling Backtest Results\n(Rise Threshold: {rise_threshold:.1%}, Max Days: {max_days})', fontsize=14)
             plt.xlabel('Date')
             plt.ylabel('Is Low Point (True/False)')
             plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: 'True' if x > 0.5 else 'False'))
             plt.gca().yaxis.set_major_locator(plt.FixedLocator([0, 1]))
             plt.legend()
             plt.grid(True)
-            plt.tight_layout()
-            
-            # Add summary text below the chart
-            last_data_date = results_df.index.max().strftime('%Y-%m-%d')
-            plt.figtext(0.5, 0.01, f"Total validated predictions: {total_predictions}\nCorrect predictions: {correct_predictions}\nSuccess rate: {success_rate:.2f}%\n(Data available up to: {last_data_date})", ha='center', fontsize=10, bbox=dict(facecolor='white', alpha=0.8))
             
             # Set date format
             plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
             plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=1))
             plt.gcf().autofmt_xdate() # Auto rotate date labels
-
+            
+            # 调整布局，为底部参数信息留出空间
+            plt.subplots_adjust(bottom=0.15)
+            
+            # Add summary text and strategy parameters below the chart
+            last_data_date = results_df.index.max().strftime('%Y-%m-%d')
+            summary_text = f"Total Predictions: {total_predictions} | Correct: {correct_predictions} | Success Rate: {success_rate:.2f}% | Data Until: {last_data_date}"
+            param_text = f"Strategy Params: Rise Threshold={rise_threshold:.1%}, Max Days={max_days}, RSI Oversold={rsi_oversold}, RSI Low={rsi_low}, Confidence Threshold={final_threshold:.2f}"
+            
+            plt.figtext(0.5, 0.08, summary_text, ha='center', fontsize=11, 
+                       bbox=dict(facecolor='lightblue', alpha=0.8))
+            plt.figtext(0.5, 0.03, param_text, ha='center', fontsize=10, 
+                       bbox=dict(facecolor='lightgray', alpha=0.8))
+            
             # 确保results目录存在
             results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
             if not os.path.exists(results_dir):
@@ -141,7 +157,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             logger.info(f"Rolling backtest result chart saved to: {chart_path}")
 
             # Second chart: record each prediction
-            plt.figure(figsize=(15, 10))
+            plt.figure(figsize=(15, 12))  # 增加高度为参数信息留出空间
             plt.axis('off')
             table_data = []
             def safe_str(val, float_fmt="{:.2f}"):
@@ -203,10 +219,28 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     elif val == 'no':
                         cell.set_facecolor('#ffebee')  # 淡红
 
-            plt.title('Prediction Details', fontsize=12)
-            plt.tight_layout()
-            # 在表格下方加数据截止日期
-            plt.figtext(0.5, 0.01, f"Data available up to: {last_data_date}", ha='center', fontsize=14, bbox=dict(facecolor='white', alpha=0.8))
+            # 获取策略参数
+            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.05)
+            max_days = config.get('strategy', {}).get('max_days', 20)
+            confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
+            rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)
+            rsi_low = confidence_weights.get('rsi_low_threshold', 40)
+            final_threshold = confidence_weights.get('final_threshold', 0.5)
+
+            plt.title(f'Prediction Details\n(Rise Threshold: {rise_threshold:.1%}, Max Days: {max_days})', fontsize=14, pad=20)
+            
+            # 调整布局，为底部参数信息留出空间
+            plt.subplots_adjust(bottom=0.12)
+            
+            # 在表格下方添加策略参数信息
+            param_text = f"Strategy Params: Rise Threshold={rise_threshold:.1%}, Max Days={max_days}, RSI Oversold={rsi_oversold}, RSI Low={rsi_low}, Confidence Threshold={final_threshold:.2f} | Data Until: {last_data_date}"
+            plt.figtext(0.5, 0.05, param_text, ha='center', fontsize=11, 
+                       bbox=dict(facecolor='lightgray', alpha=0.8))
+            
+            # 确保results目录存在
+            results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
+            if not os.path.exists(results_dir):
+                os.makedirs(results_dir)
             chart_path2 = os.path.join(results_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
             logger.info(f"Prediction details chart saved to: {chart_path2}")

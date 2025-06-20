@@ -32,14 +32,20 @@ def save_optimized_params_to_config(config, optimized_params):
         # 更新配置字典
         if 'strategy' not in config:
             config['strategy'] = {}
+        if 'confidence_weights' not in config['strategy']:
+            config['strategy']['confidence_weights'] = {}
         
         # 更新策略参数
         for key, value in optimized_params.items():
             # 将numpy类型转换为Python原生类型
             if hasattr(value, 'item'):
-                config['strategy'][key] = value.item()
-            else:
+                value = value.item()
+            
+            # 根据参数类型保存到不同位置
+            if key in ['rise_threshold', 'max_days']:
                 config['strategy'][key] = value
+            elif key in ['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold']:
+                config['strategy']['confidence_weights'][key] = value
         
         # 保存到配置文件
         config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
@@ -47,6 +53,11 @@ def save_optimized_params_to_config(config, optimized_params):
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True, indent=2)
             
         print(f"✅ 配置已更新: {config_path}")
+        print(f"📝 更新的参数:")
+        for key, value in optimized_params.items():
+            if hasattr(value, 'item'):
+                value = value.item()
+            print(f"   - {key}: {value}")
         
     except Exception as e:
         print(f"❌ 保存配置失败: {e}")
@@ -139,14 +150,16 @@ def run_ai_optimization(config):
             optimized_params = optimized_params
             
         print("💾 保存优化后的参数到配置文件...")
-        # 只保存rise_threshold，max_days保持原值
+        # 保存多个核心参数
         params_to_save = {
-            'rise_threshold': optimized_params['rise_threshold']
-            # max_days 不保存，保持配置文件中的原值
+            'rise_threshold': optimized_params['rise_threshold'],
+            'max_days': optimized_params['max_days'],
+            'rsi_oversold_threshold': optimized_params.get('rsi_oversold_threshold', 30),
+            'rsi_low_threshold': optimized_params.get('rsi_low_threshold', 40),
+            'final_threshold': optimized_params.get('final_threshold', 0.5)
         }
         save_optimized_params_to_config(config, params_to_save)
-        print(f"✅ 参数已保存: {params_to_save}")
-        print(f"📝 注意: max_days 保持配置文件中的原值: {config.get('strategy', {}).get('max_days', 20)}")
+        print(f"✅ 核心参数已保存: {params_to_save}")
         
         return True
         
