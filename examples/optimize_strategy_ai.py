@@ -180,6 +180,26 @@ def main():
                 'rise_threshold': 0.05,
                 'max_days': 20
             },
+            'optimization': {
+                'param_ranges': {
+                    'rise_threshold': {
+                        'min': 0.03,
+                        'max': 0.08,
+                        'step': 0.005
+                    },
+                    'max_days': {
+                        'min': 10,
+                        'max': 30,
+                        'step': 1
+                    }
+                },
+                'genetic_algorithm': {
+                    'population_size': 20,
+                    'generations': 10,
+                    'crossover_rate': 0.8,
+                    'mutation_rate': 0.1
+                }
+            },
             'ai': {
                 'model_type': 'machine_learning',
                 'optimization_interval': 30

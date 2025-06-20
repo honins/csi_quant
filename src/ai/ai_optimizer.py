@@ -14,6 +14,8 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 import pickle
 import json
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from strategy.strategy_module import StrategyModule
 
 # 机器学习相关
@@ -55,7 +57,7 @@ class AIOptimizer:
         
     def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        优化策略参数 - 改进版本，避免循环依赖
+        优化策略参数
         
         参数:
         strategy_module: 策略模块实例
@@ -64,24 +66,33 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("开始优化策略参数（改进版本）")
+        self.logger.info("开始优化策略参数")
         
         try:
-            # 1. 使用基准策略生成固定标签，避免循环依赖
-            baseline_strategy = StrategyModule(self.config)
-            baseline_backtest = baseline_strategy.backtest(data)
+            # 1. 获取基准策略的识别结果作为固定标签
+            baseline_backtest = strategy_module.backtest(data)
             fixed_labels = baseline_backtest['is_low_point'].astype(int).values
-            
             self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
             
-            # 2. 定义参数搜索空间（只优化rise_threshold，max_days从config读取）
+            # 2. 从配置文件获取参数搜索范围
+            optimization_config = self.config.get('optimization', {})
+            param_ranges = optimization_config.get('param_ranges', {})
+            rise_threshold_range = param_ranges.get('rise_threshold', {})
+            
+            # 从配置获取rise_threshold的范围和步长
+            min_threshold = rise_threshold_range.get('min', 0.03)
+            max_threshold = rise_threshold_range.get('max', 0.08)
+            step_threshold = rise_threshold_range.get('step', 0.005)
+            
+            # 定义参数搜索空间（只优化rise_threshold，max_days从config读取）
             param_grid = {
-                'rise_threshold': np.arange(0.03, 0.08, 0.005)
+                'rise_threshold': np.arange(min_threshold, max_threshold + step_threshold, step_threshold)
             }
             
             # 从config读取max_days，不参与优化
             max_days = self.config.get('strategy', {}).get('max_days', 20)
             self.logger.info(f"使用配置中的max_days: {max_days}（不参与优化）")
+            self.logger.info(f"rise_threshold搜索范围: {min_threshold} - {max_threshold}, 步长: {step_threshold}")
             
             best_score = -1
             best_params = None
@@ -109,7 +120,7 @@ class AIOptimizer:
             self.logger.error("优化策略参数失败: %s", str(e))
             # 返回默认参数
             return {
-                'rise_threshold': 0.05,
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05),
                 'max_days': self.config.get('strategy', {}).get('max_days', 20)
             }
     
@@ -181,27 +192,37 @@ class AIOptimizer:
         返回:
         float: 单个点得分
         """
+        # 从配置文件获取评分参数
+        ai_config = self.config.get('ai', {})
+        scoring_config = ai_config.get('scoring', {})
+        
         # 成功率权重：40%
+        success_weight = scoring_config.get('success_weight', 0.4)
         success_score = 1.0 if success else 0.0
         
-        # 涨幅权重：30%（相对于10%的基准）
-        rise_score = min(max_rise / 0.1, 1.0)
+        # 涨幅权重：30%（相对于基准涨幅）
+        rise_weight = scoring_config.get('rise_weight', 0.3)
+        rise_benchmark = scoring_config.get('rise_benchmark', 0.1)  # 10%基准
+        rise_score = min(max_rise / rise_benchmark, 1.0)
         
         # 速度权重：20%（天数越少越好）
+        speed_weight = scoring_config.get('speed_weight', 0.2)
         if days_to_rise > 0:
             speed_score = min(max_days / days_to_rise, 1.0)
         else:
             speed_score = 0.0
         
         # 风险调整：10%（避免过度冒险）
-        risk_score = min(max_rise / 0.2, 1.0)  # 超过20%的涨幅给予风险惩罚
+        risk_weight = scoring_config.get('risk_weight', 0.1)
+        risk_benchmark = scoring_config.get('risk_benchmark', 0.2)  # 20%风险阈值
+        risk_score = min(max_rise / risk_benchmark, 1.0)  # 超过风险阈值的涨幅给予风险惩罚
         
         # 综合得分
         total_score = (
-            success_score * 0.4 +
-            rise_score * 0.3 +
-            speed_score * 0.2 +
-            risk_score * 0.1
+            success_score * success_weight +
+            rise_score * rise_weight +
+            speed_score * speed_weight +
+            risk_score * risk_weight
         )
         
         return total_score
@@ -555,12 +576,26 @@ class AIOptimizer:
                         population_size, generations)
         
         try:
+            # 从配置文件获取参数范围
+            optimization_config = self.config.get('optimization', {})
+            param_ranges = optimization_config.get('param_ranges', {})
+            rise_threshold_range = param_ranges.get('rise_threshold', {})
+            max_days_range = param_ranges.get('max_days', {})
+            
+            # 获取rise_threshold的范围
+            min_threshold = rise_threshold_range.get('min', 0.03)
+            max_threshold = rise_threshold_range.get('max', 0.08)
+            
+            # 获取max_days的范围
+            min_days = max_days_range.get('min', 10)
+            max_days = max_days_range.get('max', 30)
+            
             # 初始化种群
             population = []
             for _ in range(population_size):
                 individual = {
-                    'rise_threshold': np.random.uniform(0.03, 0.08),
-                    'max_days': np.random.randint(10, 31)
+                    'rise_threshold': np.random.uniform(min_threshold, max_threshold),
+                    'max_days': np.random.randint(min_days, max_days + 1)
                 }
                 population.append(individual)
                 
@@ -590,7 +625,10 @@ class AIOptimizer:
             
         except Exception as e:
             self.logger.error("遗传算法优化失败: %s", str(e))
-            return {'rise_threshold': 0.05, 'max_days': 20}
+            return {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05), 
+                'max_days': self.config.get('strategy', {}).get('max_days', 20)
+            }
             
     def _genetic_operations(self, population: List[Dict], scores: List[float]) -> List[Dict]:
         """
@@ -666,16 +704,30 @@ class AIOptimizer:
         """
         mutated = individual.copy()
         
+        # 从配置文件获取参数范围
+        optimization_config = self.config.get('optimization', {})
+        param_ranges = optimization_config.get('param_ranges', {})
+        rise_threshold_range = param_ranges.get('rise_threshold', {})
+        max_days_range = param_ranges.get('max_days', {})
+        
+        # 获取rise_threshold的范围
+        min_threshold = rise_threshold_range.get('min', 0.03)
+        max_threshold = rise_threshold_range.get('max', 0.08)
+        
+        # 获取max_days的范围
+        min_days = max_days_range.get('min', 10)
+        max_days = max_days_range.get('max', 30)
+        
         if np.random.random() < mutation_rate:
             mutated['rise_threshold'] = np.clip(
                 mutated['rise_threshold'] + np.random.normal(0, 0.005),
-                0.03, 0.08
+                min_threshold, max_threshold
             )
             
         if np.random.random() < mutation_rate:
             mutated['max_days'] = np.clip(
                 int(mutated['max_days'] + np.random.randint(-2, 3)),
-                10, 30
+                min_days, max_days
             )
             
         return mutated
@@ -751,10 +803,18 @@ class AIOptimizer:
                 return -score  # 最小化负得分 = 最大化得分
             
             # 约束条件（只优化rise_threshold）
-            bounds = [(0.03, 0.08)]
+            # 从配置文件获取rise_threshold的范围
+            optimization_config = self.config.get('optimization', {})
+            param_ranges = optimization_config.get('param_ranges', {})
+            rise_threshold_range = param_ranges.get('rise_threshold', {})
+            
+            min_threshold = rise_threshold_range.get('min', 0.03)
+            max_threshold = rise_threshold_range.get('max', 0.08)
+            
+            bounds = [(min_threshold, max_threshold)]
             
             # 初始值
-            x0 = [0.05]
+            x0 = [self.config.get('strategy', {}).get('rise_threshold', 0.05)]
             
             # 优化
             result = minimize(objective, x0, bounds=bounds, method='L-BFGS-B')
@@ -897,7 +957,10 @@ class AIOptimizer:
         except Exception as e:
             self.logger.error("分层优化失败: %s", str(e))
             return {
-                'strategy_params': {'rise_threshold': 0.05, 'max_days': 20},
+                'strategy_params': {
+                    'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05), 
+                    'max_days': self.config.get('strategy', {}).get('max_days', 20)
+                },
                 'cv_score': 0.0,
                 'final_score': 0.0,
                 'optimization_method': 'fallback'

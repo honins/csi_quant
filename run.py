@@ -23,7 +23,7 @@ def run_basic_test():
 def run_ai_test():
     """运行AI优化测试"""
     print("运行AI优化测试...")
-    from examples.ai_optimization_test import main
+    from examples.optimize_strategy_ai import main
     return main()
 
 def run_unit_tests():
@@ -102,7 +102,7 @@ def main():
         success = run_strategy_test(args.iter)
     elif args.command == 'ai':
         print("🤖 启动AI优化...")
-        from examples.ai_optimization_test import run_ai_optimization
+        from examples.optimize_strategy_ai import run_ai_optimization
         success = run_ai_optimization(config)
         return success
     elif args.command == 'all':

@@ -79,47 +79,57 @@ class StrategyModule:
             confidence = 0.0
             reasons = []
             
+            # 从配置文件获取置信度权重
+            strategy_config = self.config.get('strategy', {})
+            confidence_config = strategy_config.get('confidence_weights', {})
+            
             # 条件1: 价格低于多条移动平均线
             if ma5 is not None and ma10 is not None and ma20 is not None:
                 if latest_price < ma5 and latest_price < ma10 and latest_price < ma20:
                     is_low_point = True
-                    confidence += 0.3
+                    confidence += confidence_config.get('ma_all_below', 0.3)
                     reasons.append("价格低于MA5/MA10/MA20")
                 elif latest_price < ma10 and latest_price < ma20:
-                    confidence += 0.2
+                    confidence += confidence_config.get('ma_partial_below', 0.2)
                     reasons.append("价格低于MA10/MA20")
                     
             # 条件2: RSI超卖
             if rsi is not None:
-                if rsi < 30:
+                rsi_oversold_threshold = confidence_config.get('rsi_oversold_threshold', 30)
+                rsi_low_threshold = confidence_config.get('rsi_low_threshold', 40)
+                if rsi < rsi_oversold_threshold:
                     is_low_point = True
-                    confidence += 0.3
+                    confidence += confidence_config.get('rsi_oversold', 0.3)
                     reasons.append(f"RSI超卖({rsi:.2f})")
-                elif rsi < 40:
-                    confidence += 0.2
+                elif rsi < rsi_low_threshold:
+                    confidence += confidence_config.get('rsi_low', 0.2)
                     reasons.append(f"RSI偏低({rsi:.2f})")
                     
             # 条件3: MACD负值
             if macd is not None and macd < 0:
-                confidence += 0.1
+                confidence += confidence_config.get('macd_negative', 0.1)
                 reasons.append("MACD负值")
                 
             # 条件4: 价格接近布林带下轨
-            if bb_lower is not None and latest_price <= bb_lower * 1.02:
-                is_low_point = True
-                confidence += 0.2
-                reasons.append("价格接近布林带下轨")
+            if bb_lower is not None:
+                bb_near_threshold = confidence_config.get('bb_near_threshold', 1.02)
+                if latest_price <= bb_lower * bb_near_threshold:
+                    is_low_point = True
+                    confidence += confidence_config.get('bb_lower_near', 0.2)
+                    reasons.append("价格接近布林带下轨")
                 
             # 条件5: 近期大幅下跌
             if len(data) >= 5:
                 price_5d_ago = data.iloc[-6]['close'] if len(data) >= 6 else data.iloc[0]['close']
                 decline_5d = (latest_price - price_5d_ago) / price_5d_ago
-                if decline_5d < -0.05:  # 5天内下跌超过5%
-                    confidence += 0.2
+                decline_threshold = confidence_config.get('decline_threshold', -0.05)  # 5%下跌阈值
+                if decline_5d < decline_threshold:
+                    confidence += confidence_config.get('recent_decline', 0.2)
                     reasons.append(f"近5日大幅下跌({decline_5d:.2%})")
                     
             # 最终判断
-            if confidence >= 0.5:
+            confidence_threshold = confidence_config.get('final_threshold', 0.5)
+            if confidence >= confidence_threshold:
                 is_low_point = True
                 
             # 限制置信度在0-1之间
@@ -296,15 +306,24 @@ class StrategyModule:
         返回:
         float: 策略得分
         """
+        # 从配置文件获取评分参数
+        strategy_config = self.config.get('strategy', {})
+        scoring_config = strategy_config.get('scoring', {})
+        
         # 成功率权重：50%
-        success_score = success_rate * 0.5
+        success_weight = scoring_config.get('success_weight', 0.5)
+        success_score = success_rate * success_weight
         
-        # 平均涨幅权重：30%（相对于10%的基准）
-        rise_score = min(avg_rise / 0.1, 1.0) * 0.3
+        # 平均涨幅权重：30%（相对于基准涨幅）
+        rise_weight = scoring_config.get('rise_weight', 0.3)
+        rise_benchmark = scoring_config.get('rise_benchmark', 0.1)  # 10%基准
+        rise_score = min(avg_rise / rise_benchmark, 1.0) * rise_weight
         
-        # 平均天数权重：20%（天数越少越好，以10天为基准）
+        # 平均天数权重：20%（天数越少越好，以基准天数为准）
+        days_weight = scoring_config.get('days_weight', 0.2)
+        days_benchmark = scoring_config.get('days_benchmark', 10.0)  # 10天基准
         if avg_days > 0:
-            days_score = min(10.0 / avg_days, 1.0) * 0.2
+            days_score = min(days_benchmark / avg_days, 1.0) * days_weight
         else:
             days_score = 0.0
             

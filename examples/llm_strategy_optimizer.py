@@ -47,15 +47,29 @@ class LLMStrategyOptimizer:
         """
         self.logger.info(f"模拟LLM生成新参数，当前参数: {current_params}, 反馈: {feedback}")
         
+        # 从配置文件获取参数范围
+        optimization_config = self.config.get('optimization', {})
+        param_ranges = optimization_config.get('param_ranges', {})
+        rise_threshold_range = param_ranges.get('rise_threshold', {})
+        max_days_range = param_ranges.get('max_days', {})
+        
+        # 获取rise_threshold的范围
+        min_threshold = rise_threshold_range.get('min', 0.03)
+        max_threshold = rise_threshold_range.get('max', 0.08)
+        
+        # 获取max_days的范围
+        min_days = max_days_range.get('min', 15)
+        max_days = max_days_range.get('max', 30)
+        
         # 模拟LLM调整参数
-        new_rise_threshold = round(random.uniform(0.03, 0.08), 4) # 3% to 8%
-        new_max_days = random.randint(15, 30) # 15 to 30 days
+        new_rise_threshold = round(random.uniform(min_threshold, max_threshold), 4)
+        new_max_days = random.randint(min_days, max_days)
         
         # 模拟LLM根据反馈进行微调
         if "提高" in feedback and "涨幅" in feedback:
-            new_rise_threshold = min(new_rise_threshold * 1.1, 0.10) # 稍微提高涨幅阈值
+            new_rise_threshold = min(new_rise_threshold * 1.1, max_threshold) # 稍微提高涨幅阈值
         elif "降低" in feedback and "天数" in feedback:
-            new_max_days = max(int(new_max_days * 0.9), 10) # 稍微降低天数
+            new_max_days = max(int(new_max_days * 0.9), min_days) # 稍微降低天数
 
         return {
             "rise_threshold": new_rise_threshold,
