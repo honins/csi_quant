@@ -57,7 +57,7 @@ class AIOptimizer:
         
     def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        优化策略参数
+        优化策略参数（rise_threshold和max_days保持固定）
         
         参数:
         strategy_module: 策略模块实例
@@ -66,7 +66,7 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("开始优化策略参数")
+        self.logger.info("开始优化策略参数（rise_threshold和max_days保持固定）")
         
         try:
             # 1. 获取基准策略的识别结果作为固定标签
@@ -74,29 +74,23 @@ class AIOptimizer:
             fixed_labels = baseline_backtest['is_low_point'].astype(int).values
             self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
             
-            # 2. 从配置文件获取参数搜索范围
+            # 2. 固定核心参数，不允许优化
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
+            
+            self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
+            
+            # 3. 从配置文件获取可优化参数的搜索范围
             optimization_config = self.config.get('optimization', {})
             param_ranges = optimization_config.get('param_ranges', {})
             
-            # 获取各个参数的搜索范围
-            rise_threshold_range = param_ranges.get('rise_threshold', {})
-            max_days_range = param_ranges.get('max_days', {})
+            # 只获取可优化参数的搜索范围
             rsi_oversold_range = param_ranges.get('rsi_oversold_threshold', {})
             rsi_low_range = param_ranges.get('rsi_low_threshold', {})
             final_threshold_range = param_ranges.get('final_threshold', {})
             
-            # 定义参数搜索空间
+            # 定义可优化参数的搜索空间
             param_grid = {
-                'rise_threshold': np.arange(
-                    rise_threshold_range.get('min', 0.03),
-                    rise_threshold_range.get('max', 0.08) + rise_threshold_range.get('step', 0.005),
-                    rise_threshold_range.get('step', 0.005)
-                ),
-                'max_days': np.arange(
-                    max_days_range.get('min', 10),
-                    max_days_range.get('max', 30) + max_days_range.get('step', 1),
-                    max_days_range.get('step', 1)
-                ),
                 'rsi_oversold_threshold': np.arange(
                     rsi_oversold_range.get('min', 25),
                     rsi_oversold_range.get('max', 35) + rsi_oversold_range.get('step', 1),
@@ -114,7 +108,7 @@ class AIOptimizer:
                 )
             }
             
-            self.logger.info(f"参数搜索范围:")
+            self.logger.info(f"可优化参数搜索范围:")
             for param, values in param_grid.items():
                 self.logger.info(f"  {param}: {values[0]} - {values[-1]}, 步长: {values[1]-values[0] if len(values)>1 else 'N/A'}")
             
@@ -126,16 +120,16 @@ class AIOptimizer:
             
             self.logger.info(f"总搜索组合数: {total_combinations}")
             
-            # 3. 基于固定标签优化策略参数
+            # 4. 基于固定标签优化可调参数
             # 为了减少计算量，我们使用随机采样而不是全网格搜索
             max_iterations = min(100, total_combinations)  # 最多100次迭代
             self.logger.info(f"使用随机采样，最大迭代次数: {max_iterations}")
             
             for iteration in range(max_iterations):
-                # 随机选择参数组合
+                # 随机选择可优化参数组合，固定核心参数
                 params = {
-                    'rise_threshold': np.random.choice(param_grid['rise_threshold']),
-                    'max_days': int(np.random.choice(param_grid['max_days'])),
+                    'rise_threshold': fixed_rise_threshold,  # 固定不变
+                    'max_days': fixed_max_days,              # 固定不变
                     'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
                     'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
                     'final_threshold': np.random.choice(param_grid['final_threshold'])
@@ -156,10 +150,10 @@ class AIOptimizer:
             
         except Exception as e:
             self.logger.error("优化策略参数失败: %s", str(e))
-            # 返回默认参数
+            # 返回默认参数，保持核心参数固定
             return {
-                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05),
-                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05),  # 固定
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),                # 固定
                 'rsi_oversold_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_oversold_threshold', 30),
                 'rsi_low_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_low_threshold', 40),
                 'final_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold', 0.5)
@@ -603,7 +597,7 @@ class AIOptimizer:
     def run_genetic_algorithm(self, evaluate_func, population_size: int = 20, 
                             generations: int = 10) -> Dict[str, Any]:
         """
-        运行遗传算法优化
+        运行遗传算法优化（rise_threshold和max_days保持固定）
         
         参数:
         evaluate_func: 评估函数
@@ -613,56 +607,24 @@ class AIOptimizer:
         返回:
         dict: 最优参数
         """
-        self.logger.info("运行遗传算法优化，种群大小: %d, 迭代代数: %d", 
+        self.logger.info("运行遗传算法优化（rise_threshold和max_days保持固定），种群大小: %d, 迭代代数: %d", 
                         population_size, generations)
         
         try:
-            # 从配置文件获取参数范围
-            optimization_config = self.config.get('optimization', {})
-            param_ranges = optimization_config.get('param_ranges', {})
-            rise_threshold_range = param_ranges.get('rise_threshold', {})
-            max_days_range = param_ranges.get('max_days', {})
+            # 固定核心参数，不允许优化
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
-            # 获取rise_threshold的范围
-            min_threshold = rise_threshold_range.get('min', 0.03)
-            max_threshold = rise_threshold_range.get('max', 0.08)
+            self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
             
-            # 获取max_days的范围
-            min_days = max_days_range.get('min', 10)
-            max_days = max_days_range.get('max', 30)
+            # 由于核心参数已固定，遗传算法不需要进行
+            # 直接返回固定参数
+            self.logger.info("核心参数已固定，跳过遗传算法优化")
             
-            # 初始化种群
-            population = []
-            for _ in range(population_size):
-                individual = {
-                    'rise_threshold': np.random.uniform(min_threshold, max_threshold),
-                    'max_days': np.random.randint(min_days, max_days + 1)
-                }
-                population.append(individual)
-                
-            best_individual = None
-            best_score = -1
-            
-            for generation in range(generations):
-                # 评估种群
-                scores = []
-                for individual in population:
-                    score = evaluate_func(individual)
-                    scores.append(score)
-                    
-                    if score > best_score:
-                        best_score = score
-                        best_individual = individual.copy()
-                        
-                # 选择、交叉、变异
-                population = self._genetic_operations(population, scores)
-                
-                self.logger.info("第 %d 代完成，最佳得分: %.4f", generation + 1, best_score)
-                
-            self.logger.info("遗传算法优化完成，最佳参数: %s, 得分: %.4f", 
-                           best_individual, best_score)
-            
-            return best_individual
+            return {
+                'rise_threshold': fixed_rise_threshold,
+                'max_days': fixed_max_days
+            }
             
         except Exception as e:
             self.logger.error("遗传算法优化失败: %s", str(e))
@@ -711,7 +673,7 @@ class AIOptimizer:
         
     def _crossover(self, parent1: Dict, parent2: Dict) -> Tuple[Dict, Dict]:
         """
-        交叉操作
+        交叉操作（rise_threshold和max_days保持固定）
         
         参数:
         parent1: 父代1
@@ -720,21 +682,25 @@ class AIOptimizer:
         返回:
         tuple: (子代1, 子代2)
         """
+        # 固定核心参数
+        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+        fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
+        
         child1 = {
-            'rise_threshold': parent1['rise_threshold'],
-            'max_days': parent2['max_days']
+            'rise_threshold': fixed_rise_threshold,  # 固定不变
+            'max_days': fixed_max_days              # 固定不变
         }
         
         child2 = {
-            'rise_threshold': parent2['rise_threshold'],
-            'max_days': parent1['max_days']
+            'rise_threshold': fixed_rise_threshold,  # 固定不变
+            'max_days': fixed_max_days              # 固定不变
         }
         
         return child1, child2
         
     def _mutate(self, individual: Dict, mutation_rate: float = 0.1) -> Dict:
         """
-        变异操作
+        变异操作（rise_threshold和max_days保持固定）
         
         参数:
         individual: 个体
@@ -745,31 +711,13 @@ class AIOptimizer:
         """
         mutated = individual.copy()
         
-        # 从配置文件获取参数范围
-        optimization_config = self.config.get('optimization', {})
-        param_ranges = optimization_config.get('param_ranges', {})
-        rise_threshold_range = param_ranges.get('rise_threshold', {})
-        max_days_range = param_ranges.get('max_days', {})
+        # 固定核心参数，不允许变异
+        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+        fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
         
-        # 获取rise_threshold的范围
-        min_threshold = rise_threshold_range.get('min', 0.03)
-        max_threshold = rise_threshold_range.get('max', 0.08)
-        
-        # 获取max_days的范围
-        min_days = max_days_range.get('min', 10)
-        max_days = max_days_range.get('max', 30)
-        
-        if np.random.random() < mutation_rate:
-            mutated['rise_threshold'] = np.clip(
-                mutated['rise_threshold'] + np.random.normal(0, 0.005),
-                min_threshold, max_threshold
-            )
-            
-        if np.random.random() < mutation_rate:
-            mutated['max_days'] = np.clip(
-                int(mutated['max_days'] + np.random.randint(-2, 3)),
-                min_days, max_days
-            )
+        # 确保核心参数保持固定
+        mutated['rise_threshold'] = fixed_rise_threshold
+        mutated['max_days'] = fixed_max_days
             
         return mutated
 
@@ -812,7 +760,7 @@ class AIOptimizer:
 
     def optimize_strategy_parameters_advanced(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        高级策略参数优化 - 使用多目标优化
+        高级策略参数优化 - 使用多目标优化（rise_threshold保持固定）
         
         参数:
         strategy_module: 策略模块实例
@@ -821,64 +769,20 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("开始高级策略参数优化")
+        self.logger.info("开始高级策略参数优化（rise_threshold保持固定）")
         
         try:
-            from scipy.optimize import minimize
+            # 固定核心参数，不允许优化
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
-            def objective(params):
-                rise_threshold = params[0]
-                
-                # 使用固定标签评估
-                baseline_strategy = StrategyModule(self.config)
-                baseline_backtest = baseline_strategy.backtest(data)
-                fixed_labels = baseline_backtest['is_low_point'].astype(int).values
-                
-                # 从config读取max_days，不参与优化
-                max_days = self.config.get('strategy', {}).get('max_days', 20)
-                
-                score = self._evaluate_params_with_fixed_labels(
-                    data, fixed_labels, rise_threshold, max_days
-                )
-                
-                return -score  # 最小化负得分 = 最大化得分
+            self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
             
-            # 约束条件（只优化rise_threshold）
-            # 从配置文件获取rise_threshold的范围
-            optimization_config = self.config.get('optimization', {})
-            param_ranges = optimization_config.get('param_ranges', {})
-            rise_threshold_range = param_ranges.get('rise_threshold', {})
-            
-            min_threshold = rise_threshold_range.get('min', 0.03)
-            max_threshold = rise_threshold_range.get('max', 0.08)
-            
-            bounds = [(min_threshold, max_threshold)]
-            
-            # 初始值
-            x0 = [self.config.get('strategy', {}).get('rise_threshold', 0.05)]
-            
-            # 优化
-            result = minimize(objective, x0, bounds=bounds, method='L-BFGS-B')
-            
-            if result.success:
-                # 从config读取max_days
-                max_days = self.config.get('strategy', {}).get('max_days', 20)
-                
-                best_params = {
-                    'rise_threshold': result.x[0],
-                    'max_days': max_days
-                }
-                best_score = -result.fun
-                
-                self.logger.info("高级优化完成，最佳参数: %s, 得分: %.4f", best_params, best_score)
-                return best_params
-            else:
-                self.logger.warning("高级优化失败，使用网格搜索")
-                return self.optimize_strategy_parameters(strategy_module, data)
-                
-        except ImportError:
-            self.logger.warning("scipy未安装，使用网格搜索")
+            # 由于rise_threshold和max_days都是固定的，高级优化实际上不需要进行
+            # 直接返回固定参数，只优化其他参数
+            self.logger.info("核心参数已固定，跳过高级优化，使用基础优化方法")
             return self.optimize_strategy_parameters(strategy_module, data)
+                
         except Exception as e:
             self.logger.error("高级优化失败: %s", str(e))
             return self.optimize_strategy_parameters(strategy_module, data)

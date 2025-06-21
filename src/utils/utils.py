@@ -9,13 +9,8 @@
 import os
 import logging
 import yaml
-import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-from pathlib import Path
-
-# 导入新的配置加载器
-from .config_loader import load_config as load_merged_config
 
 def setup_logging(log_level: str = 'INFO', log_file: Optional[str] = None) -> None:
     """
@@ -54,61 +49,22 @@ def setup_logging(log_level: str = 'INFO', log_file: Optional[str] = None) -> No
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
 
-def load_config(config_path: str = None) -> Dict[str, Any]:
+def load_config(config_path: str) -> Dict[str, Any]:
     """
-    加载配置文件（使用新的配置加载器）
+    加载配置文件
     
     参数:
-    config_path: 配置文件路径（可选，默认使用config目录）
+    config_path: 配置文件路径
     
     返回:
-    dict: 配置字典（主配置 + 策略配置的合并结果）
+    dict: 配置字典
     """
     try:
-        if config_path:
-            # 如果指定了具体路径，使用原来的方式加载单个文件
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            return config
-        else:
-            # 使用新的配置加载器加载合并后的配置
-            return load_merged_config()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config
     except Exception as e:
         logging.error("加载配置文件失败: %s", str(e))
-        return {}
-
-def load_main_config(config_dir: str = "config") -> Dict[str, Any]:
-    """
-    仅加载主配置文件
-    
-    参数:
-    config_dir: 配置文件目录
-    
-    返回:
-    dict: 主配置字典
-    """
-    try:
-        from .config_loader import load_main_config as load_main
-        return load_main(config_dir)
-    except Exception as e:
-        logging.error("加载主配置文件失败: %s", str(e))
-        return {}
-
-def load_strategy_config(config_dir: str = "config") -> Dict[str, Any]:
-    """
-    仅加载策略配置文件
-    
-    参数:
-    config_dir: 配置文件目录
-    
-    返回:
-    dict: 策略配置字典
-    """
-    try:
-        from .config_loader import load_strategy_config as load_strategy
-        return load_strategy(config_dir)
-    except Exception as e:
-        logging.error("加载策略配置文件失败: %s", str(e))
         return {}
 
 def save_config(config: Dict[str, Any], config_path: str) -> bool:
