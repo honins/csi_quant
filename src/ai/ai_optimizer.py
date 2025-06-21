@@ -894,12 +894,14 @@ class AIOptimizer:
         返回:
         float: 平均得分
         """
-        self.logger.info("开始时间序列交叉验证评估")
+        self.logger.info("🔄 开始时间序列交叉验证评估")
         
         try:
             total_score = 0
             cv_folds = 5
             fold_scores = []
+            
+            self.logger.info(f"📊 将数据分为 {cv_folds} 折进行验证...")
             
             for i in range(cv_folds):
                 # 按时间分割数据
@@ -908,7 +910,10 @@ class AIOptimizer:
                 test_data = data.iloc[split_point:min(split_point + 100, len(data))]  # 测试窗口
                 
                 if len(test_data) < 20:  # 测试数据太少，跳过
+                    self.logger.info(f"   ⏭️ 第{i+1}折：测试数据不足，跳过")
                     continue
+                
+                self.logger.info(f"   🔄 第{i+1}折：训练数据 {len(train_data)} 条，测试数据 {len(test_data)} 条")
                 
                 # 在训练数据上优化策略参数
                 temp_strategy = StrategyModule(self.config)
@@ -923,18 +928,19 @@ class AIOptimizer:
                 fold_scores.append(score)
                 total_score += score
                 
-                self.logger.info(f"第{i+1}折得分: {score:.4f}")
+                self.logger.info(f"   ✅ 第{i+1}折得分: {score:.4f}")
             
             if len(fold_scores) == 0:
+                self.logger.warning("⚠️ 没有有效的交叉验证结果")
                 return 0.0
                 
             avg_score = total_score / len(fold_scores)
-            self.logger.info(f"时间序列交叉验证平均得分: {avg_score:.4f}")
+            self.logger.info(f"📊 交叉验证完成，平均得分: {avg_score:.4f} (共{len(fold_scores)}折)")
             
             return avg_score
             
         except Exception as e:
-            self.logger.error("时间序列交叉验证失败: %s", str(e))
+            self.logger.error("❌ 时间序列交叉验证失败: %s", str(e))
             return 0.0
     
     def hierarchical_optimization(self, data: pd.DataFrame) -> Dict[str, Any]:
@@ -947,20 +953,31 @@ class AIOptimizer:
         返回:
         dict: 优化结果
         """
-        self.logger.info("开始分层优化策略")
+        self.logger.info("=" * 60)
+        self.logger.info("🏗️ 开始分层优化策略")
+        self.logger.info("=" * 60)
         
         try:
             # 第一层：策略参数优化
+            self.logger.info("📊 第一层：策略参数优化...")
             strategy_module = StrategyModule(self.config)
             strategy_params = self.optimize_strategy_parameters(strategy_module, data)
+            self.logger.info("✅ 策略参数优化完成")
+            self.logger.info(f"   - 涨幅阈值: {strategy_params['rise_threshold']:.3f}")
+            self.logger.info(f"   - 最大观察天数: {strategy_params['max_days']}")
             
             # 第二层：基于优化后的策略训练AI模型
+            self.logger.info("🤖 第二层：更新策略参数并准备AI训练...")
             strategy_module.update_params(strategy_params)
+            self.logger.info("✅ 策略参数更新完成")
             
             # 第三层：时间序列交叉验证
+            self.logger.info("🔄 第三层：时间序列交叉验证...")
             cv_score = self.time_series_cv_evaluation(data, strategy_module)
+            self.logger.info(f"✅ 交叉验证完成，平均得分: {cv_score:.4f}")
             
             # 第四层：高级优化（如果可用）
+            self.logger.info("🚀 第四层：高级优化...")
             try:
                 advanced_params = self.optimize_strategy_parameters_advanced(strategy_module, data)
                 advanced_score = self._evaluate_params_with_fixed_labels(
@@ -970,20 +987,24 @@ class AIOptimizer:
                     advanced_params['max_days']
                 )
                 
+                self.logger.info(f"   - 高级优化得分: {advanced_score:.4f}")
+                self.logger.info(f"   - 交叉验证得分: {cv_score:.4f}")
+                
                 # 选择更好的参数
                 if advanced_score > cv_score:
                     final_params = advanced_params
                     final_score = advanced_score
-                    self.logger.info("选择高级优化参数")
+                    self.logger.info("✅ 选择高级优化参数（得分更高）")
                 else:
                     final_params = strategy_params
                     final_score = cv_score
-                    self.logger.info("选择交叉验证参数")
+                    self.logger.info("✅ 选择交叉验证参数（得分更高）")
                     
             except Exception as e:
-                self.logger.warning("高级优化失败，使用基础优化结果: %s", str(e))
+                self.logger.warning(f"⚠️ 高级优化失败，使用基础优化结果: {str(e)}")
                 final_params = strategy_params
                 final_score = cv_score
+                self.logger.info("✅ 使用基础优化参数")
             
             result = {
                 'strategy_params': final_params,
@@ -992,11 +1013,24 @@ class AIOptimizer:
                 'optimization_method': 'hierarchical'
             }
             
-            self.logger.info("分层优化完成，最终参数: %s, 最终得分: %.4f", final_params, final_score)
+            self.logger.info("=" * 60)
+            self.logger.info("🎉 分层优化完成")
+            self.logger.info("=" * 60)
+            self.logger.info(f"📈 最终参数:")
+            self.logger.info(f"   - 涨幅阈值: {final_params['rise_threshold']:.3f}")
+            self.logger.info(f"   - 最大观察天数: {final_params['max_days']}")
+            self.logger.info(f"   - RSI超卖阈值: {final_params.get('rsi_oversold_threshold', 'N/A')}")
+            self.logger.info(f"   - RSI偏低阈值: {final_params.get('rsi_low_threshold', 'N/A')}")
+            self.logger.info(f"   - 置信度阈值: {final_params.get('final_threshold', 'N/A')}")
+            self.logger.info(f"📊 最终得分: {final_score:.4f}")
+            self.logger.info(f"🔧 优化方法: {result['optimization_method']}")
+            self.logger.info("=" * 60)
+            
             return result
             
         except Exception as e:
-            self.logger.error("分层优化失败: %s", str(e))
+            self.logger.error("❌ 分层优化失败: %s", str(e))
+            self.logger.info("🔄 使用默认参数作为备选方案")
             return {
                 'strategy_params': {
                     'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05), 

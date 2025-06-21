@@ -59,79 +59,18 @@ notification:
   methods:
   - console
   - email
-optimization:
-  genetic_algorithm:
-    crossover_rate: 0.8
-    generations: 10
-    mutation_rate: 0.1
-    population_size: 20
-  grid_search:
-    cv_folds: 5
-    scoring: f1
-  param_ranges:
-    final_threshold:
-      max: 0.7
-      min: 0.3
-      step: 0.05
-    max_days:
-      max: 20
-      min: 2
-      step: 1
-    rise_threshold:
-      max: 0.15
-      min: 0.05
-      step: 0.005
-    rsi_low_threshold:
-      max: 45
-      min: 35
-      step: 1
-    rsi_oversold_threshold:
-      max: 35
-      min: 25
-      step: 1
 results:
   images_path: results/images
   save_detailed: true
   save_path: results
   tables_path: results/tables
-risk:
-  cooldown_days: 5
-  max_daily_signals: 3
-  min_confidence: 0.6
 strategy:
-  bb_period: 20
-  bb_std: 2
   confidence_weights:
-    bb_lower_near: 0.2
-    bb_near_threshold: 1.02
-    decline_threshold: -0.05
-    final_threshold: 0.5999999999999999
-    ma_all_below: 0.3
-    ma_partial_below: 0.2
-    macd_negative: 0.1
-    recent_decline: 0.2
-    rsi_low: 0.2
-    rsi_low_threshold: 36
-    rsi_oversold: 0.3
-    rsi_oversold_threshold: 33
-  ma_periods:
-  - 5
-  - 10
-  - 20
-  - 60
-  macd_fast: 12
-  macd_signal: 9
-  macd_slow: 26
-  max_days: 20
-  results_dir: results
-  rise_threshold: 0.05
-  rsi_period: 14
-  scoring:
-    days_benchmark: 10.0
-    days_weight: 0.2
-    rise_benchmark: 0.1
-    rise_weight: 0.3
-    success_weight: 0.5
+    final_threshold: 0.7
+    rsi_low_threshold: 41
+    rsi_oversold_threshold: 25
+  max_days: 29
+  rise_threshold: 0.03
 system:
   log_file: logs/system.log
   log_level: INFO
