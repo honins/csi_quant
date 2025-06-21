@@ -75,15 +75,15 @@ strategy:
     bb_lower_near: 0.2
     bb_near_threshold: 1.02
     decline_threshold: -0.05
-    final_threshold: 0.5499999999999999
+    final_threshold: 0.7
     ma_all_below: 0.3
     ma_partial_below: 0.2
     macd_negative: 0.1
     recent_decline: 0.2
     rsi_low: 0.2
-    rsi_low_threshold: 45
+    rsi_low_threshold: 44
     rsi_oversold: 0.3
-    rsi_oversold_threshold: 30
+    rsi_oversold_threshold: 29
   ma_periods:
   - 5
   - 10
