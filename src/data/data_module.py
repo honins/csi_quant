@@ -164,6 +164,10 @@ class DataModule:
         data['price_change_5d'] = data['close'].pct_change(5)
         data['price_change_10d'] = data['close'].pct_change(10)
         
+        # 增加成交量分析 (为均线跌破判断服务)
+        data['volume_ma20'] = data['volume'].rolling(20).mean()
+        data['volume_ratio'] = data['volume'] / data['volume_ma20']
+        
         return data
         
     def get_latest_data(self) -> Optional[pd.Series]:

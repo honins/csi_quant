@@ -104,6 +104,14 @@ strategy:
     rsi_low_threshold: 44            # RSI低值阈值
     rsi_oversold: 0.3                # RSI超卖权重
     rsi_oversold_threshold: 29       # RSI超卖阈值
+    # 成交量分析参数 (为均线跌破判断服务)
+    volume_panic_bonus: 0.1          # 恐慌性抛售额外奖励
+    volume_surge_bonus: 0.05         # 温和放量额外奖励
+    volume_shrink_penalty: 0.7       # 成交量萎缩惩罚系数
+    volume_panic_threshold: 1.4      # 恐慌性抛售阈值 (40%放大)
+    volume_surge_threshold: 1.2      # 温和放量阈值 (20%放大)
+    volume_shrink_threshold: 0.8     # 成交量萎缩阈值 (20%萎缩)
+    price_decline_threshold: -0.02   # 价格跌幅阈值 (-2%)
   # 移动平均线周期
   ma_periods:
   - 5                                # 5日均线

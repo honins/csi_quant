@@ -86,9 +86,42 @@ class StrategyModule:
             # 条件1: 价格低于多条移动平均线
             if ma5 is not None and ma10 is not None and ma20 is not None:
                 if latest_price < ma5 and latest_price < ma10 and latest_price < ma20:
-                    is_low_point = True
-                    confidence += confidence_config.get('ma_all_below', 0.3)
-                    reasons.append("价格低于MA5/MA10/MA20")
+                    # 价格跌破所有均线 - 基础条件满足
+                    base_confidence = confidence_config.get('ma_all_below', 0.3)
+                    
+                    # 成交量分析 - 区分是下跌通道还是见底信号
+                    volume_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else 1.0
+                    price_decline = data.iloc[-1]['price_change'] if 'price_change' in data.columns else 0.0
+                    
+                    # 获取成交量相关阈值
+                    volume_panic_threshold = confidence_config.get('volume_panic_threshold', 1.4)
+                    volume_surge_threshold = confidence_config.get('volume_surge_threshold', 1.2)
+                    volume_shrink_threshold = confidence_config.get('volume_shrink_threshold', 0.8)
+                    price_decline_threshold = confidence_config.get('price_decline_threshold', -0.02)
+                    
+                    # 判断成交量状态
+                    if volume_ratio > volume_panic_threshold and price_decline < price_decline_threshold:
+                        # 恐慌性抛售 - 可能是见底信号
+                        panic_bonus = confidence_config.get('volume_panic_bonus', 0.1)
+                        confidence += base_confidence + panic_bonus
+                        is_low_point = True
+                        reasons.append(f"价格跌破所有均线+恐慌性抛售(成交量放大{volume_ratio:.1f}倍)")
+                    elif volume_ratio > volume_surge_threshold:
+                        # 温和放量 - 可能是见底信号
+                        surge_bonus = confidence_config.get('volume_surge_bonus', 0.05)
+                        confidence += base_confidence + surge_bonus
+                        is_low_point = True
+                        reasons.append(f"价格跌破所有均线+温和放量(成交量放大{volume_ratio:.1f}倍)")
+                    elif volume_ratio < volume_shrink_threshold:
+                        # 成交量萎缩 - 可能是下跌通道中
+                        shrink_penalty = confidence_config.get('volume_shrink_penalty', 0.7)
+                        confidence += base_confidence * shrink_penalty
+                        reasons.append(f"价格跌破所有均线+成交量萎缩(可能是下跌通道)")
+                    else:
+                        # 正常成交量 - 保持原有逻辑
+                        confidence += base_confidence
+                        is_low_point = True
+                        reasons.append("价格低于MA5/MA10/MA20")
                 elif latest_price < ma10 and latest_price < ma20:
                     confidence += confidence_config.get('ma_partial_below', 0.2)
                     reasons.append("价格低于MA10/MA20")
