@@ -1,108 +1,132 @@
+# AI模型配置
 ai:
+  # 高级优化配置
   advanced_optimization:
-    enabled: true
-    use_hierarchical: true
-    use_scipy: true
-    use_time_series_cv: true
-  data_decay_rate: 0.4
-  enable: true
+    enabled: true                    # 是否启用高级优化
+    use_hierarchical: true           # 是否使用分层优化
+    use_scipy: true                  # 是否使用scipy优化器
+    use_time_series_cv: true         # 是否使用时序交叉验证
+  data_decay_rate: 0.4               # 数据衰减率，用于给近期数据更高权重
+  enable: true                       # 是否启用AI功能
+  # 遗传算法配置
   genetic_algorithm:
-    crossover_rate: 0.8
-    generations: 10
-    mutation_rate: 0.1
-    population_size: 20
-  model_save_path: models/ai_model.pkl
-  model_type: machine_learning
-  models_dir: models
-  optimization_interval: 30
+    crossover_rate: 0.8              # 交叉概率
+    generations: 10                  # 进化代数
+    mutation_rate: 0.1               # 变异概率
+    population_size: 20              # 种群大小
+  model_save_path: models/ai_model.pkl  # AI模型保存路径
+  model_type: machine_learning       # 模型类型
+  models_dir: models                 # 模型目录
+  optimization_interval: 30          # 优化间隔（天）
+  # 评分配置
   scoring:
-    rise_benchmark: 0.1
-    rise_weight: 0.3
-    risk_benchmark: 0.2
-    risk_weight: 0.1
-    speed_weight: 0.2
-    success_weight: 0.4
-  train_test_split_ratio: 0.8
+    rise_benchmark: 0.1              # 涨幅基准
+    rise_weight: 0.3                 # 涨幅权重
+    risk_benchmark: 0.2              # 风险基准
+    risk_weight: 0.1                 # 风险权重
+    speed_weight: 0.2                # 速度权重
+    success_weight: 0.4              # 成功率权重
+  train_test_split_ratio: 0.8        # 训练测试集分割比例
+
+# 回测配置
 backtest:
-  charts_dir: charts
-  default_end_date: '2024-12-31'
-  default_start_date: '2023-01-01'
-  end_date: '2025-06-19'
-  generate_charts: true
-  rolling_step: 63
-  rolling_window: 252
-  start_date: '2022-01-01'
+  charts_dir: charts                 # 图表保存目录
+  default_end_date: '2025-06-21'     # 默认结束日期
+  default_start_date: '2023-01-01'   # 默认开始日期
+  end_date: '2025-06-21'             # 回测结束日期
+  generate_charts: true              # 是否生成图表
+  rolling_step: 63                   # 滚动步长（交易日）
+  rolling_window: 252                # 滚动窗口大小（交易日）
+  start_date: '2022-01-01'           # 回测开始日期
+
+# 数据配置
 data:
-  cache_dir: cache
-  cache_enabled: true
-  data_file_path: data/SHSE.000852_1d.csv
-  data_source: akshare
-  frequency: 1d
-  history_days: 1000
-  index_code: SHSE.000852
+  cache_dir: cache                   # 缓存目录
+  cache_enabled: true                # 是否启用缓存
+  data_file_path: data/SHSE.000852_1d.csv  # 数据文件路径
+  data_source: akshare               # 数据源
+  frequency: 1d                      # 数据频率（1d=日线）
+  history_days: 1000                 # 历史数据天数
+  index_code: SHSE.000852            # 指数代码
+
+# 日志配置
 logging:
-  backup_count: 5
-  file: logs/system.log
-  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  level: INFO
-  max_bytes: 10485760
+  backup_count: 5                    # 日志备份文件数量
+  file: logs/system.log              # 日志文件路径
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'  # 日志格式
+  level: INFO                        # 日志级别
+  max_bytes: 10485760                # 单个日志文件最大字节数（10MB）
+
+# 通知配置
 notification:
+  # 邮件通知配置
   email:
-    password: your_password
-    recipients:
+    password: your_password           # 邮箱密码
+    recipients:                       # 收件人列表
     - your_email@example.com
-    sender: quant_system@example.com
-    smtp_port: 587
-    smtp_server: smtp.example.com
-    username: your_username
-  logs_dir: logs
-  methods:
-  - console
-  - email
+    sender: quant_system@example.com  # 发件人邮箱
+    smtp_port: 587                    # SMTP端口
+    smtp_server: smtp.example.com     # SMTP服务器
+    username: your_username           # 邮箱用户名
+  logs_dir: logs                     # 通知日志目录
+  methods:                           # 通知方式
+  - console                          # 控制台输出
+  - email                            # 邮件通知
+
+# 结果配置
 results:
-  images_path: results/images
-  save_detailed: true
-  save_path: results
-  tables_path: results/tables
+  images_path: results/images        # 图片保存路径
+  save_detailed: true                # 是否保存详细结果
+  save_path: results                 # 结果保存路径
+  tables_path: results/tables        # 表格保存路径
+
+# 风险控制配置
 risk:
-  cooldown_days: 5
-  max_daily_signals: 3
-  min_confidence: 0.6
+  cooldown_days: 5                   # 冷却期天数
+  max_daily_signals: 3               # 每日最大信号数量
+  min_confidence: 0.6                # 最小置信度阈值
+
+# 策略配置
 strategy:
-  bb_period: 20
-  bb_std: 2
+  bb_period: 20                      # 布林带周期
+  bb_std: 2                          # 布林带标准差倍数
+  # 置信度权重配置
   confidence_weights:
-    bb_lower_near: 0.2
-    bb_near_threshold: 1.02
-    decline_threshold: -0.05
-    final_threshold: 0.7
-    ma_all_below: 0.3
-    ma_partial_below: 0.2
-    macd_negative: 0.1
-    recent_decline: 0.2
-    rsi_low: 0.2
-    rsi_low_threshold: 44
-    rsi_oversold: 0.3
-    rsi_oversold_threshold: 29
+    bb_lower_near: 0.2               # 接近布林带下轨权重
+    bb_near_threshold: 1.02          # 布林带接近阈值
+    decline_threshold: -0.05         # 下跌阈值
+    final_threshold: 0.7             # 最终置信度阈值
+    ma_all_below: 0.3                # 所有均线在价格下方权重
+    ma_partial_below: 0.2            # 部分均线在价格下方权重
+    macd_negative: 0.1               # MACD负值权重
+    recent_decline: 0.2              # 近期下跌权重
+    rsi_low: 0.2                     # RSI低值权重
+    rsi_low_threshold: 44            # RSI低值阈值
+    rsi_oversold: 0.3                # RSI超卖权重
+    rsi_oversold_threshold: 29       # RSI超卖阈值
+  # 移动平均线周期
   ma_periods:
-  - 5
-  - 10
-  - 20
-  - 60
-  macd_fast: 12
-  macd_signal: 9
-  macd_slow: 26
-  max_days: 20
-  results_dir: results
-  rise_threshold: 0.05
-  rsi_period: 14
+  - 5                                # 5日均线
+  - 10                               # 10日均线
+  - 20                               # 20日均线
+  - 60                               # 60日均线
+  macd_fast: 12                      # MACD快线周期
+  macd_signal: 9                     # MACD信号线周期
+  macd_slow: 26                      # MACD慢线周期
+  max_days: 20                       # 最大持仓天数
+  results_dir: results               # 策略结果目录
+  rise_threshold: 0.05               # 涨幅阈值
+  rsi_period: 14                     # RSI周期
+  # 策略评分配置
   scoring:
-    days_benchmark: 10.0
-    days_weight: 0.2
-    rise_benchmark: 0.1
-    rise_weight: 0.3
-    success_weight: 0.5
+    days_benchmark: 10.0             # 持仓天数基准
+    days_weight: 0.2                 # 持仓天数权重
+    rise_benchmark: 0.1              # 涨幅基准
+    rise_weight: 0.3                 # 涨幅权重
+    success_weight: 0.5              # 成功率权重
+
+# 系统配置
 system:
-  log_file: logs/system.log
-  log_level: INFO
-  mode: backtest
+  log_file: logs/system.log          # 系统日志文件
+  log_level: INFO                    # 系统日志级别
+  mode: backtest                     # 运行模式（backtest=回测模式）
