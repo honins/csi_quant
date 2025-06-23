@@ -183,7 +183,7 @@ strategy:
   # 置信度权重配置
   confidence_weights:
     # 最终置信度阈值
-    final_threshold: 0.7
+    final_threshold: 0.6499999999999999
     # 所有均线在价格下方权重
     ma_all_below: 0.3
     # 部分均线在价格下方权重
@@ -199,11 +199,11 @@ strategy:
     # RSI低值权重
     rsi_low: 0.2
     # RSI低值阈值
-    rsi_low_threshold: 45
+    rsi_low_threshold: 38
     # RSI超卖权重
     rsi_oversold: 0.3
     # RSI超卖阈值
-    rsi_oversold_threshold: 25
+    rsi_oversold_threshold: 26
     # MACD负值权重
     macd_negative: 0.1
     
