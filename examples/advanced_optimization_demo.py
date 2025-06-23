@@ -162,7 +162,7 @@ def demo_comparison(data_module, strategy_module, ai_optimizer, data):
 def main():
     """主函数"""
     print("="*60)
-    print("中证1000指数相对低点识别系统 - 高级优化演示")
+    print("中证500指数相对低点识别系统 - 高级优化演示")
     print("="*60)
     
     # 设置日志

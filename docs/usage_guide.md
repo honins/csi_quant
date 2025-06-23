@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 ### 数据模块使用
 
-数据模块现在支持从单一CSV文件加载历史数据，文件路径可在 `config/config.yaml` 中配置。
+数据模块现在支持从单一CSV文件加载中证500指数历史数据，文件路径可在 `config/config.yaml` 中配置。
 
 ```python
 from src.data.data_module import DataModule
@@ -146,7 +146,7 @@ python llm_strategy_optimizer.py
 
 ### 策略配置
 
-- `rise_threshold`: 上涨阈值，默认0.05（5%）
+- `rise_threshold`: 上涨阈值，默认0.04（4%）
 - `max_days`: 最大交易日数，默认20天
 
 ### AI配置

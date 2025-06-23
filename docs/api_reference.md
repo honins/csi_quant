@@ -19,7 +19,7 @@ DataModule(config: Dict[str, Any])
 get_history_data(start_date: str, end_date: str) -> pd.DataFrame
 ```
 
-获取历史数据。
+获取中证500指数历史数据。
 
 **参数:**
 - `start_date`: 开始日期 (YYYY-MM-DD)

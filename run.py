@@ -62,10 +62,10 @@ def run_strategy_test(iterations):
 def main():
     """主函数"""
     print("="*60)
-    print("中证1000指数相对低点识别系统")
+    print("中证500指数相对低点识别系统")
     print("="*60)
 
-    parser = argparse.ArgumentParser(description='中证1000指数相对低点识别系统')
+    parser = argparse.ArgumentParser(description='中证500指数相对低点识别系统')
     parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai'], 
                        help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=高级优化, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')

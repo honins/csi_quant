@@ -3,7 +3,7 @@
 
 """
 数据获取模块
-负责获取中证1000指数的历史数据和实时数据
+负责获取中证500指数的历史数据和实时数据
 """
 
 import os
@@ -27,7 +27,7 @@ class DataModule:
         """
         self.logger = logging.getLogger('DataModule')
         self.config = config
-        self.index_code = config.get('data', {}).get('index_code', 'SHSE.000852')
+        self.index_code = config.get('data', {}).get('index_code', 'SHSE.000905')
         self.frequency = config.get('data', {}).get('frequency', '1d')
         
         # 创建缓存目录

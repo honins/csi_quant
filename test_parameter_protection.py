@@ -29,7 +29,7 @@ def test_parameter_protection():
     config = load_config(config_path)
     
     # 记录原始的核心参数值
-    original_rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.05)
+    original_rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.04)
     original_max_days = config.get('strategy', {}).get('max_days', 20)
     
     print(f"📋 原始核心参数:")

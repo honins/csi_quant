@@ -75,7 +75,7 @@ class AIOptimizer:
             self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
             
             # 2. 固定核心参数，不允许优化
-            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
             fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
             self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
@@ -152,7 +152,7 @@ class AIOptimizer:
             self.logger.error("优化策略参数失败: %s", str(e))
             # 返回默认参数，保持核心参数固定
             return {
-                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05),  # 固定
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),  # 固定
                 'max_days': self.config.get('strategy', {}).get('max_days', 20),                # 固定
                 'rsi_oversold_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_oversold_threshold', 30),
                 'rsi_low_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_low_threshold', 40),
@@ -612,7 +612,7 @@ class AIOptimizer:
         
         try:
             # 固定核心参数，不允许优化
-            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
             fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
             self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
@@ -629,7 +629,7 @@ class AIOptimizer:
         except Exception as e:
             self.logger.error("遗传算法优化失败: %s", str(e))
             return {
-                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05), 
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04), 
                 'max_days': self.config.get('strategy', {}).get('max_days', 20)
             }
             
@@ -683,7 +683,7 @@ class AIOptimizer:
         tuple: (子代1, 子代2)
         """
         # 固定核心参数
-        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
         fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
         
         child1 = {
@@ -712,7 +712,7 @@ class AIOptimizer:
         mutated = individual.copy()
         
         # 固定核心参数，不允许变异
-        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+        fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
         fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
         
         # 确保核心参数保持固定
@@ -773,7 +773,7 @@ class AIOptimizer:
         
         try:
             # 固定核心参数，不允许优化
-            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.05)
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
             fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
             self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
@@ -937,7 +937,7 @@ class AIOptimizer:
             self.logger.info("🔄 使用默认参数作为备选方案")
             return {
                 'strategy_params': {
-                    'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.05), 
+                    'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04), 
                     'max_days': self.config.get('strategy', {}).get('max_days', 20)
                 },
                 'cv_score': 0.0,

@@ -20,7 +20,7 @@ from notification.notification_module import NotificationModule
 def main():
     """主函数"""
     print("="*60)
-    print("中证1000指数相对低点识别系统 - 基础测试")
+    print("中证500指数相对低点识别系统 - 基础测试")
     print("="*60)
     
     # 设置日志
@@ -34,11 +34,11 @@ def main():
         print("❌ 配置文件加载失败，使用默认配置")
         config = {
             'data': {
-                'index_code': 'SHSE.000852',
+                'index_code': 'SHSE.000905',
                 'frequency': '1d'
             },
             'strategy': {
-                'rise_threshold': 0.05,  # 5%的上涨阈值
+                'rise_threshold': 0.04,  # 4%的上涨阈值
                 'max_days': 20  # 最大持仓20天
             },
             'optimization': {

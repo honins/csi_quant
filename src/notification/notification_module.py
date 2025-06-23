@@ -100,11 +100,11 @@ class NotificationModule:
             date_str = date.strftime('%Y-%m-%d')
             
         # 生成标题
-        subject = f"中证1000指数相对低点提醒 - {date_str}"
+        subject = f"中证500指数相对低点提醒 - {date_str}"
         
         # 生成正文
         body = f"""
-中证1000指数相对低点识别系统
+中证500指数相对低点识别系统
 
 检测到相对低点：
 
@@ -129,7 +129,7 @@ class NotificationModule:
 相对低点定义：从当天起到20个交易日内，直至某一天指数能够上涨5%，则当天被认为是该指数的相对低点。
 
 ---
-中证1000指数相对低点识别系统
+中证500指数相对低点识别系统
 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
         

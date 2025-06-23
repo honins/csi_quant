@@ -115,7 +115,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.plot(incorrect_dates, results_df.loc[incorrect_dates, 'predicted_low_point'], 'ro', markersize=8, label='Incorrect Prediction')
 
             # 获取策略参数
-            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.05)
+            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.04)
             max_days = config.get('strategy', {}).get('max_days', 20)
             confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
             rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)
@@ -220,7 +220,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         cell.set_facecolor('#ffebee')  # 淡红
 
             # 获取策略参数
-            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.05)
+            rise_threshold = config.get('strategy', {}).get('rise_threshold', 0.04)
             max_days = config.get('strategy', {}).get('max_days', 20)
             confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
             rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)

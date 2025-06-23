@@ -11,7 +11,7 @@ setup(
     version="1.0.0",
     author="Your Name",
     author_email="your.email@example.com",
-    description="中证1000指数相对低点识别量化系统",
+    description="中证500指数相对低点识别量化系统",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/csi1000-quant",

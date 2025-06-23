@@ -104,7 +104,7 @@ def save_optimized_params_to_config(config, optimized_params):
             if key not in ['rise_threshold', 'max_days']:
                 print(f"   - {key}: {value}")
         print(f"🔒 固定参数:")
-        print(f"   - rise_threshold: {config.get('strategy', {}).get('rise_threshold', 0.05)} (未修改)")
+        print(f"   - rise_threshold: {config.get('strategy', {}).get('rise_threshold', 0.04)} (未修改)")
         print(f"   - max_days: {config.get('strategy', {}).get('max_days', 20)} (未修改)")
         
     except Exception as e:
@@ -208,7 +208,7 @@ def run_ai_optimization(config):
         }
         save_optimized_params_to_config(config, params_to_save)
         print(f"✅ 非核心参数已保存: {params_to_save}")
-        print(f"🔒 核心参数保持固定: rise_threshold={config.get('strategy', {}).get('rise_threshold', 0.05)}, max_days={config.get('strategy', {}).get('max_days', 20)}")
+        print(f"🔒 核心参数保持固定: rise_threshold={config.get('strategy', {}).get('rise_threshold', 0.04)}, max_days={config.get('strategy', {}).get('max_days', 20)}")
         
         return True
         
@@ -221,7 +221,7 @@ def run_ai_optimization(config):
 def main():
     """主函数"""
     print("="*60)
-    print("中证1000指数相对低点识别系统 - AI优化测试")
+    print("中证500指数相对低点识别系统 - AI优化测试")
     print("="*60)
     
     # 设置日志
@@ -235,11 +235,11 @@ def main():
         print("❌ 配置文件加载失败，使用默认配置")
         config = {
             'data': {
-                'index_code': 'SHSE.000852',
+                'index_code': 'SHSE.000905',
                 'frequency': '1d'
             },
             'strategy': {
-                'rise_threshold': 0.05,
+                'rise_threshold': 0.04,
                 'max_days': 20
             },
             'optimization': {

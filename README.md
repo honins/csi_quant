@@ -1,6 +1,6 @@
-# 中证1000指数相对低点识别量化系统
+# 中证500指数相对低点识别量化系统
 
-一个基于Python的量化交易系统，旨在识别中证1000指数的相对低点，支持AI优化、LLM驱动策略、可视化回测和多种通知方式。
+一个基于Python的量化交易系统，旨在识别中证500指数的相对低点，支持AI优化、LLM驱动策略、可视化回测和多种通知方式。
 
 ## 功能特点
 
@@ -9,7 +9,7 @@
 - 🧠 **LLM驱动策略优化**：自动调整策略参数，提升策略表现
 - 📊 **全面回测与可视化**：支持滚动回测、单日预测、结果表格美化和多种图表输出
 - 📧 **实时通知**：支持控制台和邮件通知
-- �� **模块化设计**：便于扩展和维护
+- 🔧 **模块化设计**：便于扩展和维护
 - ⚡ **简化命令**：提供简洁的命令行界面，快速运行各种功能
 
 ## 环境要求
@@ -150,7 +150,7 @@ csi1000_quant/
 ## 配置说明
 
 主要配置文件：`config/config.yaml`
-- 策略参数：`strategy.rise_threshold`（涨幅阈值）、`strategy.max_days`（最大交易日数）
+- 策略参数：`strategy.rise_threshold`（涨幅阈值4%）、`strategy.max_days`（最大交易日数）
 - AI参数：`ai.model_type`、`ai.enable`
 - 通知参数：`notification.methods`、`notification.email`
 - 回测参数：`backtest.default_start_date`、`backtest.default_end_date`

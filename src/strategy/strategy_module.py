@@ -28,7 +28,7 @@ class StrategyModule:
         
         # 策略参数
         strategy_config = config.get('strategy', {})
-        self.rise_threshold = strategy_config.get('rise_threshold', 0.05)
+        self.rise_threshold = strategy_config.get('rise_threshold', 0.04)
         self.max_days = strategy_config.get('max_days', 20)
         
         # 创建结果目录
