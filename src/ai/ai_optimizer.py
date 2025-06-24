@@ -167,6 +167,22 @@ class AIOptimizer:
                 # 计算进度
                 progress = (iteration + 1) / max_iterations * 100
                 
+                # 每5次迭代或第一次迭代时打印进度
+                if iteration == 0 or (iteration + 1) % 5 == 0:
+                    elapsed_time = time.time() - start_time
+                    avg_time_per_iter = elapsed_time / (iteration + 1)
+                    remaining_iter = max_iterations - (iteration + 1)
+                    estimated_remaining_time = remaining_iter * avg_time_per_iter
+                    
+                    self.logger.info(f"📊 进度: {progress:.1f}% ({iteration+1}/{max_iterations})")
+                    self.logger.info(f"⏱️  已用时间: {elapsed_time:.1f}s, 预计剩余: {estimated_remaining_time:.1f}s")
+                    self.logger.info(f"🏆 当前最佳得分: {best_score:.4f}")
+                    if best_params:
+                        self.logger.info(f"🎯 当前最佳参数: RSI超卖={best_params['rsi_oversold_threshold']}, "
+                                       f"RSI低值={best_params['rsi_low_threshold']}, "
+                                       f"置信度={best_params['final_threshold']:.3f}")
+                    self.logger.info("-" * 30)
+                
                 # 随机选择可优化参数组合，固定核心参数
                 params = {
                     'rise_threshold': fixed_rise_threshold,  # 固定不变
@@ -184,22 +200,6 @@ class AIOptimizer:
                 score = self._evaluate_params_with_fixed_labels_advanced(
                     data, fixed_labels, params
                 )
-                
-                # 每10次迭代打印一次进度
-                if (iteration + 1) % 10 == 0:
-                    elapsed_time = time.time() - start_time
-                    avg_time_per_iter = elapsed_time / (iteration + 1)
-                    remaining_iter = max_iterations - (iteration + 1)
-                    estimated_remaining_time = remaining_iter * avg_time_per_iter
-                    
-                    self.logger.info(f"📊 进度: {progress:.1f}% ({iteration+1}/{max_iterations})")
-                    self.logger.info(f"⏱️  已用时间: {elapsed_time:.1f}s, 预计剩余: {estimated_remaining_time:.1f}s")
-                    self.logger.info(f"🏆 当前最佳得分: {best_score:.4f}")
-                    if best_params:
-                        self.logger.info(f"🎯 当前最佳参数: RSI超卖={best_params['rsi_oversold_threshold']}, "
-                                       f"RSI低值={best_params['rsi_low_threshold']}, "
-                                       f"置信度={best_params['final_threshold']:.3f}")
-                    self.logger.info("-" * 30)
                 
                 if score > best_score:
                     best_score = score
@@ -904,7 +904,16 @@ class AIOptimizer:
             
             self.logger.info(f"📊 将数据分为 {cv_folds} 折进行验证...")
             
+            # 记录开始时间
+            import time
+            cv_start_time = time.time()
+            
             for i in range(cv_folds):
+                fold_start_time = time.time()
+                fold_progress = (i + 1) / cv_folds * 100
+                
+                self.logger.info(f"🔄 第{i+1}/{cv_folds}折 ({fold_progress:.1f}%) - 开始处理...")
+                
                 # 按时间分割数据
                 split_point = int(len(data) * (i + 1) / cv_folds)
                 train_data = data.iloc[:split_point]
@@ -914,14 +923,17 @@ class AIOptimizer:
                     self.logger.info(f"   ⏭️ 第{i+1}折：测试数据不足，跳过")
                     continue
                 
-                self.logger.info(f"   🔄 第{i+1}折：训练数据 {len(train_data)} 条，测试数据 {len(test_data)} 条")
+                self.logger.info(f"   📋 数据分割完成：训练数据 {len(train_data)} 条，测试数据 {len(test_data)} 条")
                 
                 # 在训练数据上优化策略参数
+                self.logger.info(f"   🔧 第{i+1}折：开始参数优化...")
                 temp_strategy = StrategyModule(self.config)
                 optimized_params = self.optimize_strategy_parameters(temp_strategy, train_data)
                 temp_strategy.update_params(optimized_params)
+                self.logger.info(f"   ✅ 第{i+1}折：参数优化完成")
                 
                 # 在测试数据上评估
+                self.logger.info(f"   📊 第{i+1}折：开始回测评估...")
                 backtest_results = temp_strategy.backtest(test_data)
                 evaluation = temp_strategy.evaluate_strategy(backtest_results)
                 score = evaluation['score']
@@ -929,14 +941,26 @@ class AIOptimizer:
                 fold_scores.append(score)
                 total_score += score
                 
-                self.logger.info(f"   ✅ 第{i+1}折得分: {score:.4f}")
+                fold_time = time.time() - fold_start_time
+                self.logger.info(f"   ✅ 第{i+1}折完成：得分 {score:.4f}，耗时 {fold_time:.1f}秒")
+                
+                # 显示整体进度
+                elapsed_time = time.time() - cv_start_time
+                avg_time_per_fold = elapsed_time / (i + 1)
+                remaining_folds = cv_folds - (i + 1)
+                estimated_remaining_time = remaining_folds * avg_time_per_fold
+                
+                self.logger.info(f"   📈 整体进度：{fold_progress:.1f}%，已用时间：{elapsed_time:.1f}秒，预计剩余：{estimated_remaining_time:.1f}秒")
+                self.logger.info("-" * 40)
             
             if len(fold_scores) == 0:
                 self.logger.warning("⚠️ 没有有效的交叉验证结果")
                 return 0.0
                 
             avg_score = total_score / len(fold_scores)
+            total_cv_time = time.time() - cv_start_time
             self.logger.info(f"📊 交叉验证完成，平均得分: {avg_score:.4f} (共{len(fold_scores)}折)")
+            self.logger.info(f"⏱️ 总耗时: {total_cv_time:.1f}秒，平均每折: {total_cv_time/len(fold_scores):.1f}秒")
             
             return avg_score
             
@@ -965,8 +989,12 @@ class AIOptimizer:
             
             # 第一层：策略参数优化
             self.logger.info("📊 第一层：策略参数优化...")
+            self.logger.info("   🔧 创建策略模块实例...")
             layer1_start = time.time()
             strategy_module = StrategyModule(self.config)
+            self.logger.info("   ✅ 策略模块创建完成")
+            
+            self.logger.info("   🎯 开始参数优化...")
             strategy_params = self.optimize_strategy_parameters(strategy_module, data)
             layer1_time = time.time() - layer1_start
             self.logger.info("✅ 策略参数优化完成")
@@ -977,12 +1005,16 @@ class AIOptimizer:
             # 第二层：基于优化后的策略训练AI模型
             self.logger.info("🤖 第二层：更新策略参数并准备AI训练...")
             layer2_start = time.time()
+            
+            self.logger.info("   🔄 更新策略参数...")
             strategy_module.update_params(strategy_params)
             self.logger.info("✅ 策略参数更新完成")
             
             # 准备训练数据
             self.logger.info("📋 准备AI训练数据...")
+            self.logger.info("   📊 提取特征...")
             features, feature_names = self.prepare_features(data)
+            self.logger.info("   🏷️ 准备标签...")
             labels = self.prepare_labels(data, strategy_module)
             self.logger.info(f"   - 特征数量: {len(feature_names)}")
             self.logger.info(f"   - 样本数量: {len(features)}")
@@ -1008,7 +1040,9 @@ class AIOptimizer:
             self.logger.info("🚀 第四层：高级优化...")
             layer4_start = time.time()
             try:
+                self.logger.info("   🔧 开始高级参数优化...")
                 advanced_params = self.optimize_strategy_parameters_advanced(strategy_module, data)
+                self.logger.info("   📊 评估高级优化结果...")
                 advanced_score = self._evaluate_params_with_fixed_labels(
                     data, 
                     strategy_module.backtest(data)['is_low_point'].astype(int).values,
