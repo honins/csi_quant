@@ -14,7 +14,7 @@ ai:
   data_decay_rate: 0.4
   # 训练测试集分割比例
   train_test_split_ratio: 0.8
-  
+
   # 高级优化配置
   advanced_optimization:
     # 是否启用高级优化
@@ -25,7 +25,7 @@ ai:
     use_scipy: true
     # 是否使用时序交叉验证
     use_time_series_cv: true
-  
+
   # 遗传算法配置
   genetic_algorithm:
     # 种群大小
@@ -36,7 +36,7 @@ ai:
     crossover_rate: 0.8
     # 变异概率
     mutation_rate: 0.1
-  
+
   # 评分配置
   scoring:
     # 成功率权重
@@ -51,7 +51,7 @@ ai:
     rise_benchmark: 0.1
     # 风险基准
     risk_benchmark: 0.2
-  
+
   # 参数优化范围配置
   optimization_ranges:
     # 动态置信度调整系数范围
@@ -129,7 +129,7 @@ notification:
     - email
   # 通知日志目录
   logs_dir: logs
-  
+
   # 邮件通知配置
   email:
     # 发件人邮箱
@@ -186,7 +186,7 @@ strategy:
   macd_signal: 9
   # MACD慢线周期
   macd_slow: 26
-  
+
   # 移动平均线周期
   ma_periods:
     # 5日均线
@@ -197,11 +197,11 @@ strategy:
     - 20
     # 60日均线
     - 60
-  
+
   # 置信度权重配置
   confidence_weights:
     # 最终置信度阈值
-    final_threshold: 0.6499999999999999
+    final_threshold: 0.7
     # 所有均线在价格下方权重
     ma_all_below: 0.3
     # 部分均线在价格下方权重
@@ -217,14 +217,14 @@ strategy:
     # RSI低值权重
     rsi_low: 0.2
     # RSI低值阈值
-    rsi_low_threshold: 40
+    rsi_low_threshold: 45
     # RSI超卖权重
     rsi_oversold: 0.3
     # RSI超卖阈值
-    rsi_oversold_threshold: 34
+    rsi_oversold_threshold: 30
     # MACD负值权重
     macd_negative: 0.1
-    
+
     # 成交量分析参数 (为均线跌破判断服务)
     # 恐慌性抛售额外奖励
     volume_panic_bonus: 0.1
@@ -240,15 +240,15 @@ strategy:
     volume_shrink_threshold: 0.8
     # 价格跌幅阈值 (-2%)
     price_decline_threshold: -0.02
-    
+
     # AI优化参数 (每次AI优化后更新)
     # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
-    dynamic_confidence_adjustment: 0.13
+    dynamic_confidence_adjustment: 0.05
     # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
-    market_sentiment_weight: 0.12000000000000001
+    market_sentiment_weight: 0.16000000000000003
     # 趋势强度权重 - 基于价格趋势强度调整权重
-    trend_strength_weight: 0.08
-  
+    trend_strength_weight: 0.16000000000000003
+
   # 策略评分配置
   scoring:
     # 成功率权重
