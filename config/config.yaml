@@ -51,6 +51,24 @@ ai:
     rise_benchmark: 0.1
     # 风险基准
     risk_benchmark: 0.2
+  
+  # 参数优化范围配置
+  optimization_ranges:
+    # 动态置信度调整系数范围
+    dynamic_confidence_adjustment:
+      min: 0.05
+      max: 0.25
+      step: 0.02
+    # 市场情绪权重范围
+    market_sentiment_weight:
+      min: 0.08
+      max: 0.25
+      step: 0.02
+    # 趋势强度权重范围
+    trend_strength_weight:
+      min: 0.06
+      max: 0.20
+      step: 0.02
 
 # 回测配置
 backtest:
@@ -222,6 +240,14 @@ strategy:
     volume_shrink_threshold: 0.8
     # 价格跌幅阈值 (-2%)
     price_decline_threshold: -0.02
+    
+    # AI优化参数 (每次AI优化后更新)
+    # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
+    dynamic_confidence_adjustment: 0.1
+    # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
+    market_sentiment_weight: 0.15
+    # 趋势强度权重 - 基于价格趋势强度调整权重
+    trend_strength_weight: 0.12
   
   # 策略评分配置
   scoring:

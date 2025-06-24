@@ -66,28 +66,40 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("开始优化策略参数（rise_threshold和max_days保持固定）")
+        self.logger.info("=" * 60)
+        self.logger.info("🚀 开始AI策略参数优化")
+        self.logger.info("=" * 60)
         
         try:
             # 1. 获取基准策略的识别结果作为固定标签
+            self.logger.info("📊 阶段1: 获取基准策略识别结果...")
             baseline_backtest = strategy_module.backtest(data)
             fixed_labels = baseline_backtest['is_low_point'].astype(int).values
-            self.logger.info(f"基准策略识别点数: {np.sum(fixed_labels)}")
+            self.logger.info(f"✅ 基准策略识别点数: {np.sum(fixed_labels)}")
             
             # 2. 固定核心参数，不允许优化
+            self.logger.info("🔧 阶段2: 设置固定参数...")
             fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
             fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
-            self.logger.info(f"固定参数 - rise_threshold: {fixed_rise_threshold}, max_days: {fixed_max_days}")
+            self.logger.info(f"✅ 固定参数设置完成:")
+            self.logger.info(f"   - rise_threshold: {fixed_rise_threshold}")
+            self.logger.info(f"   - max_days: {fixed_max_days}")
             
             # 3. 从配置文件获取可优化参数的搜索范围
-            optimization_config = self.config.get('optimization', {})
-            param_ranges = optimization_config.get('param_ranges', {})
+            self.logger.info("📋 阶段3: 配置参数搜索范围...")
+            ai_config = self.config.get('ai', {})
+            optimization_ranges = ai_config.get('optimization_ranges', {})
             
-            # 只获取可优化参数的搜索范围
-            rsi_oversold_range = param_ranges.get('rsi_oversold_threshold', {})
-            rsi_low_range = param_ranges.get('rsi_low_threshold', {})
-            final_threshold_range = param_ranges.get('final_threshold', {})
+            # 获取原有可优化参数的搜索范围
+            rsi_oversold_range = optimization_ranges.get('rsi_oversold_threshold', {})
+            rsi_low_range = optimization_ranges.get('rsi_low_threshold', {})
+            final_threshold_range = optimization_ranges.get('final_threshold', {})
+            
+            # 获取新增AI优化参数的搜索范围
+            dynamic_confidence_range = optimization_ranges.get('dynamic_confidence_adjustment', {})
+            market_sentiment_range = optimization_ranges.get('market_sentiment_weight', {})
+            trend_strength_range = optimization_ranges.get('trend_strength_weight', {})
             
             # 定义可优化参数的搜索空间
             param_grid = {
@@ -105,12 +117,28 @@ class AIOptimizer:
                     final_threshold_range.get('min', 0.3),
                     final_threshold_range.get('max', 0.7) + final_threshold_range.get('step', 0.05),
                     final_threshold_range.get('step', 0.05)
+                ),
+                # 新增AI优化参数
+                'dynamic_confidence_adjustment': np.arange(
+                    dynamic_confidence_range.get('min', 0.05),
+                    dynamic_confidence_range.get('max', 0.25) + dynamic_confidence_range.get('step', 0.02),
+                    dynamic_confidence_range.get('step', 0.02)
+                ),
+                'market_sentiment_weight': np.arange(
+                    market_sentiment_range.get('min', 0.08),
+                    market_sentiment_range.get('max', 0.25) + market_sentiment_range.get('step', 0.02),
+                    market_sentiment_range.get('step', 0.02)
+                ),
+                'trend_strength_weight': np.arange(
+                    trend_strength_range.get('min', 0.06),
+                    trend_strength_range.get('max', 0.20) + trend_strength_range.get('step', 0.02),
+                    trend_strength_range.get('step', 0.02)
                 )
             }
             
-            self.logger.info(f"可优化参数搜索范围:")
+            self.logger.info("✅ 可优化参数搜索范围:")
             for param, values in param_grid.items():
-                self.logger.info(f"  {param}: {values[0]} - {values[-1]}, 步长: {values[1]-values[0] if len(values)>1 else 'N/A'}")
+                self.logger.info(f"   - {param}: {values[0]} - {values[-1]}, 步长: {values[1]-values[0] if len(values)>1 else 'N/A'}")
             
             best_score = -1
             best_params = None
@@ -118,21 +146,38 @@ class AIOptimizer:
             for values in param_grid.values():
                 total_combinations *= len(values)
             
-            self.logger.info(f"总搜索组合数: {total_combinations}")
+            self.logger.info(f"📈 总搜索组合数: {total_combinations:,}")
             
             # 4. 基于固定标签优化可调参数
             # 为了减少计算量，我们使用随机采样而不是全网格搜索
-            max_iterations = min(100, total_combinations)  # 最多100次迭代
-            self.logger.info(f"使用随机采样，最大迭代次数: {max_iterations}")
+            max_iterations = min(150, total_combinations)  # 增加迭代次数以覆盖更多参数组合
+            self.logger.info(f"🎯 使用随机采样，最大迭代次数: {max_iterations}")
+            
+            # 记录优化开始时间
+            import time
+            start_time = time.time()
+            
+            self.logger.info("🔄 阶段4: 开始参数优化迭代...")
+            self.logger.info("-" * 50)
+            
+            # 记录改进次数
+            improvement_count = 0
             
             for iteration in range(max_iterations):
+                # 计算进度
+                progress = (iteration + 1) / max_iterations * 100
+                
                 # 随机选择可优化参数组合，固定核心参数
                 params = {
                     'rise_threshold': fixed_rise_threshold,  # 固定不变
                     'max_days': fixed_max_days,              # 固定不变
                     'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
                     'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
-                    'final_threshold': np.random.choice(param_grid['final_threshold'])
+                    'final_threshold': np.random.choice(param_grid['final_threshold']),
+                    # 新增AI优化参数
+                    'dynamic_confidence_adjustment': np.random.choice(param_grid['dynamic_confidence_adjustment']),
+                    'market_sentiment_weight': np.random.choice(param_grid['market_sentiment_weight']),
+                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight'])
                 }
                 
                 # 使用固定标签评估参数
@@ -140,23 +185,75 @@ class AIOptimizer:
                     data, fixed_labels, params
                 )
                 
+                # 每10次迭代打印一次进度
+                if (iteration + 1) % 10 == 0:
+                    elapsed_time = time.time() - start_time
+                    avg_time_per_iter = elapsed_time / (iteration + 1)
+                    remaining_iter = max_iterations - (iteration + 1)
+                    estimated_remaining_time = remaining_iter * avg_time_per_iter
+                    
+                    self.logger.info(f"📊 进度: {progress:.1f}% ({iteration+1}/{max_iterations})")
+                    self.logger.info(f"⏱️  已用时间: {elapsed_time:.1f}s, 预计剩余: {estimated_remaining_time:.1f}s")
+                    self.logger.info(f"🏆 当前最佳得分: {best_score:.4f}")
+                    if best_params:
+                        self.logger.info(f"🎯 当前最佳参数: RSI超卖={best_params['rsi_oversold_threshold']}, "
+                                       f"RSI低值={best_params['rsi_low_threshold']}, "
+                                       f"置信度={best_params['final_threshold']:.3f}")
+                    self.logger.info("-" * 30)
+                
                 if score > best_score:
                     best_score = score
                     best_params = params.copy()
-                    self.logger.info(f"发现更好的参数组合 (迭代 {iteration+1}): {best_params}, 得分: {best_score:.4f}")
-                        
-            self.logger.info("参数优化完成，最佳参数: %s, 得分: %.4f", best_params, best_score)
+                    improvement_count += 1
+                    
+                    # 计算改进幅度
+                    improvement = score - best_score if best_score != -1 else 0
+                    
+                    self.logger.info(f"🎉 发现更好的参数组合 (第{improvement_count}次改进, 迭代{iteration+1}):")
+                    self.logger.info(f"   📈 得分提升: {improvement:.4f} → {best_score:.4f}")
+                    self.logger.info(f"   🔧 参数详情:")
+                    self.logger.info(f"      - RSI超卖阈值: {best_params['rsi_oversold_threshold']}")
+                    self.logger.info(f"      - RSI低值阈值: {best_params['rsi_low_threshold']}")
+                    self.logger.info(f"      - 最终置信度: {best_params['final_threshold']:.3f}")
+                    self.logger.info(f"      - 动态调整系数: {best_params['dynamic_confidence_adjustment']:.3f}")
+                    self.logger.info(f"      - 市场情绪权重: {best_params['market_sentiment_weight']:.3f}")
+                    self.logger.info(f"      - 趋势强度权重: {best_params['trend_strength_weight']:.3f}")
+                    self.logger.info("-" * 50)
+            
+            # 优化完成统计
+            total_time = time.time() - start_time
+            self.logger.info("=" * 60)
+            self.logger.info("🎯 AI策略参数优化完成!")
+            self.logger.info("=" * 60)
+            self.logger.info(f"📊 优化统计:")
+            self.logger.info(f"   - 总迭代次数: {max_iterations}")
+            self.logger.info(f"   - 总耗时: {total_time:.1f}秒")
+            self.logger.info(f"   - 平均每次迭代: {total_time/max_iterations:.3f}秒")
+            self.logger.info(f"   - 改进次数: {improvement_count}")
+            self.logger.info(f"   - 最终最佳得分: {best_score:.4f}")
+            self.logger.info("")
+            self.logger.info(f"🏆 最终最佳参数:")
+            for key, value in best_params.items():
+                if isinstance(value, float):
+                    self.logger.info(f"   - {key}: {value:.4f}")
+                else:
+                    self.logger.info(f"   - {key}: {value}")
+            
             return best_params
             
         except Exception as e:
-            self.logger.error("优化策略参数失败: %s", str(e))
+            self.logger.error("❌ 优化策略参数失败: %s", str(e))
             # 返回默认参数，保持核心参数固定
             return {
                 'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),  # 固定
                 'max_days': self.config.get('strategy', {}).get('max_days', 20),                # 固定
                 'rsi_oversold_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_oversold_threshold', 30),
                 'rsi_low_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_low_threshold', 40),
-                'final_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold', 0.5)
+                'final_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold', 0.5),
+                # 新增AI优化参数默认值
+                'dynamic_confidence_adjustment': self.config.get('strategy', {}).get('confidence_weights', {}).get('dynamic_confidence_adjustment', 0.1),
+                'market_sentiment_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('market_sentiment_weight', 0.15),
+                'trend_strength_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('trend_strength_weight', 0.12)
             }
     
     def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
@@ -862,26 +959,54 @@ class AIOptimizer:
         self.logger.info("=" * 60)
         
         try:
+            # 记录开始时间
+            import time
+            start_time = time.time()
+            
             # 第一层：策略参数优化
             self.logger.info("📊 第一层：策略参数优化...")
+            layer1_start = time.time()
             strategy_module = StrategyModule(self.config)
             strategy_params = self.optimize_strategy_parameters(strategy_module, data)
+            layer1_time = time.time() - layer1_start
             self.logger.info("✅ 策略参数优化完成")
             self.logger.info(f"   - 涨幅阈值: {strategy_params['rise_threshold']:.3f}")
             self.logger.info(f"   - 最大观察天数: {strategy_params['max_days']}")
+            self.logger.info(f"   - 耗时: {layer1_time:.1f}秒")
             
             # 第二层：基于优化后的策略训练AI模型
             self.logger.info("🤖 第二层：更新策略参数并准备AI训练...")
+            layer2_start = time.time()
             strategy_module.update_params(strategy_params)
             self.logger.info("✅ 策略参数更新完成")
             
+            # 准备训练数据
+            self.logger.info("📋 准备AI训练数据...")
+            features, feature_names = self.prepare_features(data)
+            labels = self.prepare_labels(data, strategy_module)
+            self.logger.info(f"   - 特征数量: {len(feature_names)}")
+            self.logger.info(f"   - 样本数量: {len(features)}")
+            self.logger.info(f"   - 正样本比例: {np.mean(labels):.2%}")
+            
+            # 训练AI模型
+            self.logger.info("🎯 开始训练AI模型...")
+            training_result = self.train_model(data, strategy_module)
+            layer2_time = time.time() - layer2_start
+            self.logger.info("✅ AI模型训练完成")
+            self.logger.info(f"   - 训练准确率: {training_result.get('accuracy', 0):.4f}")
+            self.logger.info(f"   - 耗时: {layer2_time:.1f}秒")
+            
             # 第三层：时间序列交叉验证
             self.logger.info("🔄 第三层：时间序列交叉验证...")
+            layer3_start = time.time()
             cv_score = self.time_series_cv_evaluation(data, strategy_module)
+            layer3_time = time.time() - layer3_start
             self.logger.info(f"✅ 交叉验证完成，平均得分: {cv_score:.4f}")
+            self.logger.info(f"   - 耗时: {layer3_time:.1f}秒")
             
             # 第四层：高级优化（如果可用）
             self.logger.info("🚀 第四层：高级优化...")
+            layer4_start = time.time()
             try:
                 advanced_params = self.optimize_strategy_parameters_advanced(strategy_module, data)
                 advanced_score = self._evaluate_params_with_fixed_labels(
@@ -890,59 +1015,63 @@ class AIOptimizer:
                     advanced_params['rise_threshold'],
                     advanced_params['max_days']
                 )
-                
+                layer4_time = time.time() - layer4_start
+                self.logger.info("✅ 高级优化完成")
                 self.logger.info(f"   - 高级优化得分: {advanced_score:.4f}")
-                self.logger.info(f"   - 交叉验证得分: {cv_score:.4f}")
-                
-                # 选择更好的参数
-                if advanced_score > cv_score:
-                    final_params = advanced_params
-                    final_score = advanced_score
-                    self.logger.info("✅ 选择高级优化参数（得分更高）")
-                else:
-                    final_params = strategy_params
-                    final_score = cv_score
-                    self.logger.info("✅ 选择交叉验证参数（得分更高）")
-                    
+                self.logger.info(f"   - 耗时: {layer4_time:.1f}秒")
             except Exception as e:
-                self.logger.warning(f"⚠️ 高级优化失败，使用基础优化结果: {str(e)}")
+                self.logger.warning(f"⚠️ 高级优化失败: {str(e)}")
+                advanced_params = strategy_params
+                advanced_score = cv_score
+                layer4_time = time.time() - layer4_start
+            
+            # 最终结果统计
+            total_time = time.time() - start_time
+            self.logger.info("=" * 60)
+            self.logger.info("🎯 分层优化完成!")
+            self.logger.info("=" * 60)
+            self.logger.info(f"📊 优化统计:")
+            self.logger.info(f"   - 总耗时: {total_time:.1f}秒")
+            self.logger.info(f"   - 第一层耗时: {layer1_time:.1f}秒 ({layer1_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第二层耗时: {layer2_time:.1f}秒 ({layer2_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第三层耗时: {layer3_time:.1f}秒 ({layer3_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第四层耗时: {layer4_time:.1f}秒 ({layer4_time/total_time*100:.1f}%)")
+            self.logger.info("")
+            self.logger.info(f"🏆 最终结果:")
+            self.logger.info(f"   - 交叉验证得分: {cv_score:.4f}")
+            self.logger.info(f"   - 高级优化得分: {advanced_score:.4f}")
+            self.logger.info(f"   - 最佳得分: {max(cv_score, advanced_score):.4f}")
+            
+            # 返回最佳结果
+            if advanced_score > cv_score:
+                final_params = advanced_params
+                self.logger.info("   - 选择高级优化结果")
+            else:
                 final_params = strategy_params
-                final_score = cv_score
-                self.logger.info("✅ 使用基础优化参数")
+                self.logger.info("   - 选择基础优化结果")
             
-            result = {
-                'strategy_params': final_params,
+            return {
+                'params': final_params,
                 'cv_score': cv_score,
-                'final_score': final_score,
-                'optimization_method': 'hierarchical'
+                'advanced_score': advanced_score,
+                'best_score': max(cv_score, advanced_score),
+                'total_time': total_time,
+                'layer_times': {
+                    'layer1': layer1_time,
+                    'layer2': layer2_time,
+                    'layer3': layer3_time,
+                    'layer4': layer4_time
+                }
             }
-            
-            self.logger.info("=" * 60)
-            self.logger.info("🎉 分层优化完成")
-            self.logger.info("=" * 60)
-            self.logger.info(f"📈 最终参数:")
-            self.logger.info(f"   - 涨幅阈值: {final_params['rise_threshold']:.3f}")
-            self.logger.info(f"   - 最大观察天数: {final_params['max_days']}")
-            self.logger.info(f"   - RSI超卖阈值: {final_params.get('rsi_oversold_threshold', 'N/A')}")
-            self.logger.info(f"   - RSI偏低阈值: {final_params.get('rsi_low_threshold', 'N/A')}")
-            self.logger.info(f"   - 置信度阈值: {final_params.get('final_threshold', 'N/A')}")
-            self.logger.info(f"📊 最终得分: {final_score:.4f}")
-            self.logger.info(f"🔧 优化方法: {result['optimization_method']}")
-            self.logger.info("=" * 60)
-            
-            return result
             
         except Exception as e:
             self.logger.error("❌ 分层优化失败: %s", str(e))
-            self.logger.info("🔄 使用默认参数作为备选方案")
             return {
-                'strategy_params': {
-                    'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04), 
-                    'max_days': self.config.get('strategy', {}).get('max_days', 20)
-                },
+                'params': self.config.get('strategy', {}),
                 'cv_score': 0.0,
-                'final_score': 0.0,
-                'optimization_method': 'fallback'
+                'advanced_score': 0.0,
+                'best_score': 0.0,
+                'error': str(e)
             }
 
     def _evaluate_params_with_fixed_labels_advanced(self, data: pd.DataFrame, fixed_labels: np.ndarray, 

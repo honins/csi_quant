@@ -12,6 +12,7 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, Any, Optional
 import matplotlib.pyplot as plt
+import numpy as np
 
 class StrategyModule:
     """策略执行模块类"""
@@ -159,6 +160,57 @@ class StrategyModule:
                 if decline_5d < decline_threshold:
                     confidence += confidence_config.get('recent_decline', 0.2)
                     reasons.append(f"近5日大幅下跌({decline_5d:.2%})")
+            
+            # 条件6: AI优化参数调整
+            # 动态置信度调整 - 根据市场波动性调整
+            dynamic_confidence_adjustment = confidence_config.get('dynamic_confidence_adjustment', 0.1)
+            if len(data) >= 20:
+                # 计算20日波动率
+                returns = data['close'].pct_change().dropna()
+                volatility = returns.std()
+                # 高波动率时降低置信度要求，低波动率时提高要求
+                if volatility > 0.03:  # 高波动率
+                    confidence += dynamic_confidence_adjustment * 0.5
+                    reasons.append(f"高波动率调整(+{dynamic_confidence_adjustment * 0.5:.3f})")
+                elif volatility < 0.015:  # 低波动率
+                    confidence -= dynamic_confidence_adjustment * 0.3
+                    reasons.append(f"低波动率调整(-{dynamic_confidence_adjustment * 0.3:.3f})")
+            
+            # 市场情绪权重 - 基于成交量变化判断市场情绪
+            market_sentiment_weight = confidence_config.get('market_sentiment_weight', 0.15)
+            if len(data) >= 10:
+                # 计算近期成交量变化
+                recent_volume_avg = data['volume'].tail(5).mean()
+                historical_volume_avg = data['volume'].tail(20).mean()
+                volume_ratio = recent_volume_avg / historical_volume_avg
+                
+                if volume_ratio > 1.5:  # 放量 - 可能是恐慌性抛售或抄底
+                    if latest_price < data['close'].tail(10).mean():  # 价格下跌时放量
+                        confidence += market_sentiment_weight
+                        reasons.append(f"恐慌性抛售情绪(+{market_sentiment_weight:.3f})")
+                elif volume_ratio < 0.7:  # 缩量 - 可能是观望情绪
+                    confidence += market_sentiment_weight * 0.3
+                    reasons.append(f"观望情绪(+{market_sentiment_weight * 0.3:.3f})")
+            
+            # 趋势强度权重 - 基于价格趋势强度
+            trend_strength_weight = confidence_config.get('trend_strength_weight', 0.12)
+            if len(data) >= 20:
+                # 计算趋势强度（使用线性回归斜率）
+                x = np.arange(20)
+                y = data['close'].tail(20).values
+                slope = np.polyfit(x, y, 1)[0]
+                trend_strength = abs(slope) / y.mean()  # 标准化斜率
+                
+                if trend_strength > 0.01:  # 强趋势
+                    if slope < 0:  # 下跌趋势
+                        confidence += trend_strength_weight
+                        reasons.append(f"强下跌趋势(+{trend_strength_weight:.3f})")
+                    else:  # 上涨趋势
+                        confidence -= trend_strength_weight * 0.5
+                        reasons.append(f"强上涨趋势(-{trend_strength_weight * 0.5:.3f})")
+                elif trend_strength < 0.002:  # 弱趋势
+                    confidence += trend_strength_weight * 0.2
+                    reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.2:.3f})")
                     
             # 最终判断
             confidence_threshold = confidence_config.get('final_threshold', 0.5)
@@ -526,6 +578,22 @@ class StrategyModule:
             if 'confidence_weights' not in self.config['strategy']:
                 self.config['strategy']['confidence_weights'] = {}
             self.config['strategy']['confidence_weights']['final_threshold'] = params['final_threshold']
+        
+        # 更新新增AI优化参数
+        if 'dynamic_confidence_adjustment' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['dynamic_confidence_adjustment'] = params['dynamic_confidence_adjustment']
+            
+        if 'market_sentiment_weight' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['market_sentiment_weight'] = params['market_sentiment_weight']
+            
+        if 'trend_strength_weight' in params:
+            if 'confidence_weights' not in self.config['strategy']:
+                self.config['strategy']['confidence_weights'] = {}
+            self.config['strategy']['confidence_weights']['trend_strength_weight'] = params['trend_strength_weight']
             
         self.logger.info("策略参数已更新: rise_threshold=%.4f, max_days=%d", 
                         self.rise_threshold, self.max_days)
@@ -543,6 +611,10 @@ class StrategyModule:
             'max_days': self.max_days,
             'rsi_oversold_threshold': confidence_weights.get('rsi_oversold_threshold', 30),
             'rsi_low_threshold': confidence_weights.get('rsi_low_threshold', 40),
-            'final_threshold': confidence_weights.get('final_threshold', 0.5)
+            'final_threshold': confidence_weights.get('final_threshold', 0.5),
+            # 新增AI优化参数
+            'dynamic_confidence_adjustment': confidence_weights.get('dynamic_confidence_adjustment', 0.1),
+            'market_sentiment_weight': confidence_weights.get('market_sentiment_weight', 0.15),
+            'trend_strength_weight': confidence_weights.get('trend_strength_weight', 0.12)
         }
 
