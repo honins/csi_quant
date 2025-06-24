@@ -148,13 +148,14 @@ def run_ai_optimization(config):
             result = ai_optimizer.hierarchical_optimization(processed_data)
             
             print(f"✅ 分层优化完成")
-            print(f"   - 最终参数: {result['strategy_params']}")
+            print(f"   - 最终参数: {result['params']}")
             print(f"   - 交叉验证得分: {result['cv_score']:.4f}")
-            print(f"   - 最终得分: {result['final_score']:.4f}")
-            print(f"   - 优化方法: {result['optimization_method']}")
+            print(f"   - 高级优化得分: {result['advanced_score']:.4f}")
+            print(f"   - 最佳得分: {result['best_score']:.4f}")
+            print(f"   - 总耗时: {result['total_time']:.1f}秒")
             
             # 使用优化后的参数更新策略
-            strategy_module.update_params(result['strategy_params'])
+            strategy_module.update_params(result['params'])
             
         else:
             # 传统优化方法
@@ -195,7 +196,7 @@ def run_ai_optimization(config):
         
         # 保存优化后的参数到配置文件
         if use_hierarchical:
-            optimized_params = result['strategy_params']
+            optimized_params = result['params']
         else:
             optimized_params = optimized_params
             
@@ -327,13 +328,14 @@ def main():
         
         timer.stop()
         print(f"✅ 分层优化完成 (耗时: {timer.elapsed_str()})")
-        print(f"   - 分层优化参数: {hierarchical_result['strategy_params']}")
+        print(f"   - 分层优化参数: {hierarchical_result['params']}")
         print(f"   - 交叉验证得分: {hierarchical_result['cv_score']:.4f}")
-        print(f"   - 最终得分: {hierarchical_result['final_score']:.4f}")
-        print(f"   - 优化方法: {hierarchical_result['optimization_method']}")
+        print(f"   - 高级优化得分: {hierarchical_result['advanced_score']:.4f}")
+        print(f"   - 最佳得分: {hierarchical_result['best_score']:.4f}")
+        print(f"   - 总耗时: {hierarchical_result['total_time']:.1f}秒")
         
         # 使用分层优化后的参数测试
-        strategy_module.update_params(hierarchical_result['strategy_params'])
+        strategy_module.update_params(hierarchical_result['params'])
         hierarchical_backtest = strategy_module.backtest(processed_data)
         hierarchical_evaluation = strategy_module.evaluate_strategy(hierarchical_backtest)
         
