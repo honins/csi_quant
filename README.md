@@ -376,4 +376,295 @@ ai:
 
 ## 📊 生成图片字段说明
 
+## 📊 AI优化日志功能
+
+### 实时进度监控
+
+系统现在提供详细的AI优化进度日志，让您能够实时了解：
+
+- **优化阶段**: 清晰显示4个优化阶段（基准策略、固定参数、搜索范围、参数迭代）
+- **进度百分比**: 每10次迭代显示进度（6.7%, 13.3%, 20.0%...）
+- **时间估算**: 显示已用时间和预计剩余时间
+- **实时得分**: 显示当前最佳参数组合的得分
+- **参数详情**: 显示当前最佳参数的具体值
+
+### 分层优化日志
+
+支持四层优化结构，每层都有详细的日志输出：
+
+1. **第一层**: 策略参数优化
+2. **第二层**: AI模型训练
+3. **第三层**: 时间序列交叉验证
+4. **第四层**: 高级优化
+
+### 示例日志输出
+
+```
+🚀 开始AI策略参数优化
+============================================================
+📊 阶段1: 获取基准策略识别结果...
+✅ 基准策略识别点数: 357
+🔧 阶段2: 设置固定参数...
+✅ 固定参数设置完成:
+   - rise_threshold: 0.04
+   - max_days: 20
+📋 阶段3: 配置参数搜索范围...
+✅ 可优化参数搜索范围:
+   - rsi_oversold_threshold: 25 - 35, 步长: 1
+   - rsi_low_threshold: 35 - 45, 步长: 1
+   ...
+📈 总搜索组合数: 1,045,440
+🎯 使用随机采样，最大迭代次数: 150
+🔄 阶段4: 开始参数优化迭代...
+--------------------------------------------------
+🎉 发现更好的参数组合 (第1次改进, 迭代1):
+   📈 得分提升: 0.0000 → 0.2597
+   🔧 参数详情:
+      - RSI超卖阈值: 28
+      - RSI低值阈值: 41
+      - 最终置信度: 0.450
+      - 动态调整系数: 0.210
+      - 市场情绪权重: 0.160
+      - 趋势强度权重: 0.160
+--------------------------------------------------
+📊 进度: 6.7% (10/150)
+⏱️  已用时间: 8.9s, 预计剩余: 124.5s
+🏆 当前最佳得分: 0.2597
+🎯 当前最佳参数: RSI超卖=28, RSI低值=41, 置信度=0.450
+------------------------------
+```
+
+### 测试日志功能
+
+运行以下命令查看详细的AI优化日志：
+
+```bash
+python test_ai_optimization_logs.py
+```
+
+## 🛠️ 安装和配置
+
+### 环境要求
+
+- Python 3.8+
+- 虚拟环境（推荐）
+
+### 安装步骤
+
+1. **克隆项目**
+```bash
+git clone <repository-url>
+cd csi1000_quant
+```
+
+2. **创建虚拟环境**
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
+```
+
+3. **安装依赖**
+```bash
+pip install -r requirements.txt
+```
+
+4. **配置参数**
+编辑 `config/config.yaml` 文件，设置您的参数。
+
+## 📈 使用方法
+
+### 基础使用
+
+```python
+from src.data.data_module import DataModule
+from src.strategy.strategy_module import StrategyModule
+from src.ai.ai_optimizer import AIOptimizer
+
+# 加载配置和数据
+config = load_config()
+data_module = DataModule(config)
+data = data_module.get_history_data('2023-01-01', '2025-06-21')
+data = data_module.preprocess_data(data)
+
+# 初始化策略和AI优化器
+strategy_module = StrategyModule(config)
+ai_optimizer = AIOptimizer(config)
+
+# 运行AI优化（会显示详细进度日志）
+optimized_params = ai_optimizer.optimize_strategy_parameters(strategy_module, data)
+
+# 更新策略参数
+strategy_module.update_params(optimized_params)
+
+# 运行回测
+backtest_results = strategy_module.backtest(data)
+evaluation = strategy_module.evaluate_strategy(backtest_results)
+```
+
+### 分层优化
+
+```python
+# 运行完整的分层优化
+result = ai_optimizer.hierarchical_optimization(data)
+
+# 获取优化结果
+best_params = result['params']
+best_score = result['best_score']
+total_time = result['total_time']
+```
+
+### 快速开始
+
+```bash
+# 运行基础测试
+python examples/basic_test.py
+
+# 运行AI优化测试
+python test_ai_optimization_logs.py
+
+# 运行滚动回测
+python examples/run_rolling_backtest.py
+```
+
+## 📁 项目结构
+
+```
+csi1000_quant/
+├── config/                 # 配置文件
+│   └── config.yaml        # 主配置文件
+├── src/                   # 源代码
+│   ├── ai/               # AI优化模块
+│   ├── data/             # 数据处理模块
+│   ├── strategy/         # 策略模块
+│   ├── utils/            # 工具函数
+│   └── notification/     # 通知模块
+├── data/                 # 数据文件
+├── results/              # 结果输出
+├── logs/                 # 日志文件
+├── examples/             # 示例脚本
+├── tests/                # 测试文件
+└── docs/                 # 文档
+```
+
+## 🔧 配置说明
+
+### 主要配置项
+
+- **策略参数**: 涨幅阈值、最大持仓天数等
+- **技术指标**: RSI、MACD、布林带等参数
+- **AI优化**: 优化范围、迭代次数、评分权重等
+- **日志设置**: 日志级别、文件路径等
+
+### 新增AI优化参数
+
+系统新增了3个AI优化参数，每次优化后自动更新：
+
+1. **dynamic_confidence_adjustment**: 动态置信度调整系数
+2. **market_sentiment_weight**: 市场情绪权重
+3. **trend_strength_weight**: 趋势强度权重
+
+详细说明请参考 [AI优化参数文档](docs/ai_optimization_params.md)。
+
+## 📊 策略特性
+
+### 技术指标组合
+
+- **移动平均线**: 5日、10日、20日、60日均线
+- **RSI指标**: 相对强弱指数
+- **MACD指标**: 移动平均收敛发散
+- **布林带**: 价格通道分析
+- **成交量分析**: 市场情绪判断
+
+### 智能识别逻辑
+
+1. **多条件筛选**: 结合多个技术指标进行综合判断
+2. **置信度评分**: 使用加权评分系统评估买入信号
+3. **动态调整**: 根据市场环境自动调整参数
+4. **风险控制**: 内置止损和持仓时间控制
+
+## 📈 性能分析
+
+### 回测结果
+
+系统提供完整的回测分析功能：
+
+- **成功率统计**: 信号准确率分析
+- **收益分析**: 平均涨幅、最大回撤等
+- **风险指标**: 夏普比率、信息比率等
+- **可视化图表**: 收益曲线、信号分布等
+
+### 优化效果
+
+通过AI优化，策略性能得到显著提升：
+
+- **参数自适应**: 根据历史数据自动优化参数
+- **多目标优化**: 平衡成功率、收益和风险
+- **时间序列验证**: 确保参数在不同时期都有效
+
+## 🔍 监控和日志
+
+### 日志系统
+
+- **详细进度**: AI优化过程的实时进度显示
+- **性能统计**: 优化时间、迭代次数、改进次数等
+- **错误追踪**: 清晰的错误信息和异常处理
+- **文件管理**: 自动日志轮转和备份
+
+### 日志文件
+
+- **主日志**: `logs/system.log`
+- **AI优化日志**: `logs/ai_optimization.log`
+- **回测日志**: `logs/backtest.log`
+
+## 🧪 测试
+
+### 运行测试
+
+```bash
+# 运行所有测试
+python -m pytest tests/
+
+# 运行特定测试
+python test_ai_optimization_params.py
+python test_ai_optimization_logs.py
+```
+
+### 测试覆盖
+
+- **参数优化测试**: 验证AI优化功能
+- **策略回测测试**: 验证策略逻辑
+- **数据处理测试**: 验证数据预处理
+- **日志功能测试**: 验证日志输出
+
+## 📚 文档
+
+- [快速开始指南](QUICKSTART.md)
+- [AI优化参数说明](docs/ai_optimization_params.md)
+- [API参考文档](docs/api_reference.md)
+- [使用指南](docs/usage_guide.md)
+- [配置优化总结](CONFIG_OPTIMIZATION_SUMMARY.md)
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request来改进项目。
+
+## 📄 许可证
+
+本项目采用MIT许可证，详见 [LICENSE](LICENSE) 文件。
+
+## 📞 联系方式
+
+如有问题或建议，请通过以下方式联系：
+
+- 提交Issue
+- 发送邮件
+- 项目讨论区
+
+---
+
+**注意**: 本项目仅供学习和研究使用，不构成投资建议。投资有风险，入市需谨慎。
+
 
