@@ -217,11 +217,11 @@ strategy:
     # RSI低值权重
     rsi_low: 0.2
     # RSI低值阈值
-    rsi_low_threshold: 38
+    rsi_low_threshold: 40
     # RSI超卖权重
     rsi_oversold: 0.3
     # RSI超卖阈值
-    rsi_oversold_threshold: 26
+    rsi_oversold_threshold: 34
     # MACD负值权重
     macd_negative: 0.1
     
@@ -243,11 +243,11 @@ strategy:
     
     # AI优化参数 (每次AI优化后更新)
     # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
-    dynamic_confidence_adjustment: 0.1
+    dynamic_confidence_adjustment: 0.13
     # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
-    market_sentiment_weight: 0.15
+    market_sentiment_weight: 0.12000000000000001
     # 趋势强度权重 - 基于价格趋势强度调整权重
-    trend_strength_weight: 0.12
+    trend_strength_weight: 0.08
   
   # 策略评分配置
   scoring:

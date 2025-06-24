@@ -45,6 +45,9 @@ def save_optimized_params_to_config(config, optimized_params):
             elif key in ['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold']:
                 config['strategy']['confidence_weights'][key] = value
                 print(f"✅ 更新参数: {key} = {value}")
+            elif key in ['dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight']:
+                config['strategy']['confidence_weights'][key] = value
+                print(f"✅ 更新AI优化参数: {key} = {value}")
         
         # 使用ruamel.yaml保留注释和格式
         try:
@@ -65,6 +68,8 @@ def save_optimized_params_to_config(config, optimized_params):
                 if key in ['rise_threshold', 'max_days']:
                     yaml_data['strategy'][key] = value
                 elif key in ['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold']:
+                    yaml_data['strategy']['confidence_weights'][key] = value
+                elif key in ['dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight']:
                     yaml_data['strategy']['confidence_weights'][key] = value
             
             # 保存并保留注释
@@ -88,6 +93,10 @@ def save_optimized_params_to_config(config, optimized_params):
                     replacement = rf'\g<1>{value}'
                     updated_content = re.sub(pattern, replacement, updated_content)
                 elif key in ['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold']:
+                    pattern = rf'(\s*{key}:\s*)[0-9.]+'
+                    replacement = rf'\g<1>{value}'
+                    updated_content = re.sub(pattern, replacement, updated_content)
+                elif key in ['dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight']:
                     pattern = rf'(\s*{key}:\s*)[0-9.]+'
                     replacement = rf'\g<1>{value}'
                     updated_content = re.sub(pattern, replacement, updated_content)
@@ -124,11 +133,16 @@ def run_ai_optimization(config):
     """
     print("🤖 启动AI优化...")
     
+    # 设置日志，确保进度日志能正确显示
+    setup_logging('INFO')
+    
     try:
+        print("📋 初始化模块...")
         # 初始化模块
         data_module = DataModule(config)
         strategy_module = StrategyModule(config)
         ai_optimizer = AIOptimizer(config)
+        print("✅ 模块初始化完成")
         
         # 获取数据
         print("📊 准备数据...")
@@ -205,7 +219,11 @@ def run_ai_optimization(config):
         params_to_save = {
             'rsi_oversold_threshold': optimized_params.get('rsi_oversold_threshold', 30),
             'rsi_low_threshold': optimized_params.get('rsi_low_threshold', 40),
-            'final_threshold': optimized_params.get('final_threshold', 0.5)
+            'final_threshold': optimized_params.get('final_threshold', 0.5),
+            # 新增AI优化参数
+            'dynamic_confidence_adjustment': optimized_params.get('dynamic_confidence_adjustment', 0.1),
+            'market_sentiment_weight': optimized_params.get('market_sentiment_weight', 0.15),
+            'trend_strength_weight': optimized_params.get('trend_strength_weight', 0.12)
         }
         save_optimized_params_to_config(config, params_to_save)
         print(f"✅ 非核心参数已保存: {params_to_save}")
