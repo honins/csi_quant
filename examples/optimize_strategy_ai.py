@@ -223,7 +223,10 @@ def run_ai_optimization(config):
             # 新增AI优化参数
             'dynamic_confidence_adjustment': optimized_params.get('dynamic_confidence_adjustment', 0.1),
             'market_sentiment_weight': optimized_params.get('market_sentiment_weight', 0.15),
-            'trend_strength_weight': optimized_params.get('trend_strength_weight', 0.12)
+            'trend_strength_weight': optimized_params.get('trend_strength_weight', 0.12),
+            # 新增2个高重要度参数
+            'volume_weight': optimized_params.get('volume_weight', 0.25),
+            'price_momentum_weight': optimized_params.get('price_momentum_weight', 0.20)
         }
         save_optimized_params_to_config(config, params_to_save)
         print(f"✅ 非核心参数已保存: {params_to_save}")

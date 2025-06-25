@@ -101,6 +101,10 @@ class AIOptimizer:
             market_sentiment_range = optimization_ranges.get('market_sentiment_weight', {})
             trend_strength_range = optimization_ranges.get('trend_strength_weight', {})
             
+            # 新增2个高重要度参数的搜索范围
+            volume_weight_range = optimization_ranges.get('volume_weight', {})
+            price_momentum_weight_range = optimization_ranges.get('price_momentum_weight', {})
+            
             # 定义可优化参数的搜索空间
             param_grid = {
                 'rsi_oversold_threshold': np.arange(
@@ -133,6 +137,17 @@ class AIOptimizer:
                     trend_strength_range.get('min', 0.06),
                     trend_strength_range.get('max', 0.20) + trend_strength_range.get('step', 0.02),
                     trend_strength_range.get('step', 0.02)
+                ),
+                # 新增2个高重要度参数
+                'volume_weight': np.arange(
+                    volume_weight_range.get('min', 0.15),
+                    volume_weight_range.get('max', 0.35) + volume_weight_range.get('step', 0.02),
+                    volume_weight_range.get('step', 0.02)
+                ),
+                'price_momentum_weight': np.arange(
+                    price_momentum_weight_range.get('min', 0.12),
+                    price_momentum_weight_range.get('max', 0.30) + price_momentum_weight_range.get('step', 0.02),
+                    price_momentum_weight_range.get('step', 0.02)
                 )
             }
             
@@ -178,9 +193,15 @@ class AIOptimizer:
                     self.logger.info(f"⏱️  已用时间: {elapsed_time:.1f}s, 预计剩余: {estimated_remaining_time:.1f}s")
                     self.logger.info(f"🏆 当前最佳得分: {best_score:.4f}")
                     if best_params:
-                        self.logger.info(f"🎯 当前最佳参数: RSI超卖={best_params['rsi_oversold_threshold']}, "
-                                       f"RSI低值={best_params['rsi_low_threshold']}, "
-                                       f"置信度={best_params['final_threshold']:.3f}")
+                        self.logger.info(f"🎯 当前最佳参数:")
+                        self.logger.info(f"   - RSI超卖阈值: {best_params['rsi_oversold_threshold']}")
+                        self.logger.info(f"   - RSI低值阈值: {best_params['rsi_low_threshold']}")
+                        self.logger.info(f"   - 最终置信度: {best_params['final_threshold']:.3f}")
+                        self.logger.info(f"   - 动态调整系数: {best_params['dynamic_confidence_adjustment']:.3f}")
+                        self.logger.info(f"   - 市场情绪权重: {best_params['market_sentiment_weight']:.3f}")
+                        self.logger.info(f"   - 趋势强度权重: {best_params['trend_strength_weight']:.3f}")
+                        self.logger.info(f"   - 成交量权重: {best_params['volume_weight']:.3f}")
+                        self.logger.info(f"   - 价格动量权重: {best_params['price_momentum_weight']:.3f}")
                     self.logger.info("-" * 30)
                 
                 # 随机选择可优化参数组合，固定核心参数
@@ -193,7 +214,10 @@ class AIOptimizer:
                     # 新增AI优化参数
                     'dynamic_confidence_adjustment': np.random.choice(param_grid['dynamic_confidence_adjustment']),
                     'market_sentiment_weight': np.random.choice(param_grid['market_sentiment_weight']),
-                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight'])
+                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight']),
+                    # 新增2个高重要度参数
+                    'volume_weight': np.random.choice(param_grid['volume_weight']),
+                    'price_momentum_weight': np.random.choice(param_grid['price_momentum_weight'])
                 }
                 
                 # 使用固定标签评估参数
@@ -218,6 +242,8 @@ class AIOptimizer:
                     self.logger.info(f"      - 动态调整系数: {best_params['dynamic_confidence_adjustment']:.3f}")
                     self.logger.info(f"      - 市场情绪权重: {best_params['market_sentiment_weight']:.3f}")
                     self.logger.info(f"      - 趋势强度权重: {best_params['trend_strength_weight']:.3f}")
+                    self.logger.info(f"      - 成交量权重: {best_params['volume_weight']:.3f}")
+                    self.logger.info(f"      - 价格动量权重: {best_params['price_momentum_weight']:.3f}")
                     self.logger.info("-" * 50)
             
             # 优化完成统计
@@ -253,7 +279,10 @@ class AIOptimizer:
                 # 新增AI优化参数默认值
                 'dynamic_confidence_adjustment': self.config.get('strategy', {}).get('confidence_weights', {}).get('dynamic_confidence_adjustment', 0.1),
                 'market_sentiment_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('market_sentiment_weight', 0.15),
-                'trend_strength_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('trend_strength_weight', 0.12)
+                'trend_strength_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('trend_strength_weight', 0.12),
+                # 新增2个高重要度参数默认值
+                'volume_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('volume_weight', 0.25),
+                'price_momentum_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('price_momentum_weight', 0.20)
             }
     
     def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 

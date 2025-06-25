@@ -69,6 +69,16 @@ ai:
       min: 0.06
       max: 0.20
       step: 0.02
+    # 成交量权重范围（新增高重要度参数）
+    volume_weight:
+      min: 0.15
+      max: 0.35
+      step: 0.02
+    # 价格动量权重范围（新增高重要度参数）
+    price_momentum_weight:
+      min: 0.12
+      max: 0.30
+      step: 0.02
 
 # 回测配置
 backtest:
@@ -201,7 +211,7 @@ strategy:
   # 置信度权重配置
   confidence_weights:
     # 最终置信度阈值
-    final_threshold: 0.7
+    final_threshold: 0.39999999999999997
     # 所有均线在价格下方权重
     ma_all_below: 0.3
     # 部分均线在价格下方权重
@@ -221,7 +231,7 @@ strategy:
     # RSI超卖权重
     rsi_oversold: 0.3
     # RSI超卖阈值
-    rsi_oversold_threshold: 30
+    rsi_oversold_threshold: 35
     # MACD负值权重
     macd_negative: 0.1
 
@@ -243,11 +253,15 @@ strategy:
 
     # AI优化参数 (每次AI优化后更新)
     # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
-    dynamic_confidence_adjustment: 0.05
+    dynamic_confidence_adjustment: 0.07
     # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
-    market_sentiment_weight: 0.16000000000000003
+    market_sentiment_weight: 0.2
     # 趋势强度权重 - 基于价格趋势强度调整权重
-    trend_strength_weight: 0.16000000000000003
+    trend_strength_weight: 0.14
+    # 成交量权重 - 基于成交量变化调整权重（新增高重要度参数）
+    volume_weight: 0.25
+    # 价格动量权重 - 基于价格动量指标调整权重（新增高重要度参数）
+    price_momentum_weight: 0.20
 
   # 策略评分配置
   scoring:
