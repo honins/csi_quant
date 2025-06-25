@@ -53,6 +53,10 @@ class AIOptimizer:
         self.scaler = None
         self.feature_names = None
         
+        # 参数历史记录
+        self.parameter_history_file = os.path.join(self.models_dir, 'parameter_history.json')
+        self.best_parameters_file = os.path.join(self.models_dir, 'best_parameters.json')
+        
         self.logger.info("AI优化器初始化完成，模型类型: %s", self.model_type)
         
     def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
@@ -86,93 +90,98 @@ class AIOptimizer:
             self.logger.info(f"   - rise_threshold: {fixed_rise_threshold}")
             self.logger.info(f"   - max_days: {fixed_max_days}")
             
-            # 3. 从配置文件获取可优化参数的搜索范围
-            self.logger.info("📋 阶段3: 配置参数搜索范围...")
+            # 3. 加载历史最优参数，决定是否进行增量优化
+            self.logger.info("📋 阶段3: 检查历史参数...")
+            historical_best_params = self._load_best_parameters()
+            
+            if historical_best_params:
+                self.logger.info("🔄 发现历史最优参数，启用增量优化模式")
+                use_incremental = True
+                base_params = historical_best_params
+            else:
+                self.logger.info("🆕 没有历史参数，使用全局搜索模式")
+                use_incremental = False
+                base_params = None
+            
+            # 4. 从配置文件获取可优化参数的搜索范围
+            self.logger.info("📋 阶段4: 配置参数搜索范围...")
             ai_config = self.config.get('ai', {})
             optimization_ranges = ai_config.get('optimization_ranges', {})
             
-            # 获取原有可优化参数的搜索范围
-            rsi_oversold_range = optimization_ranges.get('rsi_oversold_threshold', {})
-            rsi_low_range = optimization_ranges.get('rsi_low_threshold', {})
-            final_threshold_range = optimization_ranges.get('final_threshold', {})
+            # 验证配置
+            if not self._validate_optimization_config(optimization_ranges):
+                self.logger.error("❌ 优化配置验证失败，使用默认配置")
+                optimization_ranges = {}
             
-            # 获取新增AI优化参数的搜索范围
-            dynamic_confidence_range = optimization_ranges.get('dynamic_confidence_adjustment', {})
-            market_sentiment_range = optimization_ranges.get('market_sentiment_weight', {})
-            trend_strength_range = optimization_ranges.get('trend_strength_weight', {})
-            
-            # 新增2个高重要度参数的搜索范围
-            volume_weight_range = optimization_ranges.get('volume_weight', {})
-            price_momentum_weight_range = optimization_ranges.get('price_momentum_weight', {})
-            
-            # 定义可优化参数的搜索空间
-            param_grid = {
-                'rsi_oversold_threshold': np.arange(
-                    rsi_oversold_range.get('min', 25),
-                    rsi_oversold_range.get('max', 35) + rsi_oversold_range.get('step', 1),
-                    rsi_oversold_range.get('step', 1)
-                ),
-                'rsi_low_threshold': np.arange(
-                    rsi_low_range.get('min', 35),
-                    rsi_low_range.get('max', 45) + rsi_low_range.get('step', 1),
-                    rsi_low_range.get('step', 1)
-                ),
-                'final_threshold': np.arange(
-                    final_threshold_range.get('min', 0.3),
-                    final_threshold_range.get('max', 0.7) + final_threshold_range.get('step', 0.05),
-                    final_threshold_range.get('step', 0.05)
-                ),
-                # 新增AI优化参数
-                'dynamic_confidence_adjustment': np.arange(
-                    dynamic_confidence_range.get('min', 0.05),
-                    dynamic_confidence_range.get('max', 0.25) + dynamic_confidence_range.get('step', 0.02),
-                    dynamic_confidence_range.get('step', 0.02)
-                ),
-                'market_sentiment_weight': np.arange(
-                    market_sentiment_range.get('min', 0.08),
-                    market_sentiment_range.get('max', 0.25) + market_sentiment_range.get('step', 0.02),
-                    market_sentiment_range.get('step', 0.02)
-                ),
-                'trend_strength_weight': np.arange(
-                    trend_strength_range.get('min', 0.06),
-                    trend_strength_range.get('max', 0.20) + trend_strength_range.get('step', 0.02),
-                    trend_strength_range.get('step', 0.02)
-                ),
-                # 新增2个高重要度参数
-                'volume_weight': np.arange(
-                    volume_weight_range.get('min', 0.15),
-                    volume_weight_range.get('max', 0.35) + volume_weight_range.get('step', 0.02),
-                    volume_weight_range.get('step', 0.02)
-                ),
-                'price_momentum_weight': np.arange(
-                    price_momentum_weight_range.get('min', 0.12),
-                    price_momentum_weight_range.get('max', 0.30) + price_momentum_weight_range.get('step', 0.02),
-                    price_momentum_weight_range.get('step', 0.02)
-                )
-            }
+            # 根据是否增量优化选择搜索范围
+            if use_incremental:
+                self.logger.info("🎯 使用增量搜索范围（基于历史最优参数）:")
+                param_grid = self._get_incremental_search_ranges(base_params, optimization_ranges)
+            else:
+                self.logger.info("🌐 使用全局搜索范围:")
+                param_grid = self._build_parameter_grid(optimization_ranges)
             
             self.logger.info("✅ 可优化参数搜索范围:")
             for param, values in param_grid.items():
                 self.logger.info(f"   - {param}: {values[0]} - {values[-1]}, 步长: {values[1]-values[0] if len(values)>1 else 'N/A'}")
             
-            best_score = -1
-            best_params = None
+            # 5. 设置初始最佳参数和得分
+            if use_incremental and base_params:
+                # 增量优化：以历史最优参数为起点
+                best_score = self._evaluate_params_with_fixed_labels_advanced(data, fixed_labels, base_params)
+                best_params = base_params.copy()
+                self.logger.info(f"🎯 历史最优参数作为起点，得分: {best_score:.4f}")
+            else:
+                # 全局优化：从零开始
+                best_score = -1
+                best_params = None
+            
             total_combinations = 1
             for values in param_grid.values():
                 total_combinations *= len(values)
             
             self.logger.info(f"📈 总搜索组合数: {total_combinations:,}")
             
-            # 4. 基于固定标签优化可调参数
-            # 为了减少计算量，我们使用随机采样而不是全网格搜索
-            max_iterations = min(150, total_combinations)  # 增加迭代次数以覆盖更多参数组合
-            self.logger.info(f"🎯 使用随机采样，最大迭代次数: {max_iterations}")
+            # 6. 基于固定标签优化可调参数
+            # 从配置文件获取迭代次数配置
+            optimization_config = ai_config.get('optimization', {})
+            global_iterations = optimization_config.get('global_iterations', 150)
+            incremental_iterations = optimization_config.get('incremental_iterations', 100)
+            enable_incremental = optimization_config.get('enable_incremental', True)
+            
+            # 根据是否增量优化调整迭代次数
+            if use_incremental and enable_incremental:
+                max_iterations = min(incremental_iterations, total_combinations)  # 增量优化使用较少迭代
+                self.logger.info(f"🎯 增量优化模式，最大迭代次数: {max_iterations} (配置值: {incremental_iterations})")
+            else:
+                max_iterations = min(global_iterations, total_combinations)  # 全局优化使用更多迭代
+                self.logger.info(f"🌐 全局优化模式，最大迭代次数: {max_iterations} (配置值: {global_iterations})")
+            
+            # 预生成参数组合以提高效率
+            self.logger.info("⚡ 预生成参数组合...")
+            param_combinations = []
+            for _ in range(max_iterations):
+                params = {
+                    'rise_threshold': fixed_rise_threshold,  # 固定不变
+                    'max_days': fixed_max_days,              # 固定不变
+                    'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
+                    'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
+                    'final_threshold': np.random.choice(param_grid['final_threshold']),
+                    # 新增AI优化参数
+                    'dynamic_confidence_adjustment': np.random.choice(param_grid['dynamic_confidence_adjustment']),
+                    'market_sentiment_weight': np.random.choice(param_grid['market_sentiment_weight']),
+                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight']),
+                    # 新增2个高重要度参数
+                    'volume_weight': np.random.choice(param_grid['volume_weight']),
+                    'price_momentum_weight': np.random.choice(param_grid['price_momentum_weight'])
+                }
+                param_combinations.append(params)
             
             # 记录优化开始时间
             import time
             start_time = time.time()
             
-            self.logger.info("🔄 阶段4: 开始参数优化迭代...")
+            self.logger.info("🔄 阶段5: 开始参数优化迭代...")
             self.logger.info("-" * 50)
             
             # 记录改进次数
@@ -204,21 +213,8 @@ class AIOptimizer:
                         self.logger.info(f"   - 价格动量权重: {best_params['price_momentum_weight']:.3f}")
                     self.logger.info("-" * 30)
                 
-                # 随机选择可优化参数组合，固定核心参数
-                params = {
-                    'rise_threshold': fixed_rise_threshold,  # 固定不变
-                    'max_days': fixed_max_days,              # 固定不变
-                    'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
-                    'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
-                    'final_threshold': np.random.choice(param_grid['final_threshold']),
-                    # 新增AI优化参数
-                    'dynamic_confidence_adjustment': np.random.choice(param_grid['dynamic_confidence_adjustment']),
-                    'market_sentiment_weight': np.random.choice(param_grid['market_sentiment_weight']),
-                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight']),
-                    # 新增2个高重要度参数
-                    'volume_weight': np.random.choice(param_grid['volume_weight']),
-                    'price_momentum_weight': np.random.choice(param_grid['price_momentum_weight'])
-                }
+                # 使用预生成的参数组合
+                params = param_combinations[iteration]
                 
                 # 使用固定标签评估参数
                 score = self._evaluate_params_with_fixed_labels_advanced(
@@ -252,6 +248,7 @@ class AIOptimizer:
             self.logger.info("🎯 AI策略参数优化完成!")
             self.logger.info("=" * 60)
             self.logger.info(f"📊 优化统计:")
+            self.logger.info(f"   - 优化模式: {'增量优化' if use_incremental else '全局优化'}")
             self.logger.info(f"   - 总迭代次数: {max_iterations}")
             self.logger.info(f"   - 总耗时: {total_time:.1f}秒")
             self.logger.info(f"   - 平均每次迭代: {total_time/max_iterations:.3f}秒")
@@ -265,25 +262,36 @@ class AIOptimizer:
                 else:
                     self.logger.info(f"   - {key}: {value}")
             
+            # 保存优化结果到历史记录
+            self.logger.info("💾 保存优化结果...")
+            self._save_parameter_history(best_params, best_score)
+            self._save_best_parameters(best_params, best_score)
+            
             return best_params
             
         except Exception as e:
-            self.logger.error("❌ 优化策略参数失败: %s", str(e))
-            # 返回默认参数，保持核心参数固定
-            return {
-                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),  # 固定
-                'max_days': self.config.get('strategy', {}).get('max_days', 20),                # 固定
-                'rsi_oversold_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_oversold_threshold', 30),
-                'rsi_low_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('rsi_low_threshold', 40),
-                'final_threshold': self.config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold', 0.5),
-                # 新增AI优化参数默认值
-                'dynamic_confidence_adjustment': self.config.get('strategy', {}).get('confidence_weights', {}).get('dynamic_confidence_adjustment', 0.1),
-                'market_sentiment_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('market_sentiment_weight', 0.15),
-                'trend_strength_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('trend_strength_weight', 0.12),
-                # 新增2个高重要度参数默认值
-                'volume_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('volume_weight', 0.25),
-                'price_momentum_weight': self.config.get('strategy', {}).get('confidence_weights', {}).get('price_momentum_weight', 0.20)
-            }
+            self.logger.error("AI策略参数优化失败: %s", str(e))
+            self.logger.error("错误详情:", exc_info=True)
+            
+            # 尝试返回默认参数
+            try:
+                default_params = {
+                    'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                    'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                    'rsi_oversold_threshold': 30,
+                    'rsi_low_threshold': 40,
+                    'final_threshold': 0.5,
+                    'dynamic_confidence_adjustment': 0.15,
+                    'market_sentiment_weight': 0.15,
+                    'trend_strength_weight': 0.12,
+                    'volume_weight': 0.25,
+                    'price_momentum_weight': 0.20
+                }
+                self.logger.warning("返回默认参数作为备选方案")
+                return default_params
+            except Exception as fallback_error:
+                self.logger.error("备选方案也失败: %s", str(fallback_error))
+                return {}
     
     def _evaluate_params_with_fixed_labels(self, data: pd.DataFrame, fixed_labels: np.ndarray, 
                                          rise_threshold: float, max_days: int) -> float:
@@ -1193,5 +1201,314 @@ class AIOptimizer:
         except Exception as e:
             self.logger.error("评估多参数失败: %s", str(e))
             return 0.0
+
+    def _save_parameter_history(self, params: Dict[str, Any], score: float) -> bool:
+        """
+        保存参数历史记录
+        
+        参数:
+        params: 参数字典
+        score: 对应的得分
+        
+        返回:
+        bool: 是否保存成功
+        """
+        try:
+            # 读取现有历史记录
+            history = []
+            if os.path.exists(self.parameter_history_file):
+                with open(self.parameter_history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            
+            # 添加新记录
+            record = {
+                'timestamp': datetime.now().isoformat(),
+                'parameters': params,
+                'score': score
+            }
+            history.append(record)
+            
+            # 从配置文件获取最大记录数
+            ai_config = self.config.get('ai', {})
+            optimization_config = ai_config.get('optimization', {})
+            max_history_records = optimization_config.get('max_history_records', 100)
+            enable_history = optimization_config.get('enable_history', True)
+            
+            # 只保留最近N条记录
+            if len(history) > max_history_records:
+                history = history[-max_history_records:]
+            
+            # 保存历史记录
+            if enable_history:
+                with open(self.parameter_history_file, 'w', encoding='utf-8') as f:
+                    json.dump(history, f, indent=2, ensure_ascii=False)
+                
+                self.logger.info(f"参数历史记录保存成功 (共{len(history)}条记录)")
+            else:
+                self.logger.info("参数历史记录功能已禁用")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error("保存参数历史记录失败: %s", str(e))
+            return False
+    
+    def _load_best_parameters(self) -> Optional[Dict[str, Any]]:
+        """
+        加载历史最优参数
+        
+        返回:
+        dict: 历史最优参数，如果没有则返回None
+        """
+        try:
+            if not os.path.exists(self.best_parameters_file):
+                self.logger.info("没有找到历史最优参数文件")
+                return None
+            
+            with open(self.best_parameters_file, 'r', encoding='utf-8') as f:
+                best_record = json.load(f)
+            
+            self.logger.info("加载历史最优参数成功")
+            self.logger.info(f"   - 历史最优得分: {best_record.get('score', 0):.4f}")
+            self.logger.info(f"   - 历史最优参数: {best_record.get('parameters', {})}")
+            
+            return best_record.get('parameters')
+            
+        except Exception as e:
+            self.logger.error("加载历史最优参数失败: %s", str(e))
+            return None
+    
+    def _save_best_parameters(self, params: Dict[str, Any], score: float) -> bool:
+        """
+        保存当前最优参数
+        
+        参数:
+        params: 参数字典
+        score: 对应的得分
+        
+        返回:
+        bool: 是否保存成功
+        """
+        try:
+            record = {
+                'timestamp': datetime.now().isoformat(),
+                'parameters': params,
+                'score': score
+            }
+            
+            with open(self.best_parameters_file, 'w', encoding='utf-8') as f:
+                json.dump(record, f, indent=2, ensure_ascii=False)
+            
+            self.logger.info("当前最优参数保存成功")
+            return True
+            
+        except Exception as e:
+            self.logger.error("保存当前最优参数失败: %s", str(e))
+            return False
+    
+    def _get_incremental_search_ranges(self, base_params: Dict[str, Any], 
+                                     optimization_ranges: Dict[str, Any]) -> Dict[str, np.ndarray]:
+        """
+        基于历史最优参数生成增量搜索范围
+        
+        参数:
+        base_params: 基础参数（历史最优参数）
+        optimization_ranges: 完整搜索范围配置
+        
+        返回:
+        dict: 增量搜索范围
+        """
+        try:
+            incremental_ranges = {}
+            
+            # 从配置文件获取收缩比例
+            ai_config = self.config.get('ai', {})
+            optimization_config = ai_config.get('optimization', {})
+            contraction_factor = optimization_config.get('incremental_contraction_factor', 0.3)
+            
+            self.logger.info(f"📊 增量搜索收缩比例: {contraction_factor}")
+            
+            # 定义所有必需的参数及其默认值
+            required_params = {
+                'rsi_oversold_threshold': {'type': 'int', 'default': 30},
+                'rsi_low_threshold': {'type': 'int', 'default': 40},
+                'final_threshold': {'type': 'float', 'default': 0.5},
+                'dynamic_confidence_adjustment': {'type': 'float', 'default': 0.15},
+                'market_sentiment_weight': {'type': 'float', 'default': 0.15},
+                'trend_strength_weight': {'type': 'float', 'default': 0.12},
+                'volume_weight': {'type': 'float', 'default': 0.25},
+                'price_momentum_weight': {'type': 'float', 'default': 0.20}
+            }
+            
+            for param_name, param_info in required_params.items():
+                # 跳过核心参数
+                if param_name in ['rise_threshold', 'max_days']:
+                    continue
+                
+                # 获取基础值（从历史参数或默认值）
+                base_value = base_params.get(param_name, param_info['default'])
+                
+                # 获取参数范围配置
+                param_range = optimization_ranges.get(param_name, {})
+                
+                # 设置默认范围
+                if param_name == 'rsi_oversold_threshold':
+                    min_val = param_range.get('min', 25)
+                    max_val = param_range.get('max', 35)
+                    step = param_range.get('step', 1)
+                elif param_name == 'rsi_low_threshold':
+                    min_val = param_range.get('min', 35)
+                    max_val = param_range.get('max', 45)
+                    step = param_range.get('step', 1)
+                elif param_name == 'final_threshold':
+                    min_val = param_range.get('min', 0.3)
+                    max_val = param_range.get('max', 0.7)
+                    step = param_range.get('step', 0.05)
+                elif param_name == 'dynamic_confidence_adjustment':
+                    min_val = param_range.get('min', 0.05)
+                    max_val = param_range.get('max', 0.25)
+                    step = param_range.get('step', 0.02)
+                elif param_name == 'market_sentiment_weight':
+                    min_val = param_range.get('min', 0.08)
+                    max_val = param_range.get('max', 0.25)
+                    step = param_range.get('step', 0.02)
+                elif param_name == 'trend_strength_weight':
+                    min_val = param_range.get('min', 0.06)
+                    max_val = param_range.get('max', 0.20)
+                    step = param_range.get('step', 0.02)
+                elif param_name == 'volume_weight':
+                    min_val = param_range.get('min', 0.15)
+                    max_val = param_range.get('max', 0.35)
+                    step = param_range.get('step', 0.02)
+                elif param_name == 'price_momentum_weight':
+                    min_val = param_range.get('min', 0.12)
+                    max_val = param_range.get('max', 0.30)
+                    step = param_range.get('step', 0.02)
+                else:
+                    # 使用通用默认值
+                    min_val = param_range.get('min', 0)
+                    max_val = param_range.get('max', 1)
+                    step = param_range.get('step', 0.01)
+                
+                # 计算增量搜索范围
+                range_width = max_val - min_val
+                incremental_width = range_width * contraction_factor
+                
+                # 以基础值为中心，向两边扩展
+                new_min = max(min_val, base_value - incremental_width / 2)
+                new_max = min(max_val, base_value + incremental_width / 2)
+                
+                # 确保至少有一个值
+                if new_min >= new_max:
+                    new_min = max(min_val, base_value - step)
+                    new_max = min(max_val, base_value + step)
+                
+                # 生成搜索数组
+                if param_info['type'] == 'int':
+                    # 整数参数
+                    incremental_ranges[param_name] = np.arange(
+                        int(new_min), int(new_max) + 1, max(1, int(step))
+                    )
+                else:
+                    # 浮点数参数
+                    incremental_ranges[param_name] = np.arange(
+                        new_min, new_max + step, step
+                    )
+                
+                # 确保数组不为空
+                if len(incremental_ranges[param_name]) == 0:
+                    incremental_ranges[param_name] = np.array([base_value])
+                
+                self.logger.info(f"   - {param_name}: {new_min:.4f} - {new_max:.4f} (基于 {base_value:.4f})")
+            
+            return incremental_ranges
+            
+        except Exception as e:
+            self.logger.error("生成增量搜索范围失败: %s", str(e))
+            # 返回默认参数网格作为备选
+            return self._build_parameter_grid(optimization_ranges)
+
+    def _build_parameter_grid(self, optimization_ranges: Dict[str, Any]) -> Dict[str, np.ndarray]:
+        """
+        构建参数搜索网格
+        
+        参数:
+        optimization_ranges: 参数搜索范围配置
+        
+        返回:
+        dict: 参数搜索网格
+        """
+        param_grid = {}
+        
+        # 定义参数配置
+        param_configs = {
+            'rsi_oversold_threshold': {'type': 'int', 'default_min': 25, 'default_max': 35, 'default_step': 1},
+            'rsi_low_threshold': {'type': 'int', 'default_min': 35, 'default_max': 45, 'default_step': 1},
+            'final_threshold': {'type': 'float', 'default_min': 0.3, 'default_max': 0.7, 'default_step': 0.05},
+            'dynamic_confidence_adjustment': {'type': 'float', 'default_min': 0.05, 'default_max': 0.25, 'default_step': 0.02},
+            'market_sentiment_weight': {'type': 'float', 'default_min': 0.08, 'default_max': 0.25, 'default_step': 0.02},
+            'trend_strength_weight': {'type': 'float', 'default_min': 0.06, 'default_max': 0.20, 'default_step': 0.02},
+            'volume_weight': {'type': 'float', 'default_min': 0.15, 'default_max': 0.35, 'default_step': 0.02},
+            'price_momentum_weight': {'type': 'float', 'default_min': 0.12, 'default_max': 0.30, 'default_step': 0.02}
+        }
+        
+        for param_name, config in param_configs.items():
+            param_range = optimization_ranges.get(param_name, {})
+            min_val = param_range.get('min', config['default_min'])
+            max_val = param_range.get('max', config['default_max'])
+            step = param_range.get('step', config['default_step'])
+            
+            if config['type'] == 'int':
+                param_grid[param_name] = np.arange(min_val, max_val + 1, step)
+            else:
+                param_grid[param_name] = np.arange(min_val, max_val + step, step)
+        
+        return param_grid
+
+    def _validate_optimization_config(self, optimization_ranges: Dict[str, Any]) -> bool:
+        """
+        验证优化配置的合理性
+        
+        参数:
+        optimization_ranges: 参数搜索范围配置
+        
+        返回:
+        bool: 配置是否有效
+        """
+        try:
+            required_params = [
+                'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
+                'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight',
+                'volume_weight', 'price_momentum_weight'
+            ]
+            
+            for param in required_params:
+                if param not in optimization_ranges:
+                    self.logger.warning(f"参数 {param} 未在配置中定义，将使用默认值")
+                    continue
+                
+                param_range = optimization_ranges[param]
+                min_val = param_range.get('min')
+                max_val = param_range.get('max')
+                step = param_range.get('step')
+                
+                if min_val is None or max_val is None or step is None:
+                    self.logger.error(f"参数 {param} 配置不完整，缺少 min/max/step")
+                    return False
+                
+                if min_val >= max_val:
+                    self.logger.error(f"参数 {param} 范围配置错误: min({min_val}) >= max({max_val})")
+                    return False
+                
+                if step <= 0:
+                    self.logger.error(f"参数 {param} 步长配置错误: step({step}) <= 0")
+                    return False
+            
+            self.logger.info("✅ 优化配置验证通过")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"配置验证失败: {str(e)}")
+            return False
 
 

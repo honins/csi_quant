@@ -15,6 +15,21 @@ ai:
   # 训练测试集分割比例
   train_test_split_ratio: 0.8
 
+  # 参数优化配置
+  optimization:
+    # 全局优化迭代次数（首次运行或没有历史参数时使用）
+    global_iterations: 500
+    # 增量优化迭代次数（基于历史参数优化时使用）
+    incremental_iterations: 1000
+    # 增量搜索范围收缩比例（0.1-1.0，越小搜索范围越窄）
+    incremental_contraction_factor: 0.5
+    # 是否启用增量优化
+    enable_incremental: true
+    # 是否启用参数历史记录
+    enable_history: true
+    # 历史记录最大条数
+    max_history_records: 100
+
   # 高级优化配置
   advanced_optimization:
     # 是否启用高级优化
@@ -211,7 +226,7 @@ strategy:
   # 置信度权重配置
   confidence_weights:
     # 最终置信度阈值
-    final_threshold: 0.39999999999999997
+    final_threshold: 0.44999999999999996
     # 所有均线在价格下方权重
     ma_all_below: 0.3
     # 部分均线在价格下方权重
@@ -227,11 +242,11 @@ strategy:
     # RSI低值权重
     rsi_low: 0.2
     # RSI低值阈值
-    rsi_low_threshold: 45
+    rsi_low_threshold: 40
     # RSI超卖权重
     rsi_oversold: 0.3
     # RSI超卖阈值
-    rsi_oversold_threshold: 35
+    rsi_oversold_threshold: 25
     # MACD负值权重
     macd_negative: 0.1
 
@@ -253,11 +268,11 @@ strategy:
 
     # AI优化参数 (每次AI优化后更新)
     # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
-    dynamic_confidence_adjustment: 0.07
+    dynamic_confidence_adjustment: 0.27
     # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
-    market_sentiment_weight: 0.2
+    market_sentiment_weight: 0.22000000000000003
     # 趋势强度权重 - 基于价格趋势强度调整权重
-    trend_strength_weight: 0.14
+    trend_strength_weight: 0.2
     # 成交量权重 - 基于成交量变化调整权重（新增高重要度参数）
     volume_weight: 0.25
     # 价格动量权重 - 基于价格动量指标调整权重（新增高重要度参数）

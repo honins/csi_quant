@@ -146,7 +146,7 @@ def run_ai_optimization(config):
         
         # 获取数据
         print("📊 准备数据...")
-        start_date = '2022-01-01'
+        start_date = '2020-01-01'
         end_date = '2025-06-19'
         
         raw_data = data_module.get_history_data(start_date, end_date)
