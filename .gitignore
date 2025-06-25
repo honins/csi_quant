@@ -134,6 +134,9 @@ logs/
 # results/
 # charts/
 models/
+# 明确排除AI优化参数文件
+models/best_parameters.json
+models/parameter_history.json
 # *.pkl
 # *.csv
 # *.png
