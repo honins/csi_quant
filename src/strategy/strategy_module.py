@@ -618,3 +618,12 @@ class StrategyModule:
             'trend_strength_weight': confidence_weights.get('trend_strength_weight', 0.12)
         }
 
+    def get_current_params(self) -> Dict[str, Any]:
+        """
+        获取当前策略参数（别名方法，与get_params()相同）
+        
+        返回:
+        dict: 当前参数
+        """
+        return self.get_params()
+

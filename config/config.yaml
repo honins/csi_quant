@@ -98,13 +98,13 @@ logging:
   backup_count: 5
 notification:
   methods:
-  - console
-  - email
+    - console
+    - email
   logs_dir: logs
   email:
     sender: quant_system@example.com
     recipients:
-    - your_email@example.com
+      - your_email@example.com
     smtp_server: smtp.example.com
     smtp_port: 587
     username: your_username
@@ -129,12 +129,12 @@ strategy:
   macd_signal: 9
   macd_slow: 26
   ma_periods:
-  - 5
-  - 10
-  - 20
-  - 60
+    - 5
+    - 10
+    - 20
+    - 60
   confidence_weights:
-    final_threshold: 0.5499999999999999
+    final_threshold: 0.618809442835982
     ma_all_below: 0.3
     ma_partial_below: 0.2
     bb_lower_near: 0.2
@@ -144,7 +144,7 @@ strategy:
     rsi_low: 0.2
     rsi_low_threshold: 38
     rsi_oversold: 0.3
-    rsi_oversold_threshold: 26
+    rsi_oversold_threshold: 34
     macd_negative: 0.1
     volume_panic_bonus: 0.1
     volume_surge_bonus: 0.05
@@ -153,9 +153,9 @@ strategy:
     volume_surge_threshold: 1.2
     volume_shrink_threshold: 0.8
     price_decline_threshold: -0.02
-    dynamic_confidence_adjustment: 0.15000000000000002
-    market_sentiment_weight: 0.14
-    trend_strength_weight: 0.2
+    dynamic_confidence_adjustment: 0.1
+    market_sentiment_weight: 0.15
+    trend_strength_weight: 0.12
     volume_weight: 0.25
     price_momentum_weight: 0.2
   scoring:

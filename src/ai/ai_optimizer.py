@@ -415,27 +415,69 @@ class AIOptimizer:
             self.logger.info(f"  - 初始点数: {n_initial_points}")
             self.logger.info(f"  - 采集函数: {acq_func}")
             
-            # 定义参数空间
+            # 获取当前策略参数作为优化起点
+            current_params = strategy_module.get_current_params()
+            self.logger.info(f"🎯 当前参数作为贝叶斯优化起点: {current_params}")
+            
+            # 定义基于当前参数的自适应参数空间
             optimization_ranges = ai_config.get('optimization_ranges', {})
             
             dimensions = []
             param_names = []
             
-            # 从配置中读取参数范围
-            for param_name, param_range in optimization_ranges.items():
-                min_val = param_range.get('min', 0.0)
-                max_val = param_range.get('max', 1.0)
-                
-                dimensions.append(Real(min_val, max_val, name=param_name))
-                param_names.append(param_name)
+            # 智能搜索因子
+            search_factor = bayesian_config.get('search_factor', 0.3)
             
-            # 添加RSI相关参数
+            # 从配置中读取参数范围，并基于当前参数调整
+            for param_name, param_range in optimization_ranges.items():
+                base_min = param_range.get('min', 0.0)
+                base_max = param_range.get('max', 1.0)
+                current_value = current_params.get(param_name, (base_min + base_max) / 2)
+                
+                # 基于当前值动态调整搜索范围
+                range_width = base_max - base_min
+                adaptive_radius = range_width * search_factor
+                
+                adaptive_min = max(base_min, current_value - adaptive_radius)
+                adaptive_max = min(base_max, current_value + adaptive_radius)
+                
+                dimensions.append(Real(adaptive_min, adaptive_max, name=param_name))
+                param_names.append(param_name)
+                
+                self.logger.info(f"   - {param_name}: 当前值 {current_value:.3f}, 搜索范围 [{adaptive_min:.3f}, {adaptive_max:.3f}]")
+            
+            # RSI相关参数的自适应范围
+            base_rsi_oversold = current_params.get('rsi_oversold_threshold', 30)
+            base_rsi_low = current_params.get('rsi_low_threshold', 40)
+            base_final_threshold = current_params.get('final_threshold', 0.5)
+            
+            # RSI参数搜索半径
+            rsi_radius = 4  # RSI参数的搜索半径
+            threshold_radius = 0.15  # final_threshold的搜索半径
+            
+            # 自适应RSI oversold范围
+            rsi_oversold_min = max(25, base_rsi_oversold - rsi_radius)
+            rsi_oversold_max = min(35, base_rsi_oversold + rsi_radius)
+            
+            # 自适应RSI low范围
+            rsi_low_min = max(35, base_rsi_low - rsi_radius)
+            rsi_low_max = min(45, base_rsi_low + rsi_radius)
+            
+            # 自适应final_threshold范围
+            final_threshold_min = max(0.3, base_final_threshold - threshold_radius)
+            final_threshold_max = min(0.7, base_final_threshold + threshold_radius)
+            
+            # 添加自适应RSI相关参数
             dimensions.extend([
-                Integer(25, 35, name='rsi_oversold_threshold'),
-                Integer(35, 45, name='rsi_low_threshold'),
-                Real(0.3, 0.7, name='final_threshold')
+                Integer(rsi_oversold_min, rsi_oversold_max, name='rsi_oversold_threshold'),
+                Integer(rsi_low_min, rsi_low_max, name='rsi_low_threshold'),
+                Real(final_threshold_min, final_threshold_max, name='final_threshold')
             ])
             param_names.extend(['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold'])
+            
+            self.logger.info(f"   - rsi_oversold_threshold: 当前值 {base_rsi_oversold}, 搜索范围 [{rsi_oversold_min}, {rsi_oversold_max}]")
+            self.logger.info(f"   - rsi_low_threshold: 当前值 {base_rsi_low}, 搜索范围 [{rsi_low_min}, {rsi_low_max}]")
+            self.logger.info(f"   - final_threshold: 当前值 {base_final_threshold:.3f}, 搜索范围 [{final_threshold_min:.3f}, {final_threshold_max:.3f}]")
             
             if len(dimensions) == 0:
                 self.logger.error("❌ 未定义优化参数空间")
@@ -617,7 +659,7 @@ class AIOptimizer:
 
     def _traditional_parameter_optimization(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        传统参数优化方法（网格搜索/随机搜索）
+        传统参数优化方法（基于历史结果的增量优化）
         
         参数:
         strategy_module: 策略模块
@@ -626,40 +668,97 @@ class AIOptimizer:
         返回:
         dict: 优化后的参数
         """
-        self.logger.info("🔧 执行传统参数优化...")
+        self.logger.info("🔧 执行增量参数优化...")
         
         try:
             # 固定核心参数
             fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
             fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
             
+            # 获取当前策略参数作为优化起点
+            current_params = strategy_module.get_current_params()
+            self.logger.info(f"🎯 当前参数作为优化起点: {current_params}")
+            
+            # 基于当前参数动态调整搜索范围
+            base_rsi_oversold = current_params.get('rsi_oversold_threshold', 30)
+            base_rsi_low = current_params.get('rsi_low_threshold', 40)
+            base_final_threshold = current_params.get('final_threshold', 0.5)
+            
+            # 智能搜索范围：围绕当前最优参数进行局部搜索
+            search_radius = self.config.get('ai', {}).get('optimization', {}).get('search_radius', 3)
+            
+            param_ranges = {
+                'rsi_oversold_threshold': np.arange(
+                    max(25, base_rsi_oversold - search_radius), 
+                    min(36, base_rsi_oversold + search_radius + 1), 1
+                ),
+                'rsi_low_threshold': np.arange(
+                    max(35, base_rsi_low - search_radius), 
+                    min(46, base_rsi_low + search_radius + 1), 1
+                ),
+                'final_threshold': np.arange(
+                    max(0.3, base_final_threshold - 0.1), 
+                    min(0.71, base_final_threshold + 0.1), 0.05
+                )
+            }
+            
+            self.logger.info(f"🔍 智能搜索范围:")
+            self.logger.info(f"   - rsi_oversold_threshold: {param_ranges['rsi_oversold_threshold']}")
+            self.logger.info(f"   - rsi_low_threshold: {param_ranges['rsi_low_threshold']}")
+            self.logger.info(f"   - final_threshold: {param_ranges['final_threshold'][0]:.2f} - {param_ranges['final_threshold'][-1]:.2f}")
+            
             # 获取基准策略识别结果
             baseline_backtest = strategy_module.backtest(data)
             fixed_labels = baseline_backtest['is_low_point'].astype(int).values
             
-            # 参数搜索范围
-            param_ranges = {
-                'rsi_oversold_threshold': np.arange(25, 36, 1),
-                'rsi_low_threshold': np.arange(35, 46, 1),
-                'final_threshold': np.arange(0.3, 0.71, 0.05)
+            # 首先评估当前参数作为基准
+            current_score = self._evaluate_params_with_fixed_labels(
+                data, fixed_labels, fixed_rise_threshold, fixed_max_days
+            )
+            
+            best_score = current_score
+            best_params = {
+                'rise_threshold': fixed_rise_threshold,
+                'max_days': fixed_max_days,
+                'rsi_oversold_threshold': base_rsi_oversold,
+                'rsi_low_threshold': base_rsi_low,
+                'final_threshold': base_final_threshold
             }
             
-            best_score = -1
-            best_params = None
+            self.logger.info(f"📊 当前参数基准得分: {current_score:.4f}")
             
             # 获取优化配置
             ai_config = self.config.get('ai', {})
             optimization_config = ai_config.get('optimization', {})
-            max_iterations = optimization_config.get('global_iterations', 200)
+            max_iterations = optimization_config.get('global_iterations', 100)  # 减少迭代次数，因为搜索范围更精确
             
+            # 增量优化搜索
+            improvements = 0
             for i in range(max_iterations):
-                params = {
-                    'rise_threshold': fixed_rise_threshold,
-                    'max_days': fixed_max_days,
-                    'rsi_oversold_threshold': int(np.random.choice(param_ranges['rsi_oversold_threshold'])),
-                    'rsi_low_threshold': int(np.random.choice(param_ranges['rsi_low_threshold'])),
-                    'final_threshold': np.random.choice(param_ranges['final_threshold'])
-                }
+                # 80%概率进行局部搜索，20%概率进行全局探索
+                if np.random.random() < 0.8:
+                    # 局部搜索：在缩小范围内搜索
+                    params = {
+                        'rise_threshold': fixed_rise_threshold,
+                        'max_days': fixed_max_days,
+                        'rsi_oversold_threshold': int(np.random.choice(param_ranges['rsi_oversold_threshold'])),
+                        'rsi_low_threshold': int(np.random.choice(param_ranges['rsi_low_threshold'])),
+                        'final_threshold': np.random.choice(param_ranges['final_threshold'])
+                    }
+                else:
+                    # 全局探索：在更大范围内搜索，避免局部最优
+                    global_ranges = {
+                        'rsi_oversold_threshold': np.arange(25, 36, 1),
+                        'rsi_low_threshold': np.arange(35, 46, 1),
+                        'final_threshold': np.arange(0.3, 0.71, 0.05)
+                    }
+                    params = {
+                        'rise_threshold': fixed_rise_threshold,
+                        'max_days': fixed_max_days,
+                        'rsi_oversold_threshold': int(np.random.choice(global_ranges['rsi_oversold_threshold'])),
+                        'rsi_low_threshold': int(np.random.choice(global_ranges['rsi_low_threshold'])),
+                        'final_threshold': np.random.choice(global_ranges['final_threshold'])
+                    }
                 
                 score = self._evaluate_params_with_fixed_labels(
                     data, fixed_labels, 
@@ -667,24 +766,45 @@ class AIOptimizer:
                 )
                 
                 if score > best_score:
+                    improvement = score - best_score
                     best_score = score
                     best_params = params.copy()
+                    improvements += 1
+                    self.logger.info(f"🎉 发现更优参数! 得分: {score:.4f} (+{improvement:.4f})")
+                    
+                    # 动态调整搜索范围到新的最优点周围
+                    base_rsi_oversold = best_params['rsi_oversold_threshold']
+                    base_rsi_low = best_params['rsi_low_threshold']
+                    base_final_threshold = best_params['final_threshold']
+                    
+                    param_ranges = {
+                        'rsi_oversold_threshold': np.arange(
+                            max(25, base_rsi_oversold - search_radius), 
+                            min(36, base_rsi_oversold + search_radius + 1), 1
+                        ),
+                        'rsi_low_threshold': np.arange(
+                            max(35, base_rsi_low - search_radius), 
+                            min(46, base_rsi_low + search_radius + 1), 1
+                        ),
+                        'final_threshold': np.arange(
+                            max(0.3, base_final_threshold - 0.1), 
+                            min(0.71, base_final_threshold + 0.1), 0.05
+                        )
+                    }
                 
-                if (i + 1) % 50 == 0:
-                    self.logger.info(f"传统优化进度: {i + 1}/{max_iterations}, 当前最佳得分: {best_score:.4f}")
+                if (i + 1) % 25 == 0:
+                    self.logger.info(f"增量优化进度: {i + 1}/{max_iterations}, 当前最佳得分: {best_score:.4f}, 改进次数: {improvements}")
             
-            self.logger.info(f"✅ 传统优化完成，最佳得分: {best_score:.4f}")
+            improvement_rate = (best_score - current_score) / current_score * 100 if current_score > 0 else 0
+            self.logger.info(f"✅ 增量优化完成")
+            self.logger.info(f"   - 最佳得分: {best_score:.4f}")
+            self.logger.info(f"   - 改进幅度: {improvement_rate:+.2f}%")
+            self.logger.info(f"   - 改进次数: {improvements}")
             
-            return best_params if best_params else {
-                'rise_threshold': fixed_rise_threshold,
-                'max_days': fixed_max_days,
-                'rsi_oversold_threshold': 30,
-                'rsi_low_threshold': 40,
-                'final_threshold': 0.5
-            }
+            return best_params
             
         except Exception as e:
-            self.logger.error(f"❌ 传统参数优化失败: {str(e)}")
+            self.logger.error(f"❌ 增量参数优化失败: {str(e)}")
             return {
                 'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
                 'max_days': self.config.get('strategy', {}).get('max_days', 20),

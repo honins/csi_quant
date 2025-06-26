@@ -44,14 +44,14 @@ class BayesianOptimizer:
         return BAYESIAN_AVAILABLE
 
     def optimize_parameters(self, data: pd.DataFrame, objective_func, 
-                          param_ranges: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+                          current_params: Dict[str, Any]) -> Dict[str, Any]:
         """
         使用贝叶斯优化进行参数搜索
         
         参数:
         data: 历史数据
         objective_func: 目标函数，接受参数字典并返回得分
-        param_ranges: 参数范围配置
+        current_params: 当前参数，用于构建智能搜索范围
         
         返回:
         dict: 优化结果
@@ -85,8 +85,8 @@ class BayesianOptimizer:
             self.logger.info(f"  - 初始点数: {n_initial_points}")
             self.logger.info(f"  - 采集函数: {acq_func}")
             
-            # 定义参数空间
-            dimensions, param_names = self._build_parameter_space(param_ranges)
+            # 定义基于当前参数的智能搜索空间
+            dimensions, param_names = self._build_adaptive_parameter_space(current_params)
             
             if len(dimensions) == 0:
                 self.logger.error("❌ 未定义优化参数空间")
@@ -185,9 +185,81 @@ class BayesianOptimizer:
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
 
+    def _build_adaptive_parameter_space(self, current_params: Dict[str, Any]) -> tuple:
+        """
+        基于当前参数构建自适应参数空间
+        
+        参数:
+        current_params: 当前最优参数
+        
+        返回:
+        tuple: (dimensions列表, 参数名列表)
+        """
+        dimensions = []
+        param_names = []
+        
+        self.logger.info("🎯 构建基于当前参数的自适应搜索空间...")
+        
+        # 从配置中读取基础参数范围
+        optimization_ranges = self.config.get('ai', {}).get('optimization_ranges', {})
+        
+        # 智能搜索半径
+        search_factor = self.config.get('ai', {}).get('bayesian_optimization', {}).get('search_factor', 0.3)
+        
+        for param_name, param_range in optimization_ranges.items():
+            base_min = param_range.get('min', 0.0)
+            base_max = param_range.get('max', 1.0)
+            current_value = current_params.get(param_name, (base_min + base_max) / 2)
+            
+            # 基于当前值动态调整搜索范围
+            range_width = base_max - base_min
+            adaptive_radius = range_width * search_factor
+            
+            adaptive_min = max(base_min, current_value - adaptive_radius)
+            adaptive_max = min(base_max, current_value + adaptive_radius)
+            
+            dimensions.append(Real(adaptive_min, adaptive_max, name=param_name))
+            param_names.append(param_name)
+            
+            self.logger.info(f"   - {param_name}: 当前值 {current_value:.3f}, 搜索范围 [{adaptive_min:.3f}, {adaptive_max:.3f}]")
+        
+        # RSI相关参数的自适应范围
+        base_rsi_oversold = current_params.get('rsi_oversold_threshold', 30)
+        base_rsi_low = current_params.get('rsi_low_threshold', 40)
+        base_final_threshold = current_params.get('final_threshold', 0.5)
+        
+        # RSI参数搜索半径
+        rsi_radius = 4  # RSI参数的搜索半径
+        threshold_radius = 0.15  # final_threshold的搜索半径
+        
+        # 自适应RSI oversold范围
+        rsi_oversold_min = max(25, base_rsi_oversold - rsi_radius)
+        rsi_oversold_max = min(35, base_rsi_oversold + rsi_radius)
+        
+        # 自适应RSI low范围
+        rsi_low_min = max(35, base_rsi_low - rsi_radius)
+        rsi_low_max = min(45, base_rsi_low + rsi_radius)
+        
+        # 自适应final_threshold范围
+        final_threshold_min = max(0.3, base_final_threshold - threshold_radius)
+        final_threshold_max = min(0.7, base_final_threshold + threshold_radius)
+        
+        dimensions.extend([
+            Integer(rsi_oversold_min, rsi_oversold_max, name='rsi_oversold_threshold'),
+            Integer(rsi_low_min, rsi_low_max, name='rsi_low_threshold'),
+            Real(final_threshold_min, final_threshold_max, name='final_threshold')
+        ])
+        param_names.extend(['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold'])
+        
+        self.logger.info(f"   - rsi_oversold_threshold: 当前值 {base_rsi_oversold}, 搜索范围 [{rsi_oversold_min}, {rsi_oversold_max}]")
+        self.logger.info(f"   - rsi_low_threshold: 当前值 {base_rsi_low}, 搜索范围 [{rsi_low_min}, {rsi_low_max}]")
+        self.logger.info(f"   - final_threshold: 当前值 {base_final_threshold:.3f}, 搜索范围 [{final_threshold_min:.3f}, {final_threshold_max:.3f}]")
+        
+        return dimensions, param_names
+
     def _build_parameter_space(self, param_ranges: Dict[str, Dict[str, Any]]) -> tuple:
         """
-        构建参数空间
+        构建传统的固定参数空间（保持向后兼容）
         
         参数:
         param_ranges: 参数范围配置

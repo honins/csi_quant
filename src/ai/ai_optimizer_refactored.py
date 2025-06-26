@@ -174,9 +174,12 @@ class AIOptimizerRefactored:
                 
                 return score
             
+            # 获取当前策略参数
+            current_params = strategy_module.get_current_params()
+            
             # 调用贝叶斯优化器
             optimization_result = self.bayesian_optimizer.optimize_parameters(
-                data, objective_func, {}
+                data, objective_func, current_params
             )
             
             if optimization_result['success']:
