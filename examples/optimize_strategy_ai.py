@@ -216,7 +216,7 @@ def run_ai_optimization(config):
         use_hierarchical = advanced_config.get('use_hierarchical', True)
         
         if use_hierarchical:
-            print("🏗️ 使用分层优化策略...")
+            print("🏗️ 使用分层优化策略（严格数据分割版本）...")
             # 如果有之前的参数，调整搜索范围
             if previous_params:
                 print("🔍 基于之前参数调整搜索范围...")
@@ -227,13 +227,23 @@ def run_ai_optimization(config):
             
             print(f"✅ 分层优化完成")
             print(f"   - 最终参数: {result['params']}")
-            print(f"   - 交叉验证得分: {result['cv_score']:.4f}")
-            print(f"   - 高级优化得分: {result['advanced_score']:.4f}")
+            print(f"   - 验证集得分: {result['cv_score']:.4f}")
+            print(f"   - 测试集得分: {result['test_score']:.4f}")
             print(f"   - 最佳得分: {result['best_score']:.4f}")
             print(f"   - 总耗时: {result['total_time']:.1f}秒")
+            print(f"   - 过拟合检测: {'通过' if result.get('overfitting_check', {}).get('passed', False) else '警告'}")
+            
+            # 检查过拟合风险
+            overfitting_check = result.get('overfitting_check', {})
+            if not overfitting_check.get('passed', False):
+                print(f"   ⚠️ 检测到可能的过拟合风险:")
+                print(f"      - 验证集得分: {overfitting_check.get('validation_score', 0):.4f}")
+                print(f"      - 测试集得分: {overfitting_check.get('test_score', 0):.4f}")
+                print(f"      - 差异比例: {overfitting_check.get('difference_ratio', 0):.1%}")
             
             # 使用优化后的参数更新策略
             strategy_module.update_params(result['params'])
+            optimized_params = result['params']
             
         else:
             # 传统优化方法
@@ -242,17 +252,29 @@ def run_ai_optimization(config):
             strategy_module.update_params(optimized_params)
             print(f"✅ 参数优化完成: {optimized_params}")
         
-        # 训练AI模型
-        print("🤖 训练AI模型...")
-        training_result = ai_optimizer.train_model(processed_data, strategy_module)
+        # 严格数据分割后的模型训练和验证
+        print("📊 使用严格数据分割进行模型验证...")
+        data_splits = ai_optimizer.strict_data_split(processed_data, preserve_test_set=True)
+        train_data = data_splits['train']
+        validation_data = data_splits['validation']
+        test_data = data_splits['test']
+        
+        print(f"   数据分割:")
+        print(f"   - 训练集: {len(train_data)} 条")
+        print(f"   - 验证集: {len(validation_data)} 条")
+        print(f"   - 测试集: {len(test_data)} 条")
+        
+        # 在训练集上训练AI模型
+        print("🤖 在训练集上训练AI模型...")
+        training_result = ai_optimizer.train_model(train_data, strategy_module)
         
         if training_result['success']:
             print(f"✅ AI模型训练成功")
             print(f"   - 训练样本数: {training_result.get('train_samples')}")
             print(f"   - 特征数: {training_result.get('feature_count')}")
             
-            # 验证模型
-            validation_result = ai_optimizer.validate_model(processed_data, strategy_module)
+            # 在验证集上验证模型
+            validation_result = ai_optimizer.validate_model(validation_data, strategy_module)
             if validation_result['success']:
                 print(f"   - 验证集准确率: {validation_result.get('accuracy'):.4f}")
                 print(f"   - 精确率: {validation_result.get('precision'):.4f}")
@@ -261,22 +283,20 @@ def run_ai_optimization(config):
         else:
             print(f"❌ AI模型训练失败: {training_result.get('error')}")
         
-        # 运行回测
-        print("📊 运行回测...")
-        backtest_results = strategy_module.backtest(processed_data)
-        evaluation = strategy_module.evaluate_strategy(backtest_results)
+        # 在测试集上进行最终评估
+        print("🎯 在测试集上进行最终评估...")
+        test_result = ai_optimizer.evaluate_on_test_set_only(strategy_module, test_data)
         
-        print(f"✅ 回测完成")
-        print(f"   - 识别点数: {evaluation['total_points']}")
-        print(f"   - 成功率: {evaluation['success_rate']:.2%}")
-        print(f"   - 平均涨幅: {evaluation['avg_rise']:.2%}")
-        print(f"   - 综合得分: {evaluation['score']:.4f}")
+        if test_result['success']:
+            print(f"✅ 测试集评估完成")
+            print(f"   - 测试集得分: {test_result['test_score']:.4f}")
+            print(f"   - 成功率: {test_result['success_rate']:.2%}")
+            print(f"   - 识别点数: {test_result['total_points']}")
+            print(f"   - 平均涨幅: {test_result['avg_rise']:.2%}")
+        else:
+            print(f"❌ 测试集评估失败: {test_result.get('error')}")
         
         # 保存优化后的参数到配置文件
-        if use_hierarchical:
-            optimized_params = result['params']
-        else:
-            optimized_params = optimized_params
             
         print("💾 保存优化后的参数到配置文件...")
         # 只保存非核心参数，核心参数保持固定

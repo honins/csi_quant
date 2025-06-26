@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import pickle
 import json
 import sys
+import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from strategy.strategy_module import StrategyModule
 
@@ -57,8 +58,442 @@ class AIOptimizer:
         self.parameter_history_file = os.path.join(self.models_dir, 'parameter_history.json')
         self.best_parameters_file = os.path.join(self.models_dir, 'best_parameters.json')
         
-        self.logger.info("AI优化器初始化完成，模型类型: %s", self.model_type)
+        # 新增：严格数据分割配置
+        validation_config = ai_config.get('validation', {})
+        self.train_ratio = validation_config.get('train_ratio', 0.6)
+        self.validation_ratio = validation_config.get('validation_ratio', 0.2)
+        self.test_ratio = validation_config.get('test_ratio', 0.2)
         
+        # 确保比例总和为1
+        total_ratio = self.train_ratio + self.validation_ratio + self.test_ratio
+        if abs(total_ratio - 1.0) > 1e-6:
+            self.logger.warning(f"数据分割比例总和 {total_ratio:.3f} 不等于1.0，自动调整")
+            self.train_ratio = self.train_ratio / total_ratio
+            self.validation_ratio = self.validation_ratio / total_ratio
+            self.test_ratio = self.test_ratio / total_ratio
+        
+        # 数据泄露保护
+        self._test_set_locked = False
+        self._test_set_indices = None
+        
+        self.logger.info("AI优化器初始化完成，模型类型: %s", self.model_type)
+        self.logger.info(f"数据分割比例 - 训练: {self.train_ratio:.1%}, 验证: {self.validation_ratio:.1%}, 测试: {self.test_ratio:.1%}")
+        
+    def strict_data_split(self, data: pd.DataFrame, preserve_test_set: bool = True) -> Dict[str, pd.DataFrame]:
+        """
+        严格的时间序列数据分割，防止数据泄露
+        
+        参数:
+        data: 原始数据
+        preserve_test_set: 是否保护测试集（一旦分割，测试集永远不参与优化）
+        
+        返回:
+        dict: 包含 'train', 'validation', 'test' 键的数据字典
+        """
+        self.logger.info("🔒 开始严格数据分割...")
+        
+        # 按时间序列分割数据
+        n = len(data)
+        train_end = int(n * self.train_ratio)
+        val_end = int(n * (self.train_ratio + self.validation_ratio))
+        
+        # 分割数据
+        train_data = data.iloc[:train_end].copy()
+        validation_data = data.iloc[train_end:val_end].copy()
+        test_data = data.iloc[val_end:].copy()
+        
+        # 保护测试集
+        if preserve_test_set:
+            if self._test_set_locked and self._test_set_indices is not None:
+                # 检查测试集是否被篡改
+                current_test_indices = test_data.index.tolist()
+                if current_test_indices != self._test_set_indices:
+                    self.logger.error("❌ 检测到测试集数据泄露风险！")
+                    raise ValueError("测试集数据已被篡改，存在数据泄露风险")
+                self.logger.info("🔒 测试集完整性验证通过")
+            else:
+                # 首次锁定测试集
+                self._test_set_indices = test_data.index.tolist()
+                self._test_set_locked = True
+                self.logger.info("🔒 测试集已锁定，防止数据泄露")
+        
+        self.logger.info(f"✅ 数据分割完成:")
+        self.logger.info(f"   - 训练集: {len(train_data)} 条 ({len(train_data)/n:.1%})")
+        self.logger.info(f"   - 验证集: {len(validation_data)} 条 ({len(validation_data)/n:.1%})")
+        self.logger.info(f"   - 测试集: {len(test_data)} 条 ({len(test_data)/n:.1%})")
+        self.logger.info(f"   - 时间范围:")
+        self.logger.info(f"     训练: {train_data.iloc[0]['date']} ~ {train_data.iloc[-1]['date']}")
+        self.logger.info(f"     验证: {validation_data.iloc[0]['date']} ~ {validation_data.iloc[-1]['date']}")
+        self.logger.info(f"     测试: {test_data.iloc[0]['date']} ~ {test_data.iloc[-1]['date']}")
+        
+        return {
+            'train': train_data,
+            'validation': validation_data,
+            'test': test_data
+        }
+    
+    def walk_forward_validation(self, data: pd.DataFrame, strategy_module, 
+                              window_size: int = 252, step_size: int = 63) -> Dict[str, Any]:
+        """
+        走前验证：模拟真实交易环境的严格验证方法
+        
+        参数:
+        data: 历史数据
+        strategy_module: 策略模块实例
+        window_size: 训练窗口大小（交易日）
+        step_size: 步进大小（交易日）
+        
+        返回:
+        dict: 验证结果
+        """
+        self.logger.info("🚶 开始走前验证...")
+        self.logger.info(f"   - 训练窗口: {window_size} 天")
+        self.logger.info(f"   - 步进大小: {step_size} 天")
+        
+        scores = []
+        fold_results = []
+        start_time = time.time()
+        
+        # 计算总的验证折数
+        total_folds = max(0, (len(data) - window_size) // step_size)
+        if total_folds == 0:
+            self.logger.error("❌ 数据不足以进行走前验证")
+            return {'success': False, 'error': '数据不足'}
+        
+        self.logger.info(f"📊 总验证折数: {total_folds}")
+        
+        for fold in range(total_folds):
+            fold_start_time = time.time()
+            
+            # 计算数据窗口
+            start_idx = fold * step_size
+            train_end_idx = start_idx + window_size
+            test_start_idx = train_end_idx
+            test_end_idx = min(test_start_idx + step_size, len(data))
+            
+            # 检查测试窗口是否足够
+            if test_end_idx - test_start_idx < 20:
+                self.logger.info(f"   ⏭️ 第{fold+1}折：测试窗口不足，跳过")
+                continue
+            
+            # 获取训练和测试数据
+            train_data = data.iloc[start_idx:train_end_idx].copy()
+            test_data = data.iloc[test_start_idx:test_end_idx].copy()
+            
+            self.logger.info(f"🔄 第{fold+1}/{total_folds}折:")
+            self.logger.info(f"   - 训练数据: {len(train_data)} 条")
+            self.logger.info(f"   - 测试数据: {len(test_data)} 条")
+            self.logger.info(f"   - 训练期间: {train_data.iloc[0]['date']} ~ {train_data.iloc[-1]['date']}")
+            self.logger.info(f"   - 测试期间: {test_data.iloc[0]['date']} ~ {test_data.iloc[-1]['date']}")
+            
+            try:
+                # 在训练数据上优化参数（严格隔离）
+                temp_strategy = StrategyModule(self.config)
+                optimized_params = self.optimize_strategy_parameters_on_train_only(
+                    temp_strategy, train_data
+                )
+                temp_strategy.update_params(optimized_params)
+                
+                # 在测试数据上评估（绝对不参与优化）
+                backtest_results = temp_strategy.backtest(test_data)
+                evaluation = temp_strategy.evaluate_strategy(backtest_results)
+                score = evaluation['score']
+                
+                scores.append(score)
+                fold_results.append({
+                    'fold': fold + 1,
+                    'score': score,
+                    'train_period': f"{train_data.iloc[0]['date']} ~ {train_data.iloc[-1]['date']}",
+                    'test_period': f"{test_data.iloc[0]['date']} ~ {test_data.iloc[-1]['date']}",
+                    'optimized_params': optimized_params,
+                    'evaluation': evaluation
+                })
+                
+                fold_time = time.time() - fold_start_time
+                self.logger.info(f"   ✅ 得分: {score:.4f}，耗时: {fold_time:.1f}秒")
+                
+            except Exception as e:
+                self.logger.error(f"   ❌ 第{fold+1}折失败: {str(e)}")
+                continue
+        
+        if len(scores) == 0:
+            self.logger.error("❌ 走前验证失败，没有有效结果")
+            return {'success': False, 'error': '没有有效的验证结果'}
+        
+        # 统计结果
+        avg_score = np.mean(scores)
+        std_score = np.std(scores)
+        min_score = np.min(scores)
+        max_score = np.max(scores)
+        total_time = time.time() - start_time
+        
+        self.logger.info("✅ 走前验证完成!")
+        self.logger.info(f"📊 验证统计:")
+        self.logger.info(f"   - 有效折数: {len(scores)}/{total_folds}")
+        self.logger.info(f"   - 平均得分: {avg_score:.4f} ± {std_score:.4f}")
+        self.logger.info(f"   - 得分范围: [{min_score:.4f}, {max_score:.4f}]")
+        self.logger.info(f"   - 总耗时: {total_time:.1f}秒")
+        
+        return {
+            'success': True,
+            'avg_score': avg_score,
+            'std_score': std_score,
+            'min_score': min_score,
+            'max_score': max_score,
+            'valid_folds': len(scores),
+            'total_folds': total_folds,
+            'fold_results': fold_results,
+            'total_time': total_time
+        }
+    
+    def optimize_strategy_parameters_on_train_only(self, strategy_module, train_data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        仅在训练数据上进行参数优化，绝对不使用验证/测试数据
+        
+        参数:
+        strategy_module: 策略模块实例
+        train_data: 严格的训练数据
+        
+        返回:
+        dict: 优化后的参数
+        """
+        self.logger.info("🔧 开始训练集参数优化（数据泄露保护）...")
+        
+        try:
+            # 1. 验证这是纯训练数据
+            if self._test_set_locked and self._test_set_indices:
+                train_indices = train_data.index.tolist()
+                test_indices_set = set(self._test_set_indices)
+                if any(idx in test_indices_set for idx in train_indices):
+                    raise ValueError("❌ 检测到数据泄露：训练数据包含测试集数据！")
+            
+            # 2. 获取基准策略的识别结果作为固定标签
+            baseline_backtest = strategy_module.backtest(train_data)
+            fixed_labels = baseline_backtest['is_low_point'].astype(int).values
+            
+            # 3. 固定核心参数
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
+            fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
+            
+            # 4. 获取搜索范围
+            ai_config = self.config.get('ai', {})
+            optimization_ranges = ai_config.get('optimization_ranges', {})
+            
+            # 直接构建参数网格（避免方法顺序依赖问题）
+            param_grid = {}
+            param_configs = {
+                'rsi_oversold_threshold': {'type': 'int', 'default_min': 25, 'default_max': 35, 'default_step': 1},
+                'rsi_low_threshold': {'type': 'int', 'default_min': 35, 'default_max': 45, 'default_step': 1},
+                'final_threshold': {'type': 'float', 'default_min': 0.3, 'default_max': 0.7, 'default_step': 0.05},
+                'dynamic_confidence_adjustment': {'type': 'float', 'default_min': 0.05, 'default_max': 0.25, 'default_step': 0.02},
+                'market_sentiment_weight': {'type': 'float', 'default_min': 0.08, 'default_max': 0.25, 'default_step': 0.02},
+                'trend_strength_weight': {'type': 'float', 'default_min': 0.06, 'default_max': 0.20, 'default_step': 0.02},
+                'volume_weight': {'type': 'float', 'default_min': 0.15, 'default_max': 0.35, 'default_step': 0.02},
+                'price_momentum_weight': {'type': 'float', 'default_min': 0.12, 'default_max': 0.30, 'default_step': 0.02}
+            }
+            
+            for param_name, config in param_configs.items():
+                param_range = optimization_ranges.get(param_name, {})
+                min_val = param_range.get('min', config['default_min'])
+                max_val = param_range.get('max', config['default_max'])
+                step = param_range.get('step', config['default_step'])
+                
+                if config['type'] == 'int':
+                    param_grid[param_name] = np.arange(min_val, max_val + 1, step)
+                else:
+                    param_grid[param_name] = np.arange(min_val, max_val + step, step)
+            
+            # 5. 早停机制
+            early_stopping = EarlyStopping(
+                patience=ai_config.get('early_stopping', {}).get('patience', 50),
+                min_delta=ai_config.get('early_stopping', {}).get('min_delta', 0.001)
+            )
+            
+            # 6. 参数优化（仅使用训练数据）
+            best_score = -1
+            best_params = None
+            max_iterations = 200  # 减少迭代次数以提高效率
+            
+            for iteration in range(max_iterations):
+                # 随机生成参数组合
+                params = {
+                    'rise_threshold': fixed_rise_threshold,
+                    'max_days': fixed_max_days,
+                    'rsi_oversold_threshold': int(np.random.choice(param_grid['rsi_oversold_threshold'])),
+                    'rsi_low_threshold': int(np.random.choice(param_grid['rsi_low_threshold'])),
+                    'final_threshold': np.random.choice(param_grid['final_threshold']),
+                    'dynamic_confidence_adjustment': np.random.choice(param_grid['dynamic_confidence_adjustment']),
+                    'market_sentiment_weight': np.random.choice(param_grid['market_sentiment_weight']),
+                    'trend_strength_weight': np.random.choice(param_grid['trend_strength_weight']),
+                    'volume_weight': np.random.choice(param_grid['volume_weight']),
+                    'price_momentum_weight': np.random.choice(param_grid['price_momentum_weight'])
+                }
+                
+                # 评估参数（仅使用训练数据）
+                # 直接实现评估逻辑避免方法顺序依赖
+                try:
+                    scores = []
+                    low_point_indices = np.where(fixed_labels == 1)[0]
+                    
+                    rise_threshold = params['rise_threshold']
+                    max_days = params['max_days']
+                    
+                    for idx in low_point_indices:
+                        if idx >= len(train_data) - max_days:
+                            continue
+                            
+                        current_price = train_data.iloc[idx]['close']
+                        max_rise = 0.0
+                        days_to_rise = 0
+                        
+                        # 计算未来max_days内的最大涨幅
+                        for j in range(1, max_days + 1):
+                            if idx + j >= len(train_data):
+                                break
+                            future_price = train_data.iloc[idx + j]['close']
+                            rise_rate = (future_price - current_price) / current_price
+                            
+                            if rise_rate > max_rise:
+                                max_rise = rise_rate
+                                
+                            if rise_rate >= rise_threshold and days_to_rise == 0:
+                                days_to_rise = j
+                        
+                        # 计算单个点的得分
+                        success = max_rise >= rise_threshold
+                        
+                        # 简化的得分计算
+                        if success:
+                            speed_factor = max_days / max(days_to_rise, 1) if days_to_rise > 0 else 0
+                            point_score = 0.6 + 0.3 * min(max_rise / 0.1, 1.0) + 0.1 * min(speed_factor, 1.0)
+                        else:
+                            point_score = 0.1 * min(max_rise / 0.05, 1.0)  # 部分分数
+                        
+                        scores.append(point_score)
+                    
+                    score = np.mean(scores) if len(scores) > 0 else 0.0
+                    
+                except Exception as eval_error:
+                    self.logger.warning(f"参数评估失败: {str(eval_error)}")
+                    score = 0.0
+                
+                if score > best_score:
+                    best_score = score
+                    best_params = params.copy()
+                
+                # 早停检查
+                if early_stopping(score):
+                    self.logger.info(f"🛑 早停触发，停止优化 (迭代: {iteration+1})")
+                    break
+            
+            self.logger.info(f"✅ 训练集优化完成，最佳得分: {best_score:.4f}")
+            return best_params
+            
+        except Exception as e:
+            self.logger.error(f"❌ 训练集参数优化失败: {str(e)}")
+            # 返回默认参数
+            return {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rsi_oversold_threshold': 30,
+                'rsi_low_threshold': 40,
+                'final_threshold': 0.5,
+                'dynamic_confidence_adjustment': 0.15,
+                'market_sentiment_weight': 0.15,
+                'trend_strength_weight': 0.12,
+                'volume_weight': 0.25,
+                'price_momentum_weight': 0.20
+            }
+    
+    def evaluate_on_test_set_only(self, strategy_module, test_data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        仅在测试集上进行最终评估，绝对不影响优化过程
+        
+        参数:
+        strategy_module: 已优化的策略模块
+        test_data: 严格保护的测试数据
+        
+        返回:
+        dict: 测试集评估结果
+        """
+        self.logger.info("🎯 开始测试集最终评估...")
+        
+        try:
+            # 验证测试集完整性
+            if self._test_set_locked and self._test_set_indices:
+                test_indices = test_data.index.tolist()
+                if test_indices != self._test_set_indices:
+                    raise ValueError("❌ 测试集数据不完整或被篡改！")
+            
+            # 在测试集上运行回测
+            self.logger.info("📊 在测试集上运行回测...")
+            backtest_results = strategy_module.backtest(test_data)
+            evaluation = strategy_module.evaluate_strategy(backtest_results)
+            
+            # 详细统计
+            test_score = evaluation['score']
+            success_rate = evaluation['success_rate']
+            total_points = evaluation['total_points']
+            avg_rise = evaluation['avg_rise']
+            
+            self.logger.info("✅ 测试集评估完成!")
+            self.logger.info(f"📊 测试集性能:")
+            self.logger.info(f"   - 综合得分: {test_score:.4f}")
+            self.logger.info(f"   - 成功率: {success_rate:.2%}")
+            self.logger.info(f"   - 识别点数: {total_points}")
+            self.logger.info(f"   - 平均涨幅: {avg_rise:.2%}")
+            self.logger.info(f"   - 测试期间: {test_data.iloc[0]['date']} ~ {test_data.iloc[-1]['date']}")
+            
+            return {
+                'success': True,
+                'test_score': test_score,
+                'success_rate': success_rate,
+                'total_points': total_points,
+                'avg_rise': avg_rise,
+                'test_period': f"{test_data.iloc[0]['date']} ~ {test_data.iloc[-1]['date']}",
+                'backtest_results': backtest_results,
+                'evaluation': evaluation
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ 测试集评估失败: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+
+class EarlyStopping:
+    """早停机制类"""
+    
+    def __init__(self, patience: int = 20, min_delta: float = 0.001):
+        """
+        初始化早停机制
+        
+        参数:
+        patience: 耐心值，连续多少次无改进后停止
+        min_delta: 最小改进幅度
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_score = -np.inf
+        self.wait = 0
+        
+    def __call__(self, val_score: float) -> bool:
+        """
+        检查是否应该早停
+        
+        参数:
+        val_score: 当前验证得分
+        
+        返回:
+        bool: 是否应该停止
+        """
+        if val_score > self.best_score + self.min_delta:
+            self.best_score = val_score
+            self.wait = 0
+            return False
+        else:
+            self.wait += 1
+            return self.wait >= self.patience
+
     def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
         优化策略参数（rise_threshold和max_days保持固定）
@@ -1007,7 +1442,7 @@ class AIOptimizer:
     
     def hierarchical_optimization(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        分层优化策略
+        分层优化策略（使用严格数据分割防止过拟合）
         
         参数:
         data: 历史数据
@@ -1016,122 +1451,140 @@ class AIOptimizer:
         dict: 优化结果
         """
         self.logger.info("=" * 60)
-        self.logger.info("🏗️ 开始分层优化策略")
+        self.logger.info("🏗️ 开始分层优化策略（严格数据分割版本）")
         self.logger.info("=" * 60)
         
         try:
-            # 记录开始时间
-            import time
             start_time = time.time()
             
-            # 第一层：策略参数优化
-            self.logger.info("📊 第一层：策略参数优化...")
-            self.logger.info("   🔧 创建策略模块实例...")
+            # 步骤1：严格数据分割
+            self.logger.info("🔒 第一步：严格数据分割...")
+            data_splits = self.strict_data_split(data, preserve_test_set=True)
+            train_data = data_splits['train']
+            validation_data = data_splits['validation']
+            test_data = data_splits['test']
+            
+            # 第一层：仅在训练集上优化策略参数
+            self.logger.info("📊 第一层：训练集策略参数优化...")
             layer1_start = time.time()
             strategy_module = StrategyModule(self.config)
-            self.logger.info("   ✅ 策略模块创建完成")
             
-            self.logger.info("   🎯 开始参数优化...")
-            strategy_params = self.optimize_strategy_parameters(strategy_module, data)
+            strategy_params = self.optimize_strategy_parameters_on_train_only(
+                strategy_module, train_data
+            )
+            strategy_module.update_params(strategy_params)
             layer1_time = time.time() - layer1_start
-            self.logger.info("✅ 策略参数优化完成")
-            self.logger.info(f"   - 涨幅阈值: {strategy_params['rise_threshold']:.3f}")
-            self.logger.info(f"   - 最大观察天数: {strategy_params['max_days']}")
+            
+            self.logger.info("✅ 第一层完成")
+            self.logger.info(f"   - 优化参数: {strategy_params}")
             self.logger.info(f"   - 耗时: {layer1_time:.1f}秒")
             
-            # 第二层：基于优化后的策略训练AI模型
-            self.logger.info("🤖 第二层：更新策略参数并准备AI训练...")
+            # 第二层：在训练集上训练AI模型，在验证集上评估
+            self.logger.info("🤖 第二层：AI模型训练（训练集）+ 评估（验证集）...")
             layer2_start = time.time()
             
-            self.logger.info("   🔄 更新策略参数...")
-            strategy_module.update_params(strategy_params)
-            self.logger.info("✅ 策略参数更新完成")
+            # 使用训练集训练AI模型
+            training_result = self.train_model(train_data, strategy_module)
             
-            # 准备训练数据
-            self.logger.info("📋 准备AI训练数据...")
-            self.logger.info("   📊 提取特征...")
-            features, feature_names = self.prepare_features(data)
-            self.logger.info("   🏷️ 准备标签...")
-            labels = self.prepare_labels(data, strategy_module)
-            self.logger.info(f"   - 特征数量: {len(feature_names)}")
-            self.logger.info(f"   - 样本数量: {len(features)}")
-            self.logger.info(f"   - 正样本比例: {np.mean(labels):.2%}")
+            # 使用验证集评估AI模型
+            validation_result = self.validate_model(validation_data, strategy_module)
             
-            # 训练AI模型
-            self.logger.info("🎯 开始训练AI模型...")
-            training_result = self.train_model(data, strategy_module)
             layer2_time = time.time() - layer2_start
-            self.logger.info("✅ AI模型训练完成")
+            self.logger.info("✅ 第二层完成")
             self.logger.info(f"   - 训练准确率: {training_result.get('accuracy', 0):.4f}")
+            self.logger.info(f"   - 验证准确率: {validation_result.get('accuracy', 0):.4f}")
             self.logger.info(f"   - 耗时: {layer2_time:.1f}秒")
             
-            # 第三层：时间序列交叉验证
-            self.logger.info("🔄 第三层：时间序列交叉验证...")
+            # 第三层：走前验证（使用训练+验证数据）
+            self.logger.info("🚶 第三层：走前验证...")
             layer3_start = time.time()
-            cv_score = self.time_series_cv_evaluation(data, strategy_module)
+            
+            # 合并训练和验证数据用于走前验证
+            train_val_data = pd.concat([train_data, validation_data]).reset_index(drop=True)
+            
+            # 获取走前验证配置
+            ai_config = self.config.get('ai', {})
+            validation_config = ai_config.get('validation', {})
+            walk_forward_config = validation_config.get('walk_forward', {})
+            
+            if walk_forward_config.get('enabled', True):
+                wf_result = self.walk_forward_validation(
+                    train_val_data, 
+                    strategy_module,
+                    window_size=walk_forward_config.get('window_size', 252),
+                    step_size=walk_forward_config.get('step_size', 63)
+                )
+                cv_score = wf_result.get('avg_score', 0.0) if wf_result['success'] else 0.0
+            else:
+                # 如果禁用走前验证，使用简单验证集评估
+                val_backtest = strategy_module.backtest(validation_data)
+                val_evaluation = strategy_module.evaluate_strategy(val_backtest)
+                cv_score = val_evaluation['score']
+            
             layer3_time = time.time() - layer3_start
-            self.logger.info(f"✅ 交叉验证完成，平均得分: {cv_score:.4f}")
+            self.logger.info("✅ 第三层完成")
+            self.logger.info(f"   - 验证得分: {cv_score:.4f}")
             self.logger.info(f"   - 耗时: {layer3_time:.1f}秒")
             
-            # 第四层：高级优化（如果可用）
-            self.logger.info("🚀 第四层：高级优化...")
+            # 第四层：最终测试集评估（严格保护）
+            self.logger.info("🎯 第四层：测试集最终评估...")
             layer4_start = time.time()
-            try:
-                self.logger.info("   🔧 开始高级参数优化...")
-                advanced_params = self.optimize_strategy_parameters_advanced(strategy_module, data)
-                self.logger.info("   📊 评估高级优化结果...")
-                advanced_score = self._evaluate_params_with_fixed_labels(
-                    data, 
-                    strategy_module.backtest(data)['is_low_point'].astype(int).values,
-                    advanced_params['rise_threshold'],
-                    advanced_params['max_days']
-                )
-                layer4_time = time.time() - layer4_start
-                self.logger.info("✅ 高级优化完成")
-                self.logger.info(f"   - 高级优化得分: {advanced_score:.4f}")
-                self.logger.info(f"   - 耗时: {layer4_time:.1f}秒")
-            except Exception as e:
-                self.logger.warning(f"⚠️ 高级优化失败: {str(e)}")
-                advanced_params = strategy_params
-                advanced_score = cv_score
-                layer4_time = time.time() - layer4_start
+            
+            test_result = self.evaluate_on_test_set_only(strategy_module, test_data)
+            test_score = test_result.get('test_score', 0.0) if test_result['success'] else 0.0
+            
+            layer4_time = time.time() - layer4_start
+            self.logger.info("✅ 第四层完成")
+            self.logger.info(f"   - 测试集得分: {test_score:.4f}")
+            self.logger.info(f"   - 耗时: {layer4_time:.1f}秒")
             
             # 最终结果统计
             total_time = time.time() - start_time
             self.logger.info("=" * 60)
-            self.logger.info("🎯 分层优化完成!")
+            self.logger.info("🎯 分层优化完成！（严格数据分割版本）")
             self.logger.info("=" * 60)
             self.logger.info(f"📊 优化统计:")
             self.logger.info(f"   - 总耗时: {total_time:.1f}秒")
-            self.logger.info(f"   - 第一层耗时: {layer1_time:.1f}秒 ({layer1_time/total_time*100:.1f}%)")
-            self.logger.info(f"   - 第二层耗时: {layer2_time:.1f}秒 ({layer2_time/total_time*100:.1f}%)")
-            self.logger.info(f"   - 第三层耗时: {layer3_time:.1f}秒 ({layer3_time/total_time*100:.1f}%)")
-            self.logger.info(f"   - 第四层耗时: {layer4_time:.1f}秒 ({layer4_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第一层（训练集优化）: {layer1_time:.1f}秒 ({layer1_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第二层（AI训练）: {layer2_time:.1f}秒 ({layer2_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第三层（走前验证）: {layer3_time:.1f}秒 ({layer3_time/total_time*100:.1f}%)")
+            self.logger.info(f"   - 第四层（测试评估）: {layer4_time:.1f}秒 ({layer4_time/total_time*100:.1f}%)")
             self.logger.info("")
             self.logger.info(f"🏆 最终结果:")
-            self.logger.info(f"   - 交叉验证得分: {cv_score:.4f}")
-            self.logger.info(f"   - 高级优化得分: {advanced_score:.4f}")
-            self.logger.info(f"   - 最佳得分: {max(cv_score, advanced_score):.4f}")
+            self.logger.info(f"   - 验证集得分: {cv_score:.4f}")
+            self.logger.info(f"   - 测试集得分: {test_score:.4f}")
+            self.logger.info(f"   - 过拟合检测: {'通过' if test_score >= cv_score * 0.8 else '警告'}")
             
-            # 返回最佳结果
-            if advanced_score > cv_score:
-                final_params = advanced_params
-                self.logger.info("   - 选择高级优化结果")
-            else:
-                final_params = strategy_params
-                self.logger.info("   - 选择基础优化结果")
+            # 计算过拟合程度
+            if cv_score > 0:
+                overfitting_ratio = (cv_score - test_score) / cv_score
+                if overfitting_ratio > 0.2:
+                    self.logger.warning(f"⚠️ 检测到可能的过拟合，验证-测试得分差异: {overfitting_ratio:.1%}")
+                else:
+                    self.logger.info(f"✅ 过拟合风险较低，验证-测试得分差异: {overfitting_ratio:.1%}")
             
             return {
-                'params': final_params,
+                'params': strategy_params,
                 'cv_score': cv_score,
-                'advanced_score': advanced_score,
-                'best_score': max(cv_score, advanced_score),
+                'test_score': test_score,
+                'best_score': cv_score,  # 使用验证集得分作为最佳得分
                 'total_time': total_time,
                 'layer_times': {
                     'layer1': layer1_time,
                     'layer2': layer2_time,
                     'layer3': layer3_time,
                     'layer4': layer4_time
+                },
+                'data_splits': {
+                    'train_size': len(train_data),
+                    'validation_size': len(validation_data),
+                    'test_size': len(test_data)
+                },
+                'overfitting_check': {
+                    'passed': test_score >= cv_score * 0.8,
+                    'validation_score': cv_score,
+                    'test_score': test_score,
+                    'difference_ratio': (cv_score - test_score) / cv_score if cv_score > 0 else 0
                 }
             }
             
@@ -1140,7 +1593,7 @@ class AIOptimizer:
             return {
                 'params': self.config.get('strategy', {}),
                 'cv_score': 0.0,
-                'advanced_score': 0.0,
+                'test_score': 0.0,
                 'best_score': 0.0,
                 'error': str(e)
             }

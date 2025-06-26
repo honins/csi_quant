@@ -40,6 +40,32 @@ ai:
     use_scipy: true
     # 是否使用时序交叉验证
     use_time_series_cv: true
+  
+  # 严格数据分割配置（防止过拟合）
+  validation:
+    # 训练集比例
+    train_ratio: 0.6
+    # 验证集比例
+    validation_ratio: 0.2
+    # 测试集比例（严格保护，不参与优化）
+    test_ratio: 0.2
+    # 走前验证配置
+    walk_forward:
+      # 是否启用走前验证
+      enabled: true
+      # 训练窗口大小（交易日）
+      window_size: 252
+      # 步进大小（交易日）
+      step_size: 63
+  
+  # 早停机制配置
+  early_stopping:
+    # 是否启用早停
+    enabled: true
+    # 耐心值（连续多少次无改进后停止）
+    patience: 50
+    # 最小改进幅度
+    min_delta: 0.001
 
   # 遗传算法配置
   genetic_algorithm:
