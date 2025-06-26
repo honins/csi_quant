@@ -30,6 +30,16 @@ ai:
     enabled: true
     patience: 50
     min_delta: 0.001
+  # 贝叶斯优化配置
+  bayesian_optimization:
+    enabled: true
+    n_calls: 100  # 优化调用次数
+    n_initial_points: 20  # 初始随机点数量
+    acq_func: 'EI'  # 采集函数：EI(Expected Improvement), PI(Probability of Improvement), LCB(Lower Confidence Bound)
+    xi: 0.01  # 探索参数
+    kappa: 1.96  # 置信界限参数（用于LCB）
+    n_jobs: 1  # 并行作业数
+    random_state: 42  # 随机种子
   genetic_algorithm:
     population_size: 20
     generations: 10

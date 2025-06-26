@@ -213,7 +213,9 @@ def run_ai_optimization(config):
         
         # 检查高级优化选项
         advanced_config = config.get('ai', {}).get('advanced_optimization', {})
+        bayesian_config = config.get('ai', {}).get('bayesian_optimization', {})
         use_hierarchical = advanced_config.get('use_hierarchical', True)
+        use_bayesian = bayesian_config.get('enabled', True)
         
         if use_hierarchical:
             print("🏗️ 使用严格数据分割策略优化...")
@@ -280,11 +282,36 @@ def run_ai_optimization(config):
             strategy_module.update_params(optimized_params)
             
         else:
-            # 传统优化方法
-            print("🔧 使用传统参数优化...")
-            optimized_params = ai_optimizer.optimize_strategy_parameters(strategy_module, processed_data)
+            # 智能参数优化（包含贝叶斯优化）
+            print("🎯 使用智能参数优化...")
+            
+            if use_bayesian:
+                print("🔍 启用贝叶斯优化")
+                timer_bayes = Timer()
+                timer_bayes.start()
+                
+                bayesian_result = ai_optimizer.bayesian_optimize_parameters(strategy_module, processed_data)
+                
+                timer_bayes.stop()
+                
+                if bayesian_result['success']:
+                    optimized_params = bayesian_result['best_params']
+                    print(f"✅ 贝叶斯优化成功 (耗时: {timer_bayes.elapsed_str()})")
+                    print(f"   - 最优得分: {bayesian_result['best_score']:.4f}")
+                    print(f"   - 评估次数: {bayesian_result['n_evaluations']}")
+                    print(f"   - 改进率: {bayesian_result['improvement_rate']:.2%}")
+                    print(f"   - 优化参数: {optimized_params}")
+                else:
+                    print(f"❌ 贝叶斯优化失败: {bayesian_result.get('error')}")
+                    print("🔧 回退到传统优化方法...")
+                    optimized_params = ai_optimizer._traditional_parameter_optimization(strategy_module, processed_data)
+                    print(f"✅ 传统优化完成: {optimized_params}")
+            else:
+                print("🔧 使用传统参数优化...")
+                optimized_params = ai_optimizer._traditional_parameter_optimization(strategy_module, processed_data)
+                print(f"✅ 传统优化完成: {optimized_params}")
+            
             strategy_module.update_params(optimized_params)
-            print(f"✅ 参数优化完成: {optimized_params}")
         
         # 严格数据分割后的模型训练和验证
         print("📊 使用严格数据分割进行模型验证...")
@@ -550,7 +577,34 @@ def main():
                 for i, (feature, importance) in enumerate(list(feature_importance.items())[:5]):
                     print(f"     {i+1}. {feature}: {importance:.4f}")
         
-        # 7. 遗传算法优化测试
+        # 7. 贝叶斯优化测试
+        print("\n🔍 贝叶斯优化测试...")
+        timer.start()
+        
+        bayesian_result = ai_optimizer.bayesian_optimize_parameters(strategy_module, processed_data)
+        
+        timer.stop()
+        
+        if bayesian_result['success']:
+            print(f"✅ 贝叶斯优化完成 (耗时: {timer.elapsed_str()})")
+            print(f"   - 最优参数: {bayesian_result['best_params']}")
+            print(f"   - 最优得分: {bayesian_result['best_score']:.4f}")
+            print(f"   - 评估次数: {bayesian_result['n_evaluations']}")
+            print(f"   - 改进率: {bayesian_result['improvement_rate']:.2%}")
+            
+            # 使用贝叶斯优化后的参数测试
+            strategy_module.update_params(bayesian_result['best_params'])
+            bayesian_backtest = strategy_module.backtest(processed_data)
+            bayesian_evaluation = strategy_module.evaluate_strategy(bayesian_backtest)
+            
+            print(f"   - 贝叶斯优化后得分: {bayesian_evaluation['score']:.4f}")
+            print(f"   - 成功率: {bayesian_evaluation['success_rate']:.2%}")
+            print(f"   - 平均涨幅: {bayesian_evaluation['avg_rise']:.2%}")
+        else:
+            print(f"❌ 贝叶斯优化失败: {bayesian_result.get('error')}")
+            bayesian_evaluation = {'score': 0.0}  # 设置默认值以避免后续错误
+        
+        # 8. 遗传算法优化测试
         print("\n🧬 遗传算法优化测试...")
         timer.start()
         
@@ -578,20 +632,23 @@ def main():
         
         print(f"   - 遗传算法优化后得分: {genetic_evaluation['score']:.4f}")
         
-        # 8. 结果对比
+        # 9. 结果对比
         print("\n📊 优化结果对比:")
         print(f"   基础策略得分:     {baseline_evaluation['score']:.4f}")
         print(f"   参数优化得分:     {optimized_evaluation['score']:.4f}")
         print(f"   分层优化得分:     {hierarchical_evaluation['score']:.4f}")
+        print(f"   贝叶斯优化得分:   {bayesian_evaluation['score']:.4f}")
         print(f"   遗传算法得分:     {genetic_evaluation['score']:.4f}")
         
         # 计算改进幅度
         param_improvement = (optimized_evaluation['score'] - baseline_evaluation['score']) / baseline_evaluation['score'] * 100
         hierarchical_improvement = (hierarchical_evaluation['score'] - baseline_evaluation['score']) / baseline_evaluation['score'] * 100
+        bayesian_improvement = (bayesian_evaluation['score'] - baseline_evaluation['score']) / baseline_evaluation['score'] * 100
         genetic_improvement = (genetic_evaluation['score'] - baseline_evaluation['score']) / baseline_evaluation['score'] * 100
         
         print(f"   参数优化改进:     {param_improvement:+.2f}%")
         print(f"   分层优化改进:     {hierarchical_improvement:+.2f}%")
+        print(f"   贝叶斯优化改进:   {bayesian_improvement:+.2f}%")
         print(f"   遗传算法改进:     {genetic_improvement:+.2f}%")
         
         # 找出最佳方法
@@ -599,6 +656,7 @@ def main():
             ("基础策略", baseline_evaluation['score']),
             ("参数优化", optimized_evaluation['score']),
             ("分层优化", hierarchical_evaluation['score']),
+            ("贝叶斯优化", bayesian_evaluation['score']),
             ("遗传算法", genetic_evaluation['score'])
         ]
         
@@ -611,6 +669,8 @@ def main():
             best_params = hierarchical_result['params']
         elif best_method[0] == "参数优化":
             best_params = optimized_params
+        elif best_method[0] == "贝叶斯优化":
+            best_params = bayesian_result.get('best_params', {}) if bayesian_result['success'] else {}
         elif best_method[0] == "遗传算法":
             best_params = genetic_params
         else:

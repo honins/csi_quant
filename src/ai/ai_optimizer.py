@@ -19,6 +19,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
+# 贝叶斯优化相关导入
+try:
+    from skopt import gp_minimize
+    from skopt.space import Real, Integer
+    from skopt.utils import use_named_args
+    BAYESIAN_AVAILABLE = True
+except ImportError:
+    BAYESIAN_AVAILABLE = False
+
 # 导入策略模块
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'strategy'))
@@ -365,6 +374,324 @@ class AIOptimizer:
         
         total_score = success_score * 0.6 + rise_score * 0.3 + speed_score * 0.1
         return total_score
+
+    def bayesian_optimize_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        使用贝叶斯优化进行参数搜索
+        
+        参数:
+        strategy_module: 策略模块
+        data: 历史数据
+        
+        返回:
+        dict: 优化结果
+        """
+        self.logger.info("🔍 开始贝叶斯优化参数搜索...")
+        
+        if not BAYESIAN_AVAILABLE:
+            self.logger.error("❌ scikit-optimize未安装，无法使用贝叶斯优化")
+            return {'success': False, 'error': 'scikit-optimize未安装'}
+        
+        try:
+            # 获取贝叶斯优化配置
+            ai_config = self.config.get('ai', {})
+            bayesian_config = ai_config.get('bayesian_optimization', {})
+            
+            if not bayesian_config.get('enabled', True):
+                self.logger.info("贝叶斯优化已禁用，跳过")
+                return {'success': False, 'error': '贝叶斯优化已禁用'}
+            
+            # 配置参数
+            n_calls = bayesian_config.get('n_calls', 100)
+            n_initial_points = bayesian_config.get('n_initial_points', 20)
+            acq_func = bayesian_config.get('acq_func', 'EI')
+            xi = bayesian_config.get('xi', 0.01)
+            kappa = bayesian_config.get('kappa', 1.96)
+            n_jobs = bayesian_config.get('n_jobs', 1)
+            random_state = bayesian_config.get('random_state', 42)
+            
+            self.logger.info(f"贝叶斯优化配置:")
+            self.logger.info(f"  - 调用次数: {n_calls}")
+            self.logger.info(f"  - 初始点数: {n_initial_points}")
+            self.logger.info(f"  - 采集函数: {acq_func}")
+            
+            # 定义参数空间
+            optimization_ranges = ai_config.get('optimization_ranges', {})
+            
+            dimensions = []
+            param_names = []
+            
+            # 从配置中读取参数范围
+            for param_name, param_range in optimization_ranges.items():
+                min_val = param_range.get('min', 0.0)
+                max_val = param_range.get('max', 1.0)
+                
+                dimensions.append(Real(min_val, max_val, name=param_name))
+                param_names.append(param_name)
+            
+            # 添加RSI相关参数
+            dimensions.extend([
+                Integer(25, 35, name='rsi_oversold_threshold'),
+                Integer(35, 45, name='rsi_low_threshold'),
+                Real(0.3, 0.7, name='final_threshold')
+            ])
+            param_names.extend(['rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold'])
+            
+            if len(dimensions) == 0:
+                self.logger.error("❌ 未定义优化参数空间")
+                return {'success': False, 'error': '未定义优化参数空间'}
+            
+            self.logger.info(f"参数空间维度: {len(dimensions)}")
+            for i, dim in enumerate(dimensions):
+                self.logger.info(f"  - {param_names[i]}: [{dim.low}, {dim.high}]")
+            
+            # 固定核心参数
+            fixed_params = {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20)
+            }
+            
+            # 获取基准策略结果用于标签固定
+            baseline_backtest = strategy_module.backtest(data)
+            fixed_labels = baseline_backtest['is_low_point'].astype(int).values
+            
+            # 记录评估历史
+            evaluation_history = []
+            
+            @use_named_args(dimensions)
+            def objective(**params):
+                """目标函数：最小化负得分（因为gp_minimize是最小化）"""
+                try:
+                    # 合并固定参数和优化参数
+                    full_params = fixed_params.copy()
+                    full_params.update(params)
+                    
+                    # 评估参数
+                    score = self._evaluate_params_with_fixed_labels(
+                        data, fixed_labels, 
+                        full_params['rise_threshold'], 
+                        full_params['max_days']
+                    )
+                    
+                    # 记录评估历史
+                    evaluation_history.append({
+                        'params': params.copy(),
+                        'score': score,
+                        'iteration': len(evaluation_history) + 1
+                    })
+                    
+                    if len(evaluation_history) % 10 == 0:
+                        self.logger.info(f"贝叶斯优化进度: {len(evaluation_history)}/{n_calls}, 当前得分: {score:.4f}")
+                    
+                    # 返回负得分（因为要最小化）
+                    return -score
+                    
+                except Exception as e:
+                    self.logger.error(f"目标函数评估失败: {str(e)}")
+                    return 1.0  # 返回最差得分
+            
+            # 运行贝叶斯优化
+            self.logger.info("🚀 开始贝叶斯优化...")
+            
+            # 根据采集函数设置参数
+            gp_kwargs = {
+                'func': objective,
+                'dimensions': dimensions,
+                'n_calls': n_calls,
+                'n_initial_points': n_initial_points,
+                'acq_func': acq_func,
+                'random_state': random_state,
+                'n_jobs': n_jobs,
+                'verbose': False
+            }
+            
+            # 根据采集函数类型添加特定参数
+            if acq_func == 'EI':
+                gp_kwargs['xi'] = xi
+            elif acq_func == 'LCB':
+                gp_kwargs['kappa'] = kappa
+            
+            result = gp_minimize(**gp_kwargs)
+            
+            # 提取最优参数
+            best_params = fixed_params.copy()
+            for i, param_name in enumerate(param_names):
+                best_params[param_name] = result.x[i]
+            
+            best_score = -result.fun  # 转换回正得分
+            
+            self.logger.info("✅ 贝叶斯优化完成")
+            self.logger.info(f"   - 最优得分: {best_score:.4f}")
+            self.logger.info(f"   - 总评估次数: {len(evaluation_history)}")
+            self.logger.info(f"   - 最优参数:")
+            for param, value in best_params.items():
+                if param not in fixed_params:
+                    self.logger.info(f"     - {param}: {value:.4f}")
+            
+            # 分析收敛情况
+            scores = [eval_record['score'] for eval_record in evaluation_history]
+            best_scores = np.maximum.accumulate(scores)
+            improvement_rate = (best_scores[-1] - best_scores[n_initial_points]) / max(best_scores[n_initial_points], 0.001)
+            
+            self.logger.info(f"   - 改进率: {improvement_rate:.2%}")
+            self.logger.info(f"   - 最终收敛得分: {best_scores[-1]:.4f}")
+            
+            return {
+                'success': True,
+                'best_params': best_params,
+                'best_score': best_score,
+                'n_evaluations': len(evaluation_history),
+                'improvement_rate': improvement_rate,
+                'evaluation_history': evaluation_history,
+                'convergence_scores': best_scores.tolist(),
+                'optimization_result': result
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ 贝叶斯优化失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'error': str(e)}
+
+    def optimize_strategy_parameters(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        智能参数优化：根据配置选择最佳优化策略
+        
+        参数:
+        strategy_module: 策略模块
+        data: 历史数据
+        
+        返回:
+        dict: 优化后的参数
+        """
+        self.logger.info("🎯 开始智能参数优化...")
+        
+        try:
+            # 获取优化配置
+            ai_config = self.config.get('ai', {})
+            bayesian_config = ai_config.get('bayesian_optimization', {})
+            advanced_config = ai_config.get('advanced_optimization', {})
+            
+            # 检查是否启用贝叶斯优化
+            if bayesian_config.get('enabled', False) and BAYESIAN_AVAILABLE:
+                self.logger.info("🔍 使用贝叶斯优化策略")
+                
+                # 使用严格数据分割进行贝叶斯优化
+                if advanced_config.get('use_hierarchical', True):
+                    data_splits = self.strict_data_split(data, preserve_test_set=True)
+                    train_data = data_splits['train']
+                    
+                    # 在训练集上进行贝叶斯优化
+                    bayesian_result = self.bayesian_optimize_parameters(strategy_module, train_data)
+                    
+                    if bayesian_result['success']:
+                        return bayesian_result['best_params']
+                    else:
+                        self.logger.warning(f"贝叶斯优化失败: {bayesian_result.get('error')}")
+                        self.logger.info("回退到传统优化方法")
+                        
+                else:
+                    # 在全部数据上进行贝叶斯优化
+                    bayesian_result = self.bayesian_optimize_parameters(strategy_module, data)
+                    
+                    if bayesian_result['success']:
+                        return bayesian_result['best_params']
+                    else:
+                        self.logger.warning(f"贝叶斯优化失败: {bayesian_result.get('error')}")
+                        self.logger.info("回退到传统优化方法")
+            
+            # 回退到传统优化方法
+            self.logger.info("🔧 使用传统参数优化策略")
+            return self._traditional_parameter_optimization(strategy_module, data)
+            
+        except Exception as e:
+            self.logger.error(f"❌ 智能参数优化失败: {str(e)}")
+            # 返回默认参数
+            return {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rsi_oversold_threshold': 30,
+                'rsi_low_threshold': 40,
+                'final_threshold': 0.5
+            }
+
+    def _traditional_parameter_optimization(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        传统参数优化方法（网格搜索/随机搜索）
+        
+        参数:
+        strategy_module: 策略模块
+        data: 历史数据
+        
+        返回:
+        dict: 优化后的参数
+        """
+        self.logger.info("🔧 执行传统参数优化...")
+        
+        try:
+            # 固定核心参数
+            fixed_rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
+            fixed_max_days = self.config.get('strategy', {}).get('max_days', 20)
+            
+            # 获取基准策略识别结果
+            baseline_backtest = strategy_module.backtest(data)
+            fixed_labels = baseline_backtest['is_low_point'].astype(int).values
+            
+            # 参数搜索范围
+            param_ranges = {
+                'rsi_oversold_threshold': np.arange(25, 36, 1),
+                'rsi_low_threshold': np.arange(35, 46, 1),
+                'final_threshold': np.arange(0.3, 0.71, 0.05)
+            }
+            
+            best_score = -1
+            best_params = None
+            
+            # 获取优化配置
+            ai_config = self.config.get('ai', {})
+            optimization_config = ai_config.get('optimization', {})
+            max_iterations = optimization_config.get('global_iterations', 200)
+            
+            for i in range(max_iterations):
+                params = {
+                    'rise_threshold': fixed_rise_threshold,
+                    'max_days': fixed_max_days,
+                    'rsi_oversold_threshold': int(np.random.choice(param_ranges['rsi_oversold_threshold'])),
+                    'rsi_low_threshold': int(np.random.choice(param_ranges['rsi_low_threshold'])),
+                    'final_threshold': np.random.choice(param_ranges['final_threshold'])
+                }
+                
+                score = self._evaluate_params_with_fixed_labels(
+                    data, fixed_labels, 
+                    params['rise_threshold'], params['max_days']
+                )
+                
+                if score > best_score:
+                    best_score = score
+                    best_params = params.copy()
+                
+                if (i + 1) % 50 == 0:
+                    self.logger.info(f"传统优化进度: {i + 1}/{max_iterations}, 当前最佳得分: {best_score:.4f}")
+            
+            self.logger.info(f"✅ 传统优化完成，最佳得分: {best_score:.4f}")
+            
+            return best_params if best_params else {
+                'rise_threshold': fixed_rise_threshold,
+                'max_days': fixed_max_days,
+                'rsi_oversold_threshold': 30,
+                'rsi_low_threshold': 40,
+                'final_threshold': 0.5
+            }
+            
+        except Exception as e:
+            self.logger.error(f"❌ 传统参数优化失败: {str(e)}")
+            return {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rsi_oversold_threshold': 30,
+                'rsi_low_threshold': 40,
+                'final_threshold': 0.5
+            }
 
     def evaluate_on_test_set_only(self, strategy_module, test_data: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -738,6 +1065,127 @@ class AIOptimizer:
                         np.max(weights), np.min(weights))
         
         return weights
+
+    def get_feature_importance(self) -> Dict[str, float]:
+        """
+        获取模型的特征重要性
+        
+        返回:
+        dict: 特征名称和重要性的字典，按重要性降序排列
+        """
+        try:
+            if self.model is None:
+                self.logger.warning("模型未训练，尝试加载已保存的模型")
+                if not self._load_model():
+                    self.logger.error("无法获取特征重要性：模型未训练且无法加载已保存的模型")
+                    return {}
+            
+            if self.feature_names is None:
+                self.logger.error("特征名称未设置，无法获取特征重要性")
+                return {}
+            
+            # 从Pipeline中获取RandomForestClassifier
+            if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
+                classifier = self.model.named_steps['classifier']
+                if hasattr(classifier, 'feature_importances_'):
+                    feature_importances = classifier.feature_importances_
+                else:
+                    self.logger.error("分类器没有feature_importances_属性")
+                    return {}
+            else:
+                self.logger.error("模型没有预期的Pipeline结构")
+                return {}
+            
+            # 创建特征重要性字典
+            importance_dict = {}
+            for i, feature_name in enumerate(self.feature_names):
+                if i < len(feature_importances):
+                    importance_dict[feature_name] = float(feature_importances[i])
+            
+            # 按重要性降序排列
+            importance_dict = dict(sorted(importance_dict.items(), key=lambda x: x[1], reverse=True))
+            
+            self.logger.info("特征重要性获取成功，共 %d 个特征", len(importance_dict))
+            
+            return importance_dict
+            
+        except Exception as e:
+            self.logger.error("获取特征重要性失败: %s", str(e))
+            return {}
+
+    def run_genetic_algorithm(self, evaluate_func, population_size: int = 20, generations: int = 10) -> Dict[str, Any]:
+        """
+        运行遗传算法进行参数优化
+        
+        参数:
+        evaluate_func: 评估函数
+        population_size: 种群大小
+        generations: 迭代代数
+        
+        返回:
+        dict: 最优参数
+        """
+        self.logger.info("🧬 开始遗传算法优化...")
+        
+        try:
+            # 获取参数范围
+            param_ranges = {
+                'rsi_oversold_threshold': (25, 35),
+                'rsi_low_threshold': (35, 45),
+                'final_threshold': (0.3, 0.7)
+            }
+            
+            # 固定核心参数
+            fixed_params = {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20)
+            }
+            
+            # 简化的遗传算法实现
+            best_score = -1
+            best_params = None
+            
+            for generation in range(generations):
+                # 生成随机种群
+                population = []
+                for _ in range(population_size):
+                    individual = fixed_params.copy()
+                    individual['rsi_oversold_threshold'] = np.random.randint(
+                        param_ranges['rsi_oversold_threshold'][0],
+                        param_ranges['rsi_oversold_threshold'][1] + 1
+                    )
+                    individual['rsi_low_threshold'] = np.random.randint(
+                        param_ranges['rsi_low_threshold'][0],
+                        param_ranges['rsi_low_threshold'][1] + 1
+                    )
+                    individual['final_threshold'] = np.random.uniform(
+                        param_ranges['final_threshold'][0],
+                        param_ranges['final_threshold'][1]
+                    )
+                    population.append(individual)
+                
+                # 评估种群
+                for individual in population:
+                    score = evaluate_func(individual)
+                    if score > best_score:
+                        best_score = score
+                        best_params = individual.copy()
+                
+                self.logger.info(f"遗传算法第 {generation + 1}/{generations} 代, 当前最佳得分: {best_score:.4f}")
+            
+            self.logger.info(f"✅ 遗传算法优化完成，最佳得分: {best_score:.4f}")
+            
+            return best_params if best_params else fixed_params
+            
+        except Exception as e:
+            self.logger.error(f"❌ 遗传算法优化失败: {str(e)}")
+            return {
+                'rise_threshold': self.config.get('strategy', {}).get('rise_threshold', 0.04),
+                'max_days': self.config.get('strategy', {}).get('max_days', 20),
+                'rsi_oversold_threshold': 30,
+                'rsi_low_threshold': 40,
+                'final_threshold': 0.5
+            }
 
 
 class EarlyStopping:

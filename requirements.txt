@@ -14,6 +14,7 @@ akshare>=1.10.0
 # 机器学习
 xgboost>=1.4.0
 lightgbm>=3.2.0
+scikit-optimize>=0.9.0
 
 # 可选：深度学习（如果需要）
 # tensorflow>=2.6.0
