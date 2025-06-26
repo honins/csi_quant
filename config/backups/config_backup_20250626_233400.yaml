@@ -1,0 +1,327 @@
+# AI模型配置
+ai:
+  # 是否启用AI功能
+  enable: true
+  # 模型类型
+  model_type: machine_learning
+  # 模型保存路径
+  model_save_path: models/ai_model.pkl
+  # 模型目录
+  models_dir: models
+  # 优化间隔（天）
+  optimization_interval: 30
+  # 数据衰减率，用于给近期数据更高权重
+  data_decay_rate: 0.4
+  # 训练测试集分割比例
+  train_test_split_ratio: 0.8
+
+  # 参数优化配置
+  optimization:
+    # 全局优化迭代次数（首次运行或没有历史参数时使用）
+    global_iterations: 500
+    # 增量优化迭代次数（基于历史参数优化时使用）
+    incremental_iterations: 1000
+    # 增量搜索范围收缩比例（0.1-1.0，越小搜索范围越窄）
+    incremental_contraction_factor: 0.5
+    # 是否启用增量优化
+    enable_incremental: true
+    # 是否启用参数历史记录
+    enable_history: true
+    # 历史记录最大条数
+    max_history_records: 100
+
+  # 高级优化配置
+  advanced_optimization:
+    # 是否启用高级优化
+    enabled: true
+    # 是否使用分层优化
+    use_hierarchical: true
+    # 是否使用scipy优化器
+    use_scipy: true
+    # 是否使用时序交叉验证
+    use_time_series_cv: true
+  
+  # 严格数据分割配置（防止过拟合）
+  validation:
+    # 训练集比例 (优化后: 65%)
+    train_ratio: 0.65
+    # 验证集比例 (保持: 20%)
+    validation_ratio: 0.2
+    # 测试集比例（严格保护，不参与优化，优化后: 15%）
+    test_ratio: 0.15
+    # 走前验证配置
+    walk_forward:
+      # 是否启用走前验证
+      enabled: true
+      # 训练窗口大小（交易日）
+      window_size: 252
+      # 步进大小（交易日）
+      step_size: 63
+  
+  # 早停机制配置
+  early_stopping:
+    # 是否启用早停
+    enabled: true
+    # 耐心值（连续多少次无改进后停止）
+    patience: 50
+    # 最小改进幅度
+    min_delta: 0.001
+
+  # 遗传算法配置
+  genetic_algorithm:
+    # 种群大小
+    population_size: 20
+    # 进化代数
+    generations: 10
+    # 交叉概率
+    crossover_rate: 0.8
+    # 变异概率
+    mutation_rate: 0.1
+
+  # 评分配置
+  scoring:
+    # 成功率权重
+    success_weight: 0.4
+    # 涨幅权重
+    rise_weight: 0.3
+    # 速度权重
+    speed_weight: 0.2
+    # 风险权重
+    risk_weight: 0.1
+    # 涨幅基准
+    rise_benchmark: 0.1
+    # 风险基准
+    risk_benchmark: 0.2
+
+  # 参数优化范围配置
+  optimization_ranges:
+    # 动态置信度调整系数范围
+    dynamic_confidence_adjustment:
+      min: 0.05
+      max: 0.25
+      step: 0.02
+    # 市场情绪权重范围
+    market_sentiment_weight:
+      min: 0.08
+      max: 0.25
+      step: 0.02
+    # 趋势强度权重范围
+    trend_strength_weight:
+      min: 0.06
+      max: 0.20
+      step: 0.02
+    # 成交量权重范围（新增高重要度参数）
+    volume_weight:
+      min: 0.15
+      max: 0.35
+      step: 0.02
+    # 价格动量权重范围（新增高重要度参数）
+    price_momentum_weight:
+      min: 0.12
+      max: 0.30
+      step: 0.02
+
+# 回测配置
+backtest:
+  # 回测开始日期
+  start_date: '2022-01-01'
+  # 回测结束日期
+  end_date: '2025-06-21'
+  # 默认开始日期
+  default_start_date: '2023-01-01'
+  # 默认结束日期
+  default_end_date: '2025-06-21'
+  # 滚动窗口大小（交易日）
+  rolling_window: 252
+  # 滚动步长（交易日）
+  rolling_step: 63
+  # 是否生成图表
+  generate_charts: true
+  # 图表保存目录
+  charts_dir: charts
+
+# 数据配置
+data:
+  # 数据文件路径
+  data_file_path: data/SHSE.000905_1d.csv
+  # 数据源
+  data_source: akshare
+  # 指数代码
+  index_code: SHSE.000905
+  # 数据频率（1d=日线）
+  frequency: 1d
+  # 历史数据天数
+  history_days: 1000
+  # 是否启用缓存
+  cache_enabled: true
+  # 缓存目录
+  cache_dir: cache
+
+# 日志配置
+logging:
+  # 日志级别
+  level: INFO
+  # 日志文件路径
+  file: logs/system.log
+  # 日志格式
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  # 单个日志文件最大字节数（10MB）
+  max_bytes: 10485760
+  # 日志备份文件数量
+  backup_count: 5
+
+# 通知配置
+notification:
+  # 通知方式
+  methods:
+    # 控制台输出
+    - console
+    # 邮件通知
+    - email
+  # 通知日志目录
+  logs_dir: logs
+
+  # 邮件通知配置
+  email:
+    # 发件人邮箱
+    sender: quant_system@example.com
+    # 收件人列表
+    recipients:
+      - your_email@example.com
+    # SMTP服务器
+    smtp_server: smtp.example.com
+    # SMTP端口
+    smtp_port: 587
+    # 邮箱用户名
+    username: your_username
+    # 邮箱密码
+    password: your_password
+
+# 结果配置
+results:
+  # 结果保存路径
+  save_path: results
+  # 是否保存详细结果
+  save_detailed: true
+  # 图片保存路径
+  images_path: results/images
+  # 表格保存路径
+  tables_path: results/tables
+
+# 风险控制配置
+risk:
+  # 最小置信度阈值
+  min_confidence: 0.6
+  # 每日最大信号数量
+  max_daily_signals: 3
+  # 冷却期天数
+  cooldown_days: 5
+
+# 策略配置
+strategy:
+  # 涨幅阈值
+  rise_threshold: 0.04
+  # 最大持仓天数
+  max_days: 20
+  # 策略结果目录
+  results_dir: results
+  # 布林带周期
+  bb_period: 20
+  # 布林带标准差倍数
+  bb_std: 2
+  # RSI周期
+  rsi_period: 14
+  # MACD快线周期
+  macd_fast: 12
+  # MACD信号线周期
+  macd_signal: 9
+  # MACD慢线周期
+  macd_slow: 26
+
+  # 移动平均线周期
+  ma_periods:
+    # 5日均线
+    - 5
+    # 10日均线
+    - 10
+    # 20日均线
+    - 20
+    # 60日均线
+    - 60
+
+  # 置信度权重配置
+  confidence_weights:
+    # 最终置信度阈值
+    final_threshold: 0.44999999999999996
+    # 所有均线在价格下方权重
+    ma_all_below: 0.3
+    # 部分均线在价格下方权重
+    ma_partial_below: 0.2
+    # 接近布林带下轨权重
+    bb_lower_near: 0.2
+    # 布林带接近阈值
+    bb_near_threshold: 1.02
+    # 下跌阈值
+    decline_threshold: -0.05
+    # 近期下跌权重
+    recent_decline: 0.2
+    # RSI低值权重
+    rsi_low: 0.2
+    # RSI低值阈值
+    rsi_low_threshold: 39
+    # RSI超卖权重
+    rsi_oversold: 0.3
+    # RSI超卖阈值
+    rsi_oversold_threshold: 35
+    # MACD负值权重
+    macd_negative: 0.1
+
+    # 成交量分析参数 (为均线跌破判断服务)
+    # 恐慌性抛售额外奖励
+    volume_panic_bonus: 0.1
+    # 温和放量额外奖励
+    volume_surge_bonus: 0.05
+    # 成交量萎缩惩罚系数
+    volume_shrink_penalty: 0.7
+    # 恐慌性抛售阈值 (40%放大)
+    volume_panic_threshold: 1.4
+    # 温和放量阈值 (20%放大)
+    volume_surge_threshold: 1.2
+    # 成交量萎缩阈值 (20%萎缩)
+    volume_shrink_threshold: 0.8
+    # 价格跌幅阈值 (-2%)
+    price_decline_threshold: -0.02
+
+    # AI优化参数 (每次AI优化后更新)
+    # 动态置信度调整系数 - 根据市场波动性自动调整置信度阈值
+    dynamic_confidence_adjustment: 0.09000000000000001
+    # 市场情绪权重 - 基于市场恐慌/贪婪指数调整权重
+    market_sentiment_weight: 0.12000000000000001
+    # 趋势强度权重 - 基于价格趋势强度调整权重
+    trend_strength_weight: 0.06
+    # 成交量权重 - 基于成交量变化调整权重（新增高重要度参数）
+    volume_weight: 0.25
+    # 价格动量权重 - 基于价格动量指标调整权重（新增高重要度参数）
+    price_momentum_weight: 0.20
+
+  # 策略评分配置
+  scoring:
+    # 成功率权重
+    success_weight: 0.5
+    # 涨幅权重
+    rise_weight: 0.3
+    # 持仓天数权重
+    days_weight: 0.2
+    # 涨幅基准
+    rise_benchmark: 0.1
+    # 持仓天数基准
+    days_benchmark: 10.0
+
+# 系统配置
+system:
+  # 运行模式（backtest=回测模式）
+  mode: backtest
+  # 系统日志级别
+  log_level: INFO
+  # 系统日志文件
+  log_file: logs/system.log
