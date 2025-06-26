@@ -18,6 +18,53 @@ from data.data_module import DataModule
 from strategy.strategy_module import StrategyModule
 from ai.ai_optimizer import AIOptimizer
 
+def load_previous_optimized_params(config):
+    """
+    从配置文件中读取之前优化的参数
+    
+    Args:
+        config: 当前配置字典
+    
+    Returns:
+        dict: 之前优化的参数字典，如果没有则返回None
+    """
+    try:
+        # 从当前配置中提取之前保存的参数
+        strategy_config = config.get('strategy', {})
+        confidence_weights = strategy_config.get('confidence_weights', {})
+        
+        # 检查是否有之前保存的优化参数
+        optimized_params = {}
+        
+        # 检查非核心参数
+        param_keys = [
+            'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
+            'dynamic_confidence_adjustment', 'market_sentiment_weight', 
+            'trend_strength_weight', 'volume_weight', 'price_momentum_weight'
+        ]
+        
+        has_optimized_params = False
+        
+        for key in param_keys:
+            if key in confidence_weights:
+                optimized_params[key] = confidence_weights[key]
+                has_optimized_params = True
+            elif key in strategy_config:
+                optimized_params[key] = strategy_config[key]
+                has_optimized_params = True
+        
+        if has_optimized_params:
+            print(f"📖 从配置文件中读取到之前优化的参数:")
+            for key, value in optimized_params.items():
+                print(f"   - {key}: {value}")
+            return optimized_params
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"⚠️ 读取之前优化参数时出错: {e}")
+        return None
+
 def save_optimized_params_to_config(config, optimized_params):
     """
     保存优化后的参数到配置文件，保留原始注释
@@ -144,6 +191,17 @@ def run_ai_optimization(config):
         ai_optimizer = AIOptimizer(config)
         print("✅ 模块初始化完成")
         
+        # 读取之前优化的参数作为初始值
+        print("📖 读取之前优化的参数...")
+        previous_params = load_previous_optimized_params(config)
+        if previous_params:
+            print(f"✅ 找到之前优化的参数: {previous_params}")
+            # 更新策略模块的参数
+            strategy_module.update_params(previous_params)
+            print("✅ 已加载之前优化的参数作为初始值")
+        else:
+            print("ℹ️ 未找到之前优化的参数，使用默认参数")
+        
         # 获取数据
         print("📊 准备数据...")
         start_date = '2020-01-01'
@@ -159,6 +217,12 @@ def run_ai_optimization(config):
         
         if use_hierarchical:
             print("🏗️ 使用分层优化策略...")
+            # 如果有之前的参数，调整搜索范围
+            if previous_params:
+                print("🔍 基于之前参数调整搜索范围...")
+                # 可以在这里调整优化范围，使其围绕之前的参数进行微调
+                pass
+            
             result = ai_optimizer.hierarchical_optimization(processed_data)
             
             print(f"✅ 分层优化完成")
@@ -297,6 +361,16 @@ def main():
         strategy_module = StrategyModule(config)
         ai_optimizer = AIOptimizer(config)
         
+        # 读取之前优化的参数
+        print("\n📖 读取之前优化的参数...")
+        previous_params = load_previous_optimized_params(config)
+        if previous_params:
+            print(f"✅ 找到之前优化的参数，将作为优化起点")
+            # 更新策略模块的参数
+            strategy_module.update_params(previous_params)
+        else:
+            print("ℹ️ 未找到之前优化的参数，使用默认参数")
+        
         # 获取历史数据
         start_date = '2022-01-01'
         end_date = '2025-06-19'
@@ -306,7 +380,7 @@ def main():
         processed_data = data_module.preprocess_data(raw_data)
         print(f"✅ 数据准备完成，共 {len(processed_data)} 条记录")
         
-        # 2. 基础策略测试
+        # 2. 基础策略测试（使用当前参数，可能是之前优化的）
         print("\n🎯 基础策略测试...")
         timer = Timer()
         timer.start()
@@ -321,11 +395,11 @@ def main():
         print(f"   - 平均涨幅: {baseline_evaluation['avg_rise']:.2%}")
         print(f"   - 综合得分: {baseline_evaluation['score']:.4f}")
         
-        # 3. 参数优化测试
+        # 3. 参数优化测试（基于当前参数进行进一步优化）
         print("\n🔧 参数优化测试...")
         timer.start()
         
-        # 使用改进的优化方法
+        # 使用改进的优化方法，基于当前参数进行优化
         optimized_params = ai_optimizer.optimize_strategy_parameters(strategy_module, processed_data)
         
         timer.stop()
@@ -341,7 +415,7 @@ def main():
         print(f"   - 优化后平均涨幅: {optimized_evaluation['avg_rise']:.2%}")
         print(f"   - 优化后综合得分: {optimized_evaluation['score']:.4f}")
         
-        # 4. 分层优化测试
+        # 4. 分层优化测试（基于当前参数进行分层优化）
         print("\n🏗️ 分层优化测试...")
         timer.start()
         
@@ -458,6 +532,31 @@ def main():
         
         best_method = max(methods, key=lambda x: x[1])
         print(f"\n🏆 最佳优化方法: {best_method[0]} (得分: {best_method[1]:.4f})")
+        
+        # 保存最佳参数到配置文件
+        print("\n💾 保存最佳参数到配置文件...")
+        if best_method[0] == "分层优化":
+            best_params = hierarchical_result['params']
+        elif best_method[0] == "参数优化":
+            best_params = optimized_params
+        elif best_method[0] == "遗传算法":
+            best_params = genetic_params
+        else:
+            best_params = previous_params or {}
+        
+        # 只保存非核心参数
+        params_to_save = {
+            'rsi_oversold_threshold': best_params.get('rsi_oversold_threshold', 30),
+            'rsi_low_threshold': best_params.get('rsi_low_threshold', 40),
+            'final_threshold': best_params.get('final_threshold', 0.5),
+            'dynamic_confidence_adjustment': best_params.get('dynamic_confidence_adjustment', 0.1),
+            'market_sentiment_weight': best_params.get('market_sentiment_weight', 0.15),
+            'trend_strength_weight': best_params.get('trend_strength_weight', 0.12),
+            'volume_weight': best_params.get('volume_weight', 0.25),
+            'price_momentum_weight': best_params.get('price_momentum_weight', 0.20)
+        }
+        save_optimized_params_to_config(config, params_to_save)
+        print(f"✅ 最佳参数已保存: {params_to_save}")
         
         print("\n🎉 AI优化测试完成！")
         

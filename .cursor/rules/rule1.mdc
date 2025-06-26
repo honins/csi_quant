@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1.使用虚拟环境运行python项目
+2.测试文件放在/tests目录下
+

@@ -11,6 +11,7 @@
 - 📧 **实时通知**：支持控制台和邮件通知
 - 🔧 **模块化设计**：便于扩展和维护
 - ⚡ **简化命令**：提供简洁的命令行界面，快速运行各种功能
+- 📈 **数据获取**：自动获取000852和000905的最新数据
 
 ## 环境要求
 
@@ -29,11 +30,26 @@ source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
-2. 配置参数
+2. 获取最新数据
+
+```bash
+# 方法一：直接运行脚本
+python fetch_latest_data.py
+
+# 方法二：使用批处理文件（Windows）
+fetch_data.bat
+
+# 方法三：运行模块脚本
+python src/data/fetch_latest_data.py
+```
+
+脚本会自动获取000852（中证1000指数）和000905（中证500指数）的最新数据，并保存到`data`目录下的CSV文件中。
+
+3. 配置参数
 
 编辑 `config/config.yaml`，可自定义数据、策略、AI、优化等参数。
 
-3. 运行基础与AI优化
+4. 运行基础与AI优化
 
 ```bash
 # 基础策略测试
@@ -46,7 +62,7 @@ python run.py ai
 python run.py ai plot
 ```
 
-4. 运行示例脚本
+5. 运行示例脚本
 
 ```bash
 # 高级优化演示
@@ -57,13 +73,46 @@ python examples/ai_optimization_test.py
 python examples/run_rolling_backtest.py
 ```
 
-5. 验证优化效果
+6. 验证优化效果
 
 ```bash
 # 查看优化后的参数
 python examples/predict_single_day.py 2024-06-03
 # 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
 ```
+
+## 📈 数据获取说明
+
+### 数据获取脚本功能
+
+- **自动获取**：000852（中证1000指数）和000905（中证500指数）的最新数据
+- **数据源**：使用akshare数据源，数据可靠且实时
+- **格式统一**：自动保存为CSV格式，与项目现有数据格式保持一致
+- **日志记录**：详细的执行日志，便于调试和监控
+- **错误处理**：网络异常时自动重试，确保数据完整性
+
+### 输出文件
+
+- `data/SHSE.000852_1d.csv` - 中证1000指数数据
+- `data/SHSE.000905_1d.csv` - 中证500指数数据
+
+### 数据格式
+
+CSV文件包含以下列：
+- `index` - 序号
+- `open` - 开盘价
+- `high` - 最高价
+- `low` - 最低价
+- `close` - 收盘价
+- `volume` - 成交量
+- `amount` - 成交额
+- `date` - 日期
+
+### 使用建议
+
+- 建议在交易时间后运行，以获取完整的数据
+- 可以设置定时任务，实现自动数据更新
+- 详细使用说明请参考 `docs/fetch_data_guide.md`
 
 ## ⚙️ 主要命令说明
 
