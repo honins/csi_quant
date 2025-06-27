@@ -53,23 +53,27 @@ class PerformanceTimer:
             minutes = (seconds % 3600) // 60
             return f"{int(hours)}小时{int(minutes)}分钟"
 
-def get_config_path():
-    """获取配置文件路径，支持环境变量配置"""
-    # 优先级：环境变量 > 改进版配置 > 默认配置
-    config_path = os.environ.get('CSI_CONFIG_PATH')
+def get_config_files():
+    """获取配置文件列表，支持环境变量配置"""
+    # 默认配置文件列表（按优先级排序）
+    default_config_files = [
+        'config_core.yaml',      # 核心系统配置
+        'optimization.yaml',     # 优化配置
+        'config.yaml'            # 兼容性配置（如果存在）
+    ]
     
-    if config_path and os.path.exists(config_path):
-        print(f"🔧 使用环境变量指定的配置文件: {config_path}")
-        return config_path
+    # 检查环境变量配置
+    env_config_path = os.environ.get('CSI_CONFIG_PATH')
+    if env_config_path:
+        if os.path.isabs(env_config_path):
+            # 绝对路径，直接添加
+            default_config_files.append(env_config_path)
+        else:
+            # 相对路径，添加到列表
+            default_config_files.append(env_config_path)
+        print(f"🔧 使用环境变量指定的额外配置文件: {env_config_path}")
     
-    # 检查改进版配置
-    config_improved_path = os.path.join(os.path.dirname(__file__), 'config', 'config_improved.yaml')
-    if os.path.exists(config_improved_path):
-        return config_improved_path
-    
-    # 默认配置
-    default_config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
-    return default_config_path
+    return default_config_files
 
 def validate_date_format(date_str):
     """验证日期格式"""
@@ -82,27 +86,28 @@ def validate_date_format(date_str):
     except ValueError:
         return False
 
-def load_config_safely(config_path=None):
+def load_config_safely(custom_config_files=None):
     """安全加载配置文件"""
     try:
-        from src.utils.utils import load_config
+        from src.utils.config_loader import load_config
         
-        if not config_path:
-            config_path = get_config_path()
+        # 如果指定了自定义配置文件，直接使用
+        if custom_config_files:
+            if isinstance(custom_config_files, str):
+                custom_config_files = [custom_config_files]
+            config_files = custom_config_files
+        else:
+            config_files = get_config_files()
         
-        if not os.path.exists(config_path):
-            print(f"❌ 配置文件不存在: {config_path}")
-            print("💡 提示: 可以通过环境变量 CSI_CONFIG_PATH 指定配置文件路径")
-            return None
-            
-        print(f"📁 加载配置文件: {os.path.basename(config_path)}")
-        return load_config(config_path)
+        print(f"📁 使用多配置文件加载: {', '.join([os.path.basename(f) for f in config_files[:2]])}...")
+        return load_config(config_files=config_files)
     except ImportError as e:
-        print(f"❌ 无法导入工具模块: {e}")
+        print(f"❌ 无法导入配置加载模块: {e}")
         print("💡 请确保已激活虚拟环境并安装了所有依赖包")
         return None
     except Exception as e:
         print(f"❌ 加载配置文件失败: {e}")
+        print("💡 提示: 可以通过环境变量 CSI_CONFIG_PATH 指定额外配置文件")
         return None
 
 def check_virtual_environment():
@@ -355,13 +360,7 @@ def run_incremental_training(mode='incremental'):
         if not config:
             return False
             
-        # 优先使用改进版配置
-        config_improved_path = os.path.join(os.path.dirname(__file__), 'config', 'config_improved.yaml')
-        if os.path.exists(config_improved_path):
-            config = load_config_safely(config_improved_path)
-            if not config:
-                print("⚠️ 使用默认配置文件")
-                config = load_config_safely()
+        # 使用多配置文件加载
         
         print(f"📋 训练配置:")
         print(f"   🎯 训练模式: {mode}")

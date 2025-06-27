@@ -1,0 +1,104 @@
+# 核心系统配置文件
+# 只包含系统运行的基本配置，优化相关参数请参考 optimization.yaml
+
+# =============================================================================
+# 核心AI配置
+# =============================================================================
+ai:
+  enable: true
+  model_type: machine_learning
+  model_save_path: models/ai_model.pkl
+  models_dir: models
+
+# =============================================================================
+# 数据配置
+# =============================================================================
+data:
+  data_file_path: data/SHSE.000905_1d.csv
+  data_source: akshare
+  index_code: SHSE.000905
+  frequency: 1d
+  history_days: 1000
+  cache_enabled: true
+  cache_dir: cache
+
+# =============================================================================
+# 基础策略配置
+# =============================================================================
+strategy:
+  # 核心策略参数
+  rise_threshold: 0.04
+  max_days: 20
+  results_dir: results
+  
+  # 技术指标参数
+  bb_period: 20
+  bb_std: 2
+  rsi_period: 14
+  macd_fast: 12
+  macd_signal: 9
+  macd_slow: 26
+  ma_periods:
+    - 5
+    - 10
+    - 20
+    - 60
+
+# =============================================================================
+# 回测配置
+# =============================================================================
+backtest:
+  start_date: '2022-01-01'
+  end_date: '2025-06-21'
+  default_start_date: '2023-01-01'
+  default_end_date: '2025-06-21'
+  rolling_window: 252
+  rolling_step: 63
+  generate_charts: true
+  charts_dir: charts
+
+# =============================================================================
+# 系统配置
+# =============================================================================
+
+# 日志配置
+logging:
+  level: INFO
+  file: logs/system.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  max_bytes: 10485760
+  backup_count: 5
+
+# 通知配置
+notification:
+  methods:
+    - console
+    - email
+  logs_dir: logs
+  email:
+    sender: quant_system@example.com
+    recipients:
+      - your_email@example.com
+    smtp_server: smtp.example.com
+    smtp_port: 587
+    username: your_username
+    password: your_password
+
+# 结果保存配置
+results:
+  save_path: results
+  save_detailed: true
+  images_path: results/images
+  tables_path: results/tables
+
+# 风险控制配置
+risk:
+  min_confidence: 0.6
+  max_daily_signals: 3
+  cooldown_days: 5
+
+# 系统模式配置
+system:
+  mode: backtest
+  log_level: INFO
+  log_file: logs/system.log 

@@ -995,7 +995,7 @@ class AIOptimizerImproved:
                 
                 # 保存更新后的配置
                 with open(config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(config, f, default_flow_style=False, ensure_ascii=False)
+                    yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
                 
                 self.logger.info(f"优化参数已保存到: {config_path}")
             else:

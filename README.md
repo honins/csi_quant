@@ -35,17 +35,36 @@ pip install -r requirements.txt
 - **Mod块找不到**: 确保运行路径在项目根目录
 - **配置文件错误**: 检查 `config/config.yaml` 是否存在
 
-### 🔧 **新增环境变量配置**
-支持通过环境变量自定义配置文件路径：
+### 🔧 **模块化配置架构 (v3.1.0新增)**
+项目采用全新的模块化配置文件架构，简洁高效：
 
+```
+config/
+├── config_core.yaml     # 核心系统配置（104行）
+├── optimization.yaml    # 优化相关配置（194行）
+└── config.yaml          # 兼容性配置（保留）
+```
+
+**配置加载优先级**：
+```
+config_core.yaml → optimization.yaml → config.yaml → 环境变量配置
+```
+
+**环境变量支持**：
 ```bash
-# 使用自定义配置文件
-export CSI_CONFIG_PATH=/path/to/your/config.yaml  # Linux/Mac
-set CSI_CONFIG_PATH=C:\path\to\your\config.yaml   # Windows
+# 使用额外的自定义配置文件
+export CSI_CONFIG_PATH=/path/to/custom.yaml  # Linux/Mac
+set CSI_CONFIG_PATH=C:\path\to\custom.yaml   # Windows
 
-# 运行系统
+# 运行系统（自动加载多配置文件）
 python run.py ai
 ```
+
+**核心改进**：
+- ✅ 核心配置减少 **38.8%** 行数（171行→104行）
+- ✅ 优化参数集中管理，便于调整和实验
+- ✅ 向后兼容，现有脚本无需修改
+- ✅ 支持多配置文件自动合并
 
 ### ⏱️ **性能监控功能**
 系统新增执行时间统计功能，自动显示命令执行时间：
@@ -149,14 +168,11 @@ python -c "import pandas, numpy, sklearn, matplotlib; print('✅ 依赖安装成
 ### 第二步：获取最新数据
 
 ```bash
-# 方法一：直接运行脚本
-python fetch_latest_data.py
-
-# 方法二：使用批处理文件（Windows）
-fetch_data.bat
-
-# 方法三：运行模块脚本
+# 方法一：运行模块脚本（推荐）
 python src/data/fetch_latest_data.py
+
+# 方法二：直接调用（如果存在独立脚本）
+python fetch_latest_data.py
 ```
 
 脚本会自动获取000852（中证1000指数）和000905（中证500指数）的最新数据，并保存到`data`目录下的CSV文件中。
@@ -164,17 +180,23 @@ python src/data/fetch_latest_data.py
 ### 第三步：配置参数 (可选)
 
 ```bash
-# 使用默认配置
+# 使用默认配置（推荐）
 python run.py b
 
-# 或者自定义配置文件路径
-export CSI_CONFIG_PATH=/path/to/custom/config.yaml  # Linux/Mac
-set CSI_CONFIG_PATH=C:\path\to\custom\config.yaml   # Windows
+# 自定义配置文件路径（高级用法）
+export CSI_CONFIG_PATH=/path/to/custom.yaml  # Linux/Mac
+set CSI_CONFIG_PATH=C:\path\to\custom.yaml   # Windows
 
 # 编辑配置文件
-# 默认配置: config/config.yaml
-# 改进版配置: config/config_improved.yaml
+# 核心系统配置: config/config_core.yaml
+# 优化相关配置: config/optimization.yaml
+# 兼容性配置: config/config.yaml
 ```
+
+**💡 配置建议**：
+- **日常使用**：无需修改，系统自动加载所有配置
+- **优化调整**：在 `optimization.yaml` 中修改优化参数
+- **系统配置**：在 `config_core.yaml` 中修改基础配置
 
 ### 第四步：运行系统 (含性能监控)
 
@@ -332,15 +354,28 @@ CSV文件包含以下列：
 - **Q: 提示找不到模块？**
   A: 确保在项目根目录运行命令，且已安装所有依赖包。
 
+### 配置架构问题 (v3.1.0新增)
+- **Q: 新的配置文件架构有什么优势？**
+  A: 模块化管理，核心配置精简38.8%，优化配置集中管理，便于调整和实验，支持向后兼容。
+
+- **Q: 如何使用新的配置架构？**
+  A: 无需更改，系统自动加载。调整优化参数编辑`optimization.yaml`，修改系统配置编辑`config_core.yaml`。
+
+- **Q: 旧的config.yaml还能用吗？**
+  A: 能用！保持100%向后兼容，旧脚本无需修改。新架构会自动合并所有配置文件。
+
+- **Q: 配置文件加载顺序是什么？**
+  A: `config_core.yaml` → `optimization.yaml` → `config.yaml` → 环境变量，后面的会覆盖前面的。
+
 ### 新增功能问题
 - **Q: 如何使用自定义配置文件？**
-  A: 设置环境变量：`export CSI_CONFIG_PATH=/path/to/config.yaml` (Linux/Mac) 或 `set CSI_CONFIG_PATH=C:\path\to\config.yaml` (Windows)
+  A: 设置环境变量：`export CSI_CONFIG_PATH=/path/to/custom.yaml` (Linux/Mac) 或 `set CSI_CONFIG_PATH=C:\path\to\custom.yaml` (Windows)
 
 - **Q: 性能监控显示的时间准确吗？**
   A: 是的，包括完整的命令执行时间，从开始到结束。可用 `--no-timer` 禁用。
 
-- **Q: 环境变量配置优先级是什么？**
-  A: 环境变量 > config_improved.yaml > config.yaml
+- **Q: 如何查看配置文件合并结果？**
+  A: 运行测试脚本会显示配置摘要，或查看日志输出的配置加载信息。
 
 - **Q: 为什么建议使用虚拟环境？**
   A: 避免包版本冲突，特别是scikit-learn、pandas等核心依赖的版本兼容性问题。
@@ -358,28 +393,55 @@ csi1000_quant/
 │   ├── strategy/          # 策略与回测
 │   ├── ai/                # AI优化
 │   ├── notification/      # 通知
-│   └── utils/             # 工具
+│   └── utils/             # 工具（含多配置文件加载器）
 ├── examples/              # 典型用法脚本
-├── config/                # 配置文件
+├── config/                # 配置文件（模块化架构）
+│   ├── config_core.yaml  # 核心系统配置
+│   ├── optimization.yaml # 优化相关配置
+│   └── config.yaml        # 兼容性配置
+├── docs/                  # 文档
+│   ├── config_reorganization_guide.md # 配置重组指南
+│   └── ...                # 其他文档
 ├── data/                  # 历史数据
 ├── results/               # 回测与预测结果
 ├── logs/                  # 日志
 ├── models/                # AI模型
 ├── requirements.txt       # 依赖
-├── run.py                 # 快速入口（简化命令）
-├── predict_single_day.py  # 单日预测
-├── llm_strategy_optimizer.py # LLM策略优化
+├── run.py                 # 快速入口（支持多配置加载）
 ├── QUICKSTART.md          # 快速开始指南
 └── README.md              # 项目说明
 ```
 
-## 配置说明
+## 📋 配置文件说明
 
-主要配置文件：`config/config.yaml`
+### 模块化配置架构
+
+**config_core.yaml** - 核心系统配置：
 - 策略参数：`strategy.rise_threshold`（涨幅阈值4%）、`strategy.max_days`（最大交易日数）
-- AI参数：`ai.model_type`、`ai.enable`
-- 通知参数：`notification.methods`、`notification.email`
-- 回测参数：`backtest.default_start_date`、`backtest.default_end_date`
+- AI基础配置：`ai.model_type`、`ai.enable`、`ai.models_dir`
+- 数据配置：`data.data_source`、`data.index_code`、`data.frequency`
+- 系统配置：`logging`、`notification`、`results`、`backtest`
+
+**optimization.yaml** - 优化配置：
+- AI优化算法：`bayesian_optimization`、`genetic_algorithm`
+- 参数搜索范围：`optimization_ranges`、`strategy_ranges`
+- 评分权重：`ai_scoring`、`strategy_scoring`
+- 置信度权重：`confidence_weights`
+- 高级优化开关：`advanced_optimization`
+
+**config.yaml** - 兼容性配置：
+- 保留完整配置，确保向后兼容
+- 优先级最低，主要用于兼容旧脚本
+
+### 配置优先级
+```
+config_core.yaml → optimization.yaml → config.yaml → 环境变量
+```
+
+### 使用建议
+- **调整优化参数**：编辑 `optimization.yaml`
+- **修改系统配置**：编辑 `config_core.yaml`
+- **保持兼容性**：保留 `config.yaml`
 
 ## 结果解读
 
@@ -470,7 +532,17 @@ csi1000_quant/
 
 ## 📈 最新更新
 
-### v3.0.0 (最新) - 智能优化重大升级
+### v3.1.0 (最新) - 配置架构模块化重组
+- 🗂️ **配置文件重组**：模块化配置架构，核心配置减少38.8%行数
+- 📁 **多配置文件支持**：`config_core.yaml` + `optimization.yaml` 分离管理
+- 🔄 **智能配置加载器**：自动合并多个配置文件，支持优先级管理
+- 🔧 **配置验证机制**：智能验证配置完整性，提供详细错误信息
+- 🎯 **专注性提升**：优化配置集中管理，便于调整和实验
+- ✅ **向后兼容**：保留`config.yaml`，现有脚本无需修改
+- 📊 **配置摘要显示**：可视化配置结构，便于理解和调试
+- 🌐 **环境变量增强**：支持多种配置文件路径指定方式
+
+### v3.0.0 - 智能优化重大升级
 - 🚀 **贝叶斯优化**：集成scikit-optimize，智能参数搜索效率提升40%
 - 🧠 **增量优化机制**：基于历史最优结果的渐进式改进，避免重复搜索
 - 🔬 **严格数据分割**：65%/20%/15%时序分割，防止数据泄露和过拟合
@@ -770,8 +842,10 @@ python examples/run_rolling_backtest.py
 
 ```
 csi1000_quant/
-├── config/                 # 配置文件
-│   └── config.yaml        # 主配置文件
+├── config/                 # 配置文件（模块化架构）
+│   ├── config_core.yaml  # 核心系统配置
+│   ├── optimization.yaml # 优化相关配置
+│   └── config.yaml        # 兼容性配置
 ├── src/                   # 源代码
 │   ├── ai/               # AI优化模块
 │   ├── data/             # 数据处理模块
@@ -879,6 +953,7 @@ python test_ai_optimization_logs.py
 ## 📚 文档
 
 - [快速开始指南](QUICKSTART.md)
+- [配置文件重组指南](docs/config_reorganization_guide.md) ⭐ 新增
 - [AI优化参数说明](docs/ai_optimization_params.md)
 - [API参考文档](docs/api_reference.md)
 - [使用指南](docs/usage_guide.md)

@@ -1,0 +1,194 @@
+# 策略与AI优化配置文件
+# 集中管理所有优化相关的参数，便于调整和维护
+
+# =============================================================================
+# AI优化算法配置
+# =============================================================================
+
+# 全局优化设置
+optimization:
+  global_iterations: 500
+  incremental_iterations: 1000
+  incremental_contraction_factor: 0.5
+  enable_incremental: true
+  enable_history: true
+  max_history_records: 100
+
+# 高级优化功能开关
+advanced_optimization:
+  enabled: true
+  use_hierarchical: true
+  use_scipy: true
+  use_time_series_cv: true
+
+# 数据验证与分割
+validation:
+  train_ratio: 0.65
+  validation_ratio: 0.2
+  test_ratio: 0.15
+  walk_forward:
+    enabled: true
+    window_size: 252
+    step_size: 63
+
+# 早停机制
+early_stopping:
+  enabled: true
+  patience: 50
+  min_delta: 0.001
+
+# 贝叶斯优化配置
+bayesian_optimization:
+  enabled: true
+  n_calls: 100  # 优化调用次数
+  n_initial_points: 20  # 初始随机点数量
+  acq_func: 'EI'  # 采集函数：EI, PI, LCB
+  xi: 0.01  # 探索参数
+  kappa: 1.96  # 置信界限参数
+  n_jobs: 1  # 并行作业数
+  random_state: 42  # 随机种子
+
+# 遗传算法配置
+genetic_algorithm:
+  population_size: 20
+  generations: 10
+  crossover_rate: 0.8
+  mutation_rate: 0.1
+
+# =============================================================================
+# 评分与权重配置
+# =============================================================================
+
+# AI评分权重
+ai_scoring:
+  success_weight: 0.4
+  rise_weight: 0.3
+  speed_weight: 0.2
+  risk_weight: 0.1
+  rise_benchmark: 0.1
+  risk_benchmark: 0.2
+
+# 策略评分权重
+strategy_scoring:
+  success_weight: 0.5
+  rise_weight: 0.3
+  days_weight: 0.2
+  rise_benchmark: 0.1
+  days_benchmark: 10.0
+
+# =============================================================================
+# 参数优化范围
+# =============================================================================
+
+# AI参数优化范围
+optimization_ranges:
+  dynamic_confidence_adjustment:
+    min: 0.05
+    max: 0.25
+    step: 0.02
+  market_sentiment_weight:
+    min: 0.08
+    max: 0.25
+    step: 0.02
+  trend_strength_weight:
+    min: 0.06
+    max: 0.2
+    step: 0.02
+  volume_weight:
+    min: 0.15
+    max: 0.35
+    step: 0.02
+  price_momentum_weight:
+    min: 0.12
+    max: 0.3
+    step: 0.02
+
+# 策略参数优化范围
+strategy_ranges:
+  rise_threshold:
+    min: 0.03
+    max: 0.08
+    step: 0.005
+  max_days:
+    min: 10
+    max: 30
+    step: 1
+  rsi_oversold_threshold:
+    min: 25
+    max: 35
+    step: 1
+  rsi_low_threshold:
+    min: 35
+    max: 45
+    step: 1
+  final_threshold:
+    min: 0.3
+    max: 0.8
+    step: 0.05
+
+# =============================================================================
+# 置信度权重配置
+# =============================================================================
+
+confidence_weights:
+  # 核心阈值
+  final_threshold: 0.618809442835982
+  
+  # 移动平均线权重
+  ma_all_below: 0.3
+  ma_partial_below: 0.2
+  
+  # 布林带权重
+  bb_lower_near: 0.2
+  bb_near_threshold: 1.02
+  
+  # 价格趋势权重
+  decline_threshold: -0.05
+  recent_decline: 0.2
+  price_decline_threshold: -0.02
+  
+  # RSI指标权重
+  rsi_low: 0.2
+  rsi_low_threshold: 38
+  rsi_oversold: 0.3
+  rsi_oversold_threshold: 34
+  
+  # MACD指标权重
+  macd_negative: 0.1
+  
+  # 成交量权重
+  volume_panic_bonus: 0.1
+  volume_surge_bonus: 0.05
+  volume_shrink_penalty: 0.7
+  volume_panic_threshold: 1.4
+  volume_surge_threshold: 1.2
+  volume_shrink_threshold: 0.8
+  
+  # 高级权重
+  dynamic_confidence_adjustment: 0.1
+  market_sentiment_weight: 0.15
+  trend_strength_weight: 0.12
+  volume_weight: 0.25
+  price_momentum_weight: 0.2
+
+# =============================================================================
+# 优化执行配置
+# =============================================================================
+
+execution:
+  # 优化间隔（天）
+  optimization_interval: 30
+  
+  # 数据衰减率
+  data_decay_rate: 0.4
+  
+  # 训练测试分割比例
+  train_test_split_ratio: 0.8
+  
+  # 保存设置
+  save_results: true
+  save_intermediate: false
+  
+  # 并行设置
+  parallel_jobs: 1
+  use_multiprocessing: false 
