@@ -100,6 +100,7 @@ python run.py ai --no-timer
 - **移动平均线组合**：多周期趋势识别
 
 > 📖 **详细算法说明请参考**: [`docs/algorithms_overview.md`](docs/algorithms_overview.md)
+> 📚 **完整文档导航请参考**: [`DOCS.md`](DOCS.md)
 
 ## 环境要求
 
@@ -881,7 +882,6 @@ python test_ai_optimization_logs.py
 - [AI优化参数说明](docs/ai_optimization_params.md)
 - [API参考文档](docs/api_reference.md)
 - [使用指南](docs/usage_guide.md)
-- [配置优化总结](CONFIG_OPTIMIZATION_SUMMARY.md)
 
 ## 🤝 贡献
 
