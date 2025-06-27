@@ -977,7 +977,7 @@ class AIOptimizer:
                 }
                 
             # 准备特征
-            features, _ = self.prepare_features(data)
+            features, feature_names = self.prepare_features(data)
             
             if len(features) == 0:
                 return {
@@ -988,6 +988,23 @@ class AIOptimizer:
                 
             # 使用最新数据进行预测
             latest_features = features[-1:].reshape(1, -1)
+            latest_data_row = data.iloc[-1]
+            
+            # 输出特征分析
+            self.logger.info("🔬 模型特征分析:")
+            feature_importance = self.get_feature_importance()
+            
+            # 显示重要特征的当前值
+            for i, feature_name in enumerate(feature_names):
+                if i < len(latest_features[0]):
+                    feature_value = latest_features[0][i]
+                    importance = feature_importance.get(feature_name, 0.0)
+                    
+                    # 只显示重要性较高的前8个特征
+                    if importance > 0.05:  # 重要性阈值
+                        # 根据特征类型进行解释
+                        interpretation = self._interpret_feature_value(feature_name, feature_value, latest_data_row)
+                        self.logger.info(f"   📊 {feature_name:<18}: {feature_value:8.4f} (重要性: {importance:.3f}) {interpretation}")
             
             # 预测
             prediction = self.model.predict(latest_features)[0]
@@ -996,12 +1013,34 @@ class AIOptimizer:
             # 获取置信度
             confidence = prediction_proba[1] if len(prediction_proba) > 1 else 0.0
             
+            # 模型决策分析
+            self.logger.info("\n🤖 模型决策过程:")
+            self.logger.info(f"   模型类型: {type(self.model.named_steps['classifier']).__name__}")
+            self.logger.info(f"   特征维度: {len(feature_names)}")
+            self.logger.info(f"   预测概率分布: [非低点: {prediction_proba[0]:.4f}, 低点: {prediction_proba[1]:.4f}]")
+            
+            # 决策置信度分析
+            prob_diff = abs(prediction_proba[1] - prediction_proba[0])
+            decision_strength = "非常确定" if prob_diff > 0.6 else "较为确定" if prob_diff > 0.4 else "中等确定" if prob_diff > 0.2 else "不够确定"
+            self.logger.info(f"   决策强度: {decision_strength} (概率差: {prob_diff:.4f})")
+            
+            # 特征贡献分析（简化版）
+            if hasattr(self.model.named_steps['classifier'], 'decision_function'):
+                try:
+                    decision_score = self.model.decision_function(latest_features)[0]
+                    self.logger.info(f"   决策得分: {decision_score:.4f} ({'支持低点' if decision_score > 0 else '不支持低点'})")
+                except:
+                    pass
+            
             result = {
                 'is_low_point': bool(prediction),
                 'confidence': float(confidence),
-                'prediction_proba': prediction_proba.tolist()
+                'prediction_proba': prediction_proba.tolist(),
+                'feature_count': len(feature_names),
+                'model_type': type(self.model.named_steps['classifier']).__name__
             }
             
+            # 最终预测结果输出（保持原有格式）
             self.logger.info("----------------------------------------------------");
             self.logger.info("AI预测结果: \033[1m%s\033[0m, 置信度: \033[1m%.4f\033[0m", 
                            "相对低点" if prediction else "非相对低点", confidence)
@@ -1015,6 +1054,108 @@ class AIOptimizer:
                 'confidence': 0.0,
                 'error': str(e)
             }
+
+    def _interpret_feature_value(self, feature_name: str, feature_value: float, data_row) -> str:
+        """
+        解释特征值的含义
+        
+        参数:
+        feature_name: 特征名称
+        feature_value: 特征值
+        data_row: 数据行
+        
+        返回:
+        str: 特征解释
+        """
+        try:
+            # RSI相关解释
+            if feature_name == 'rsi':
+                if feature_value < 30:
+                    return "🔥超卖"
+                elif feature_value < 40:
+                    return "⚡偏弱"
+                elif feature_value < 60:
+                    return "➖中性"
+                else:
+                    return "🔺偏强"
+            
+            # MACD相关解释
+            elif feature_name == 'macd':
+                return "📈趋势向上" if feature_value > 0 else "📉趋势向下"
+            elif feature_name == 'hist':
+                return "🟢金叉信号" if feature_value > 0 else "🔴死叉信号"
+            
+            # 均线距离相关解释
+            elif 'dist_' in feature_name:
+                if abs(feature_value) < 0.02:
+                    return "🎯接近均线"
+                elif feature_value < -0.05:
+                    return "📉远离均线"
+                elif feature_value > 0.05:
+                    return "📈突破均线"
+                else:
+                    return "➖适中距离"
+            
+            # 价格变化相关解释
+            elif 'price_change' in feature_name:
+                if feature_value < -0.03:
+                    return "📉大幅下跌"
+                elif feature_value < -0.01:
+                    return "📉小幅下跌"
+                elif feature_value > 0.03:
+                    return "📈大幅上涨"
+                elif feature_value > 0.01:
+                    return "📈小幅上涨"
+                else:
+                    return "➖平盘"
+            
+            # 成交量变化解释
+            elif feature_name == 'volume_change':
+                if feature_value > 0.5:
+                    return "🔥大幅放量"
+                elif feature_value > 0.2:
+                    return "📈温和放量"
+                elif feature_value < -0.3:
+                    return "📉大幅缩量"
+                elif feature_value < -0.1:
+                    return "📉温和缩量"
+                else:
+                    return "➖成交平稳"
+            
+            # 波动率解释
+            elif feature_name == 'volatility':
+                if feature_value > 0.03:
+                    return "🌪️高波动"
+                elif feature_value > 0.02:
+                    return "⚡中等波动"
+                else:
+                    return "➖低波动"
+            
+            # 布林带相关解释
+            elif 'bb_' in feature_name:
+                if 'upper' in feature_name:
+                    return "📊上轨线"
+                elif 'lower' in feature_name:
+                    return "📊下轨线"
+                else:
+                    return "📊布林带"
+            
+            # 移动平均线解释
+            elif feature_name.startswith('ma'):
+                period = feature_name[2:]
+                return f"📊{period}日均线"
+            
+            # 默认解释
+            else:
+                if abs(feature_value) < 0.01:
+                    return "➖数值较小"
+                elif abs(feature_value) > 1:
+                    return "📊数值较大"
+                else:
+                    return "➖正常范围"
+                    
+        except Exception:
+            return "➖正常值"
 
     def prepare_features(self, data: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
         """

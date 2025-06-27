@@ -13,7 +13,7 @@ import re
 # 添加src目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from utils.utils import setup_logging, load_config, Timer
+from src.utils.utils import setup_logging, load_config, Timer
 from data.data_module import DataModule
 from strategy.strategy_module import StrategyModule
 from ai.ai_optimizer import AIOptimizer

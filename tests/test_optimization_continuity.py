@@ -14,7 +14,7 @@ from datetime import datetime
 # 添加src目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from utils.utils import load_config
+from src.utils.utils import load_config
 
 def test_optimization_continuity():
     """测试优化参数的连续性"""
@@ -54,14 +54,17 @@ def test_optimization_continuity():
             print(f"   - {param}: {value}")
         
         # 保存参数历史记录
-        history_file = os.path.join(os.path.dirname(__file__), '..', 'results', 'optimization_history.json')
-        os.makedirs(os.path.dirname(history_file), exist_ok=True)
+        results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
         
-        history_data = {
-            'timestamp': datetime.now().isoformat(),
-            'parameters': found_params,
-            'source': 'config_file'
-        }
+        # 创建子目录结构
+        history_dir = os.path.join(results_dir, 'history')
+        optimization_dir = os.path.join(history_dir, 'optimization')
+        
+        for directory in [results_dir, history_dir, optimization_dir]:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+        
+        history_file = os.path.join(optimization_dir, 'optimization_history.json')
         
         # 读取现有历史记录
         existing_history = []
@@ -73,6 +76,11 @@ def test_optimization_continuity():
                 existing_history = []
         
         # 添加新的历史记录
+        history_data = {
+            'timestamp': datetime.now().isoformat(),
+            'parameters': found_params,
+            'source': 'config_file'
+        }
         existing_history.append(history_data)
         
         # 保存历史记录
@@ -140,7 +148,7 @@ def main():
         print("1. 优化参数连续性功能已实现")
         print("2. 每次运行都会读取之前保存的优化参数")
         print("3. 优化算法会基于之前的参数进行进一步优化")
-        print("4. 参数历史记录已保存到results/optimization_history.json")
+        print("4. 参数历史记录已保存到results/history/optimization/optimization_history.json")
         return True
     else:
         print("❌ 部分测试失败")

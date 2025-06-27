@@ -13,7 +13,7 @@ import yaml
 # 添加src目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from utils.utils import load_config
+from src.utils.utils import load_config
 from ai.ai_optimizer import AIOptimizer
 from strategy.strategy_module import StrategyModule
 from data.data_module import DataModule

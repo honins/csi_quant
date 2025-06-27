@@ -34,7 +34,7 @@ def check_ai_optimizer():
                 print(f"   ❌ {method}: 不存在")
         
         # 尝试创建实例
-        from utils.utils import load_config
+        from src.utils.utils import load_config
         config = load_config('config/config.yaml')
         ai_optimizer = AIOptimizer(config)
         print("✅ 成功创建AIOptimizer实例")

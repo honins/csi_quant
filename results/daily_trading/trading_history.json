@@ -1,0 +1,118 @@
+[
+  {
+    "date": "2025-06-28",
+    "timestamp": "2025-06-28T00:15:25.172852",
+    "success": false,
+    "steps": {
+      "data_check": {
+        "success": true,
+        "latest_date": "2025-06-27",
+        "days_behind": 1,
+        "data_fresh": true,
+        "records_count": 1
+      },
+      "training": {
+        "success": true,
+        "method": "full_retrain",
+        "update_count": 0,
+        "new_samples": 0,
+        "error": null
+      },
+      "prediction": {
+        "success": true,
+        "is_low_point": false,
+        "confidence": 0.0,
+        "smoothed_confidence": 0.011063261036022487,
+        "model_type": "RandomForestClassifier"
+      },
+      "signal": {
+        "success": true,
+        "signal": {
+          "action": "HOLD",
+          "strength": 1,
+          "reason": "继续持有 (非低点，置信度: 0.011)",
+          "risk_level": "MEDIUM"
+        },
+        "confidence": 0.011063261036022487,
+        "is_low_point": false
+      }
+    },
+    "errors": []
+  },
+  {
+    "date": "2025-06-28",
+    "timestamp": "2025-06-28T00:19:40.853022",
+    "success": false,
+    "steps": {
+      "data_check": {
+        "success": true,
+        "latest_date": "2025-06-27",
+        "days_behind": 1,
+        "data_fresh": true,
+        "records_count": 1
+      },
+      "training": {
+        "success": true,
+        "skipped": true,
+        "reason": "今日已训练"
+      },
+      "prediction": {
+        "success": true,
+        "is_low_point": false,
+        "confidence": 0.0,
+        "smoothed_confidence": 0.00774428272521574,
+        "model_type": "RandomForestClassifier"
+      },
+      "signal": {
+        "success": true,
+        "signal": {
+          "action": "HOLD",
+          "strength": 1,
+          "reason": "继续持有 (非低点，置信度: 0.008)",
+          "risk_level": "MEDIUM"
+        },
+        "confidence": 0.00774428272521574,
+        "is_low_point": false
+      }
+    },
+    "errors": []
+  },
+  {
+    "date": "2025-06-28",
+    "timestamp": "2025-06-28T00:59:59.559727",
+    "success": false,
+    "steps": {
+      "data_check": {
+        "success": true,
+        "latest_date": "2025-06-27",
+        "days_behind": 1,
+        "data_fresh": true,
+        "records_count": 1
+      },
+      "training": {
+        "success": true,
+        "skipped": true,
+        "reason": "今日已训练"
+      },
+      "prediction": {
+        "success": true,
+        "is_low_point": false,
+        "confidence": 0.0,
+        "smoothed_confidence": 0.0037946985353557116,
+        "model_type": "RandomForestClassifier"
+      },
+      "signal": {
+        "success": true,
+        "signal": {
+          "action": "HOLD",
+          "strength": 1,
+          "reason": "继续持有 (非低点，置信度: 0.004)",
+          "risk_level": "MEDIUM"
+        },
+        "confidence": 0.0037946985353557116,
+        "is_low_point": false
+      }
+    },
+    "errors": []
+  }
+]

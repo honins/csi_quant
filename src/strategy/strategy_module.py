@@ -536,8 +536,17 @@ class StrategyModule:
             # 保存图表
             if save_path is None:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                save_path = os.path.join(self.results_dir, f'backtest_analysis_{timestamp}.png')
                 
+                # 创建子目录结构
+                charts_dir = os.path.join(self.results_dir, 'charts')
+                strategy_dir = os.path.join(charts_dir, 'strategy_analysis')
+                
+                for directory in [self.results_dir, charts_dir, strategy_dir]:
+                    if not os.path.exists(directory):
+                        os.makedirs(directory)
+                        
+                save_path = os.path.join(strategy_dir, f'backtest_analysis_{timestamp}.png')
+            
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             plt.close()
             

@@ -2,6 +2,62 @@
 
 一个基于Python的智能量化交易系统，集成了先进的AI算法和机器学习技术，旨在高精度识别中证500指数的相对低点，支持多种优化算法、可视化回测和智能通知。
 
+## ⚠️ 重要提醒
+
+### 🔧 **虚拟环境 (强烈推荐)**
+**本项目强烈建议在虚拟环境中运行**，以避免包依赖冲突：
+
+```bash
+# 创建并激活虚拟环境
+python -m venv venv
+
+# Windows激活
+venv\Scripts\activate
+
+# Linux/Mac激活  
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+### 📋 **关键依赖关系说明**
+本项目的模块间存在严格的依赖关系，请按以下顺序确保环境正确：
+
+1. **基础依赖**: `pandas`, `numpy`, `matplotlib` - 数据处理和可视化
+2. **机器学习**: `scikit-learn`, `xgboost` - AI模型训练
+3. **金融数据**: `akshare`, `yfinance` - 数据获取
+4. **优化算法**: `scipy`, `scikit-optimize` - 参数优化
+5. **系统工具**: `pyyaml`, `schedule` - 配置和定时任务
+
+**❌ 常见问题及解决方案:**
+- **ImportError**: 激活虚拟环境并运行 `pip install -r requirements.txt`
+- **Mod块找不到**: 确保运行路径在项目根目录
+- **配置文件错误**: 检查 `config/config.yaml` 是否存在
+
+### 🔧 **新增环境变量配置**
+支持通过环境变量自定义配置文件路径：
+
+```bash
+# 使用自定义配置文件
+export CSI_CONFIG_PATH=/path/to/your/config.yaml  # Linux/Mac
+set CSI_CONFIG_PATH=C:\path\to\your\config.yaml   # Windows
+
+# 运行系统
+python run.py ai
+```
+
+### ⏱️ **性能监控功能**
+系统新增执行时间统计功能，自动显示命令执行时间：
+
+```bash
+# 启用性能监控（默认）
+python run.py ai
+
+# 禁用性能监控
+python run.py ai --no-timer
+```
+
 ## ✨ 核心功能特点
 
 - 🎯 **智能相对低点识别**：融合技术指标、AI预测和自定义规则的多层识别系统
@@ -47,22 +103,49 @@
 
 ## 环境要求
 
-- Python 3.8+
-- 推荐使用虚拟环境
+- **Python 3.8+** (推荐 3.9 或 3.10)
+- **虚拟环境** (必须使用，避免依赖冲突)
+- **内存**: 建议 8GB+ (AI训练和大数据处理)
+- **磁盘**: 至少 2GB 可用空间 (数据和模型存储)
+
+### 🔗 核心依赖包版本要求
+```
+pandas>=1.3.0          # 数据处理核心
+numpy>=1.21.0           # 数值计算
+scikit-learn>=1.0.0     # 机器学习
+matplotlib>=3.5.0       # 图表绘制
+akshare>=1.8.0          # 金融数据获取
+scipy>=1.7.0            # 科学计算和优化
+pyyaml>=6.0             # 配置文件解析
+```
 
 ## 🏁 快速开始
 
-1. 安装依赖（建议使用虚拟环境）
+### 第一步：环境准备 (必须)
 
 ```bash
+# 1. 创建虚拟环境 (必须步骤)
 python -m venv venv
-venv\Scripts\activate  # Windows
 
-source venv/bin/activate  # Linux/Mac
+# 2. 激活虚拟环境
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# 3. 升级pip (推荐)
+python -m pip install --upgrade pip
+
+# 4. 安装项目依赖
 pip install -r requirements.txt
+
+# 5. 验证安装 (可选)
+python -c "import pandas, numpy, sklearn, matplotlib; print('✅ 依赖安装成功')"
 ```
 
-2. 获取最新数据
+**⚠️ 重要提醒**: 如果跳过虚拟环境步骤，可能遇到包版本冲突等问题。
+
+### 第二步：获取最新数据
 
 ```bash
 # 方法一：直接运行脚本
@@ -77,30 +160,65 @@ python src/data/fetch_latest_data.py
 
 脚本会自动获取000852（中证1000指数）和000905（中证500指数）的最新数据，并保存到`data`目录下的CSV文件中。
 
-3. 配置参数
-
-编辑 `config/config.yaml`，可自定义数据、策略、AI、优化等参数。
-
-4. 运行基础与AI优化
+### 第三步：配置参数 (可选)
 
 ```bash
-# 基础策略测试
+# 使用默认配置
 python run.py b
 
-# AI优化（推荐，自动分层优化+参数持久化）
-python run.py ai
+# 或者自定义配置文件路径
+export CSI_CONFIG_PATH=/path/to/custom/config.yaml  # Linux/Mac
+set CSI_CONFIG_PATH=C:\path\to\custom\config.yaml   # Windows
 
-# 生成图表
-python run.py ai plot
+# 编辑配置文件
+# 默认配置: config/config.yaml
+# 改进版配置: config/config_improved.yaml
 ```
 
-5. 运行示例脚本
+### 第四步：运行系统 (含性能监控)
 
 ```bash
+# 基础策略测试 (含执行时间统计)
+python run.py b
+
+# AI优化（推荐，自动分层优化+参数持久化+性能监控）
+python run.py ai
+
+# 禁用性能监控（如需要）
+python run.py ai --no-timer
+
+# 单日预测
+python run.py s 2024-01-15
+
+# 回测分析
+python run.py r 2023-01-01 2023-12-31
+```
+
+### 第五步：查看结果
+
+```bash
+# 查看性能监控结果（自动显示）
+⏱️  开始执行 'ai' 命令...
+⏱️  'ai' 命令执行完成
+📊 执行时间: 125.34秒 (2分5秒)
+
+# 查看生成的结果文件
+ls results/          # Linux/Mac
+dir results\         # Windows
+```
+
+### 第六步：运行示例脚本
+
+```bash
+# 新功能演示（推荐先运行）
+python examples/new_features_demo.py
+
 # 高级优化演示
 python examples/advanced_optimization_demo.py
+
 # 完整AI优化测试
 python examples/ai_optimization_test.py
+
 # 滚动回测
 python examples/run_rolling_backtest.py
 ```
@@ -148,21 +266,25 @@ CSV文件包含以下列：
 
 ## ⚙️ 主要命令说明
 
-| 命令         | 说明                       |
-|--------------|----------------------------|
-| b            | 基础策略测试               |
-| a            | AI测试（含训练与预测）     |
-| ai           | 高级AI优化（分层优化+参数持久化） |
-| r            | 回测                       |
-| s            | 单日预测                   |
-| opt          | 策略参数优化               |
-| all          | 全部测试                   |
+| 命令         | 说明                       | 性能监控 |
+|--------------|----------------------------|----------|
+| b            | 基础策略测试               | ✅ 支持   |
+| a            | AI测试（含训练与预测）     | ✅ 支持   |
+| ai           | 高级AI优化（分层优化+参数持久化） | ✅ 支持   |
+| r            | 回测                       | ✅ 支持   |
+| s            | 单日预测                   | ✅ 支持   |
+| opt          | 策略参数优化               | ✅ 支持   |
+| bot          | 交易机器人                 | ✅ 支持   |
+| all          | 全部测试                   | ✅ 支持   |
 
-**ai命令特点**：
+**新增功能特点**：
 - 🏗️ 自动分层优化
 - 💾 参数自动持久化到配置文件
 - 🌐 全局生效，所有脚本自动使用优化参数
 - 📊 显示优化效果对比
+- ⏱️ **性能监控**: 自动统计执行时间
+- 🔧 **环境变量配置**: 支持 CSI_CONFIG_PATH
+- 🛡️ **虚拟环境检测**: 自动检测并提醒
 
 ## 🧠 分层优化与高级AI优化
 
@@ -183,6 +305,7 @@ CSV文件包含以下列：
 
 ## ❓ 常见问题
 
+### 基础问题
 - **Q: 如何只用AI预测，不重新训练？**
   A: 只要模型已保存，`predict_single_day.py`会自动加载，无需重复训练。
 
@@ -192,14 +315,34 @@ CSV文件包含以下列：
 - **Q: 如何切换优化方式？**
   A: 修改`config.yaml`中`ai.advanced_optimization`相关开关。
 
-- **Q: 依赖缺失怎么办？**
-  A: 激活虚拟环境并`pip install -r requirements.txt`。
-
 - **Q: 优化效果如何？**
   A: 分层优化可提升成功率77.7%，平均涨幅39.9%，综合得分33.0%。
 
 - **Q: 参数会丢失吗？**
   A: 不会，优化后的参数会自动保存到配置文件，重启后仍然有效。
+
+### 环境和依赖问题
+- **Q: 依赖缺失怎么办？**
+  A: 激活虚拟环境并运行 `pip install -r requirements.txt`。
+
+- **Q: 虚拟环境检测失败？**
+  A: 确保正确激活虚拟环境：Windows用`venv\Scripts\activate`，Linux/Mac用`source venv/bin/activate`。
+
+- **Q: 提示找不到模块？**
+  A: 确保在项目根目录运行命令，且已安装所有依赖包。
+
+### 新增功能问题
+- **Q: 如何使用自定义配置文件？**
+  A: 设置环境变量：`export CSI_CONFIG_PATH=/path/to/config.yaml` (Linux/Mac) 或 `set CSI_CONFIG_PATH=C:\path\to\config.yaml` (Windows)
+
+- **Q: 性能监控显示的时间准确吗？**
+  A: 是的，包括完整的命令执行时间，从开始到结束。可用 `--no-timer` 禁用。
+
+- **Q: 环境变量配置优先级是什么？**
+  A: 环境变量 > config_improved.yaml > config.yaml
+
+- **Q: 为什么建议使用虚拟环境？**
+  A: 避免包版本冲突，特别是scikit-learn、pandas等核心依赖的版本兼容性问题。
 
 ---
 

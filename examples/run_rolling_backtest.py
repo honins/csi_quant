@@ -150,11 +150,18 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             
             # 确保results目录存在
             results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
-            if not os.path.exists(results_dir):
-                os.makedirs(results_dir)
-            chart_path = os.path.join(results_dir, f'rolling_backtest_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            
+            # 创建子目录结构
+            charts_dir = os.path.join(results_dir, 'charts')
+            backtest_dir = os.path.join(charts_dir, 'rolling_backtest')
+            
+            for directory in [results_dir, charts_dir, backtest_dir]:
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                    
+            chart_path = os.path.join(backtest_dir, f'rolling_backtest_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path)
-            logger.info(f"Rolling backtest result chart saved to: {chart_path}")
+            logger.info(f"Rolling backtest result chart saved to: {os.path.relpath(chart_path)}")
 
             # Second chart: record each prediction
             plt.figure(figsize=(15, 12))  # 增加高度为参数信息留出空间
@@ -237,13 +244,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             plt.figtext(0.5, 0.05, param_text, ha='center', fontsize=11, 
                        bbox=dict(facecolor='lightgray', alpha=0.8))
             
-            # 确保results目录存在
-            results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')
-            if not os.path.exists(results_dir):
-                os.makedirs(results_dir)
-            chart_path2 = os.path.join(results_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            # 保存到同一个子目录
+            chart_path2 = os.path.join(backtest_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
-            logger.info(f"Prediction details chart saved to: {chart_path2}")
+            logger.info(f"Prediction details chart saved to: {os.path.relpath(chart_path2)}")
             return True
         else:
             logger.warning("没有可验证的预测结果来生成统计图。")

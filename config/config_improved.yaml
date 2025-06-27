@@ -1,0 +1,259 @@
+# 改进版AI量化交易系统配置文件
+ai:
+  enable: true
+  model_type: machine_learning
+  model_save_path: models/ai_model.pkl
+  models_dir: models
+  optimization_interval: 30
+  data_decay_rate: 0.4
+  train_test_split_ratio: 0.8
+  
+  # 增量学习配置
+  incremental_learning:
+    enabled: true                    # 启用增量学习
+    retrain_threshold: 0.1          # 模型性能下降阈值
+    max_updates: 10                 # 最大增量更新次数
+    update_frequency: daily         # 更新频率: daily, weekly
+    
+  # 置信度平滑配置
+  confidence_smoothing:
+    enabled: true                   # 启用置信度平滑
+    ema_alpha: 0.3                 # EMA平滑系数 (0.1-0.5)
+    max_daily_change: 0.35         # 基础最大日变化幅度（从0.25调整为0.35）
+    
+    # 动态调整配置
+    dynamic_adjustment:
+      enabled: true                 # 启用动态调整
+      min_limit: 0.15              # 最小变化限制（15%）
+      max_limit: 0.50              # 最大变化限制（50%）
+      
+      # 市场波动性调整
+      volatility_factor:
+        enabled: true
+        max_multiplier: 2.0         # 最大波动率乘数
+        min_multiplier: 0.5         # 最小波动率乘数
+      
+      # 价格变化调整
+      price_factor:
+        enabled: true
+        sensitivity: 10             # 价格变化敏感度
+        max_multiplier: 2.0         # 最大价格乘数
+      
+      # 成交量异常调整
+      volume_factor:
+        enabled: true
+        panic_threshold: 1.5        # 恐慌成交量阈值
+        low_threshold: 0.7          # 低成交量阈值
+        max_multiplier: 1.8         # 最大成交量乘数
+      
+      # 置信度变化调整
+      confidence_factor:
+        enabled: true
+        large_change_threshold: 0.5  # 大变化阈值
+        max_multiplier: 1.5         # 最大置信度乘数
+    
+    # 调试和日志
+    debug_mode: false              # 调试模式
+    log_adjustments: true          # 记录调整信息
+    
+  # 特征权重配置
+  feature_weights:
+    # 长期趋势指标（高权重）
+    long_term_indicators:
+      ma20: 1.5
+      ma60: 1.5
+      trend_strength_20: 2.0
+      trend_strength_60: 2.0
+      price_position_20: 1.8
+      price_position_60: 1.8
+      
+    # 中期指标（正常权重）
+    medium_term_indicators:
+      ma10: 1.0
+      dist_ma10: 1.2
+      dist_ma20: 1.2
+      rsi: 1.0
+      macd: 1.0
+      signal: 1.0
+      bb_upper: 1.0
+      bb_lower: 1.0
+      volatility_normalized: 1.0
+      
+    # 短期指标（降低权重）
+    short_term_indicators:
+      ma5: 0.6
+      dist_ma5: 0.6
+      hist: 0.7
+      price_change_5d: 0.5
+      price_change_10d: 0.7
+      
+    # 成交量指标（平衡权重）
+    volume_indicators:
+      volume_trend: 1.1
+      volume_strength: 1.1
+      volatility: 0.9
+
+  # 改进的随机森林参数
+  random_forest:
+    n_estimators: 150              # 树的数量
+    max_depth: 12                  # 最大深度
+    min_samples_split: 8           # 最小分割样本数
+    min_samples_leaf: 3            # 叶子节点最小样本数
+    warm_start: true               # 支持增量学习
+    n_jobs: -1                     # 并行训练
+
+  optimization:
+    global_iterations: 500
+    incremental_iterations: 1000
+    incremental_contraction_factor: 0.5
+    enable_incremental: true
+    enable_history: true
+    max_history_records: 100
+
+  advanced_optimization:
+    enabled: true
+    use_hierarchical: true
+    use_scipy: true
+    use_time_series_cv: true
+
+  validation:
+    train_ratio: 0.65
+    validation_ratio: 0.2
+    test_ratio: 0.15
+    walk_forward:
+      enabled: true
+      window_size: 252
+      step_size: 63
+
+  early_stopping:
+    enabled: true
+    patience: 50
+    min_delta: 0.001
+
+  # 贝叶斯优化配置
+  bayesian_optimization:
+    enabled: true
+    n_calls: 100
+    n_initial_points: 20
+    acq_func: 'EI'
+    xi: 0.01
+    kappa: 1.96
+    n_jobs: 1
+    random_state: 42
+
+  genetic_algorithm:
+    population_size: 20
+    generations: 10
+    crossover_rate: 0.8
+    mutation_rate: 0.1
+
+  scoring:
+    success_weight: 0.4
+    rise_weight: 0.3
+    speed_weight: 0.2
+    risk_weight: 0.1
+    rise_benchmark: 0.1
+    risk_benchmark: 0.2
+
+backtest:
+  start_date: '2022-01-01'
+  end_date: '2025-06-21'
+  default_start_date: '2023-01-01'
+  default_end_date: '2025-06-21'
+  rolling_window: 252
+  rolling_step: 63
+  generate_charts: true
+  charts_dir: charts
+
+data:
+  data_file_path: data/SHSE.000905_1d.csv
+  data_source: akshare
+  index_code: SHSE.000905
+  frequency: 1d
+  history_days: 1000
+  cache_enabled: true
+  cache_dir: cache
+
+logging:
+  level: INFO
+  file: logs/system.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  max_bytes: 10485760
+  backup_count: 5
+
+notification:
+  methods:
+    - console
+    - email
+  logs_dir: logs
+  email:
+    sender: quant_system@example.com
+    recipients:
+      - your_email@example.com
+    smtp_server: smtp.example.com
+    smtp_port: 587
+    username: your_username
+    password: your_password
+
+results:
+  save_path: results
+  save_detailed: true
+  images_path: results/images
+  tables_path: results/tables
+
+risk:
+  min_confidence: 0.6
+  max_daily_signals: 3
+  cooldown_days: 5
+
+strategy:
+  rise_threshold: 0.04
+  max_days: 20
+  results_dir: results
+  bb_period: 20
+  bb_std: 2
+  rsi_period: 14
+  macd_fast: 12
+  macd_signal: 9
+  macd_slow: 26
+  ma_periods:
+    - 5
+    - 10
+    - 20
+    - 60
+  confidence_weights:
+    final_threshold: 0.618809442835982
+    ma_all_below: 0.3
+    ma_partial_below: 0.2
+    bb_lower_near: 0.2
+    bb_near_threshold: 1.02
+    decline_threshold: -0.05
+    recent_decline: 0.2
+    rsi_low: 0.2
+    rsi_low_threshold: 38
+    rsi_oversold: 0.3
+    rsi_oversold_threshold: 34
+    macd_negative: 0.1
+    volume_panic_bonus: 0.1
+    volume_surge_bonus: 0.05
+    volume_shrink_penalty: 0.7
+    volume_panic_threshold: 1.4
+    volume_surge_threshold: 1.2
+    volume_shrink_threshold: 0.8
+    price_decline_threshold: -0.02
+    dynamic_confidence_adjustment: 0.1
+    market_sentiment_weight: 0.15
+    trend_strength_weight: 0.12
+    volume_weight: 0.25
+    price_momentum_weight: 0.2
+  scoring:
+    success_weight: 0.5
+    rise_weight: 0.3
+    days_weight: 0.2
+    rise_benchmark: 0.1
+    days_benchmark: 10.0
+
+system:
+  mode: backtest
+  log_level: INFO
+  log_file: logs/system.log 
