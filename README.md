@@ -287,18 +287,165 @@ CSV文件包含以下列：
 - 可以设置定时任务，实现自动数据更新
 - 详细使用说明请参考 `docs/fetch_data_guide.md`
 
-## ⚙️ 主要命令说明
+## ⚙️ 详细执行命令说明
 
-| 命令         | 说明                       | 性能监控 |
-|--------------|----------------------------|----------|
-| b            | 基础策略测试               | ✅ 支持   |
-| a            | AI测试（含训练与预测）     | ✅ 支持   |
-| ai           | 高级AI优化（分层优化+参数持久化） | ✅ 支持   |
-| r            | 回测                       | ✅ 支持   |
-| s            | 单日预测                   | ✅ 支持   |
-| opt          | 策略参数优化               | ✅ 支持   |
-| bot          | 交易机器人                 | ✅ 支持   |
-| all          | 全部测试                   | ✅ 支持   |
+### 基本执行格式
+
+由于项目规则要求使用虚拟环境，完整的执行命令格式为：
+
+```bash
+# 1. 首先激活虚拟环境 (Windows)
+venv\Scripts\activate
+
+# 2. 然后运行命令
+python run.py <command> [参数]
+```
+
+### 主要命令选项
+
+| 命令 | 说明 | 示例用法 | 性能监控 |
+|------|------|----------|----------|
+| `b` | 基础策略测试 | `python run.py b` | ✅ 支持 |
+| `a` | AI测试（含训练与预测） | `python run.py a` | ✅ 支持 |
+| `t` | 单元测试 | `python run.py t` | ✅ 支持 |
+| `r` | 滚动回测 | `python run.py r 2023-01-01 2023-12-31` | ✅ 支持 |
+| `s` | 单日预测 | `python run.py s 2023-12-01` | ✅ 支持 |
+| `opt` | 策略参数优化 | `python run.py opt -i 20` | ✅ 支持 |
+| `ai` | AI优化训练 | `python run.py ai -m incremental` | ✅ 支持 |
+| `bot` | 交易机器人 | `python run.py bot -m run` | ✅ 支持 |
+| `all` | 全部测试 | `python run.py all` | ✅ 支持 |
+
+### 常用执行命令示例
+
+#### 1. 快速开始
+```bash
+# 激活虚拟环境
+venv\Scripts\activate
+
+# 运行基础测试
+python run.py b
+```
+
+#### 2. AI模型训练
+```bash
+# 增量训练
+python run.py ai -m incremental
+
+# 完全重训练  
+python run.py ai -m full
+
+# 演示预测
+python run.py ai -m demo
+
+# 完整优化（默认）
+python run.py ai
+```
+
+#### 3. 预测功能
+```bash
+# 单日预测
+python run.py s 2024-01-15
+
+# 滚动回测
+python run.py r 2023-01-01 2023-12-31
+```
+
+#### 4. 交易机器人
+```bash
+# 单次运行
+python run.py bot -m run
+
+# 定时执行
+python run.py bot -m schedule
+
+# 查看状态
+python run.py bot -m status
+```
+
+### 重要参数说明
+
+| 参数 | 简写 | 说明 | 示例 |
+|------|------|------|------|
+| `--verbose` | `-v` | 详细输出 | `python run.py b -v` |
+| `--iter` | `-i` | 迭代次数（默认10） | `python run.py opt -i 50` |
+| `--mode` | `-m` | 指定运行模式 | `python run.py ai -m incremental` |
+| `--no-timer` | 无 | 禁用性能计时器 | `python run.py ai --no-timer` |
+
+### AI模式详细说明
+
+AI命令支持多种模式，通过 `-m` 参数指定：
+
+| 模式 | 说明 | 示例 |
+|------|------|------|
+| `optimize` | 完整优化（默认） | `python run.py ai` 或 `python run.py ai -m optimize` |
+| `incremental` | 增量训练 | `python run.py ai -m incremental` |
+| `full` | 完全重训练 | `python run.py ai -m full` |
+| `demo` | 演示预测 | `python run.py ai -m demo` |
+
+### 机器人模式详细说明
+
+交易机器人支持多种运行模式：
+
+| 模式 | 说明 | 示例 |
+|------|------|------|
+| `run` | 单次运行（默认） | `python run.py bot` 或 `python run.py bot -m run` |
+| `schedule` | 定时执行 | `python run.py bot -m schedule` |
+| `status` | 查看状态 | `python run.py bot -m status` |
+
+### 环境变量配置
+
+可以通过环境变量指定自定义配置文件：
+
+```bash
+# Windows
+set CSI_CONFIG_PATH=path/to/config.yaml
+python run.py ai
+
+# Linux/Mac  
+export CSI_CONFIG_PATH=path/to/config.yaml
+python run.py ai
+```
+
+### 实际使用场景示例
+
+#### 日常使用流程
+```bash
+# 1. 激活虚拟环境
+venv\Scripts\activate
+
+# 2. 快速测试系统状态
+python run.py b
+
+# 3. 进行单日预测
+python run.py s 2024-01-15
+
+# 4. 查看机器人状态
+python run.py bot -m status
+```
+
+#### 模型训练流程
+```bash
+# 1. 激活虚拟环境
+venv\Scripts\activate
+
+# 2. 完整优化训练
+python run.py ai
+
+# 3. 验证训练效果
+python run.py s 2024-01-15
+
+# 4. 运行回测验证
+python run.py r 2023-01-01 2023-12-31
+```
+
+#### 系统全面测试
+```bash
+# 激活虚拟环境
+venv\Scripts\activate
+
+# 运行全套测试（包含所有功能）
+python run.py all 2023-01-01 2023-12-31
+```
 
 **新增功能特点**：
 - 🏗️ 自动分层优化
