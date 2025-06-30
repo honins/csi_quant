@@ -33,13 +33,16 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
     logger = logging.getLogger("RollingBacktest")
 
     try:
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        # 使用改进版配置文件以启用置信度平滑
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
         config = load_config(config_path=config_path)
         
         # 初始化模块
         data_module = DataModule(config)
         strategy_module = StrategyModule(config)
-        ai_optimizer = AIOptimizer(config)
+        # 使用改进版AI优化器以支持置信度平滑
+        from src.ai.ai_optimizer_improved import AIOptimizerImproved
+        ai_optimizer = AIOptimizerImproved(config)
 
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
@@ -177,7 +180,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             for date, row in results_df.iterrows():
                 predict_price = safe_str(row['predict_price'])
                 predicted = "Yes" if row['predicted_low_point'] else "No"
-                confidence = safe_str(row['confidence'])
+                # 优先使用平滑置信度，如果不存在则使用原始置信度
+                confidence = safe_str(row.get('smoothed_confidence', row.get('confidence', 0)))
                 actual = "Yes" if row['actual_low_point'] else "No"
                 max_rise = safe_str(row['future_max_rise'], "{:.2%}")
                 days_to_rise = safe_str(row['days_to_rise'], "{:.0f}")
@@ -199,7 +203,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     days_to_rise,
                     prediction_correct
                 ])
-            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Confidence', 'Actual', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
+            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Smoothed Confidence', 'Actual', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
             table.set_fontsize(10)
             table.scale(1.2, 1.5)
