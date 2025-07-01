@@ -546,9 +546,25 @@ def print_complete_optimization_results(optimization_result: dict, config: dict)
         print("-"*60)
         best_params = strategy_opt.get('best_params', {})
         print(f"   ✅ 优化方法: {strategy_opt.get('optimization_method', 'unknown')}")
-        print(f"   📊 训练集得分: {strategy_opt.get('best_score', 0):.4f}")
-        print(f"   📈 验证集得分: {strategy_opt.get('validation_score', 0):.4f}")
-        print(f"   🛡️ 过拟合检测: {'✅ 通过' if strategy_opt.get('overfitting_passed', False) else '⚠️ 警告'}")
+        
+        # 显示三层数据分割信息
+        data_split = strategy_opt.get('data_split', {})
+        if data_split:
+            print(f"\n   📊 严格三层数据分割:")
+            print(f"      • 训练集: {data_split.get('train_samples', 0):,}条 ({data_split.get('train_ratio', 0):.1%}) - 仅用于参数优化")
+            print(f"      • 验证集: {data_split.get('validation_samples', 0):,}条 ({data_split.get('validation_ratio', 0):.1%}) - 用于模型验证")
+            print(f"      • 测试集: {data_split.get('test_samples', 0):,}条 ({data_split.get('test_ratio', 0):.1%}) - 完全锁定最终评估")
+        
+        # 显示三层验证结果
+        print(f"\n   📈 三层验证结果:")
+        print(f"      • 训练集得分: {strategy_opt.get('best_score', 0):.4f}")
+        print(f"      • 验证集得分: {strategy_opt.get('validation_score', 0):.4f} | 成功率: {strategy_opt.get('validation_success_rate', 0):.2%} | 识别点数: {strategy_opt.get('validation_total_points', 0)} | 平均涨幅: {strategy_opt.get('validation_avg_rise', 0):.2%}")
+        if 'test_score' in strategy_opt:
+            print(f"      • 测试集得分: {strategy_opt.get('test_score', 0):.4f} | 成功率: {strategy_opt.get('test_success_rate', 0):.2%} | 识别点数: {strategy_opt.get('test_total_points', 0)} | 平均涨幅: {strategy_opt.get('test_avg_rise', 0):.2%}")
+            print(f"      • 🛡️ 过拟合检测: {'✅ 通过' if strategy_opt.get('overfitting_passed', False) else '⚠️ 警告'}")
+            print(f"      • 🎯 泛化能力: {'✅ 良好' if strategy_opt.get('generalization_passed', False) else '⚠️ 一般'} (比率: {strategy_opt.get('generalization_ratio', 0):.3f})")
+        else:
+            print(f"      • 🛡️ 过拟合检测: {'✅ 通过' if strategy_opt.get('overfitting_passed', False) else '⚠️ 警告'}")
         
         print(f"\n   🎯 优化后的策略参数:")
         for param_name, param_value in best_params.items():
@@ -591,6 +607,14 @@ def print_complete_optimization_results(optimization_result: dict, config: dict)
     print(f"      • 完全训练年数: {training_data_config.get('full_train_years', 6)} 年")
     print(f"      • 优化模式年数: {training_data_config.get('optimize_years', 6)} 年")
     print(f"      • 增量训练年数: {training_data_config.get('incremental_years', 1)} 年")
+    
+    # 显示三层数据验证配置
+    validation_config = ai_config.get('validation', {})
+    if validation_config:
+        print(f"\n   🎯 严格三层验证配置:")
+        print(f"      • 训练集比例: {validation_config.get('train_ratio', 0.65):.1%} (参数优化)")
+        print(f"      • 验证集比例: {validation_config.get('validation_ratio', 0.2):.1%} (模型验证)")
+        print(f"      • 测试集比例: {validation_config.get('test_ratio', 0.15):.1%} (最终评估)")
     
     # 4. 策略配置参数
     strategy_config = config.get('strategy', {})
@@ -661,6 +685,7 @@ def print_complete_optimization_results(optimization_result: dict, config: dict)
     print("\n" + "="*80)
     print("🎉 优化参数报告完成！")
     print("💡 提示: 所有参数已保存到配置文件中，可随时查看和调整")
+    print("🔬 新特性: 现在使用严格三层数据分割，确保模型泛化能力评估的可靠性")
     print("="*80)
 
 def run_ai_optimization_improved(config):
@@ -719,7 +744,10 @@ def run_ai_optimization_improved(config):
                 print(f"\n🔧 策略参数优化:")
                 print(f"   ✅ 最佳参数: {strategy_opt.get('best_params', {})}")
                 print(f"   📊 训练集得分: {strategy_opt.get('best_score', 0):.4f}")
-                print(f"   📈 验证集得分: {strategy_opt.get('validation_score', 0):.4f}")
+                print(f"   📈 验证集得分: {strategy_opt.get('validation_score', 0):.4f} | 成功率: {strategy_opt.get('validation_success_rate', 0):.2%}")
+                if 'test_score' in strategy_opt:
+                    print(f"   🔒 测试集得分: {strategy_opt.get('test_score', 0):.4f} | 成功率: {strategy_opt.get('test_success_rate', 0):.2%}")
+                    print(f"   🎯 泛化能力: {'✅ 良好' if strategy_opt.get('generalization_passed', False) else '⚠️ 一般'}")
                 print(f"   🛡️ 过拟合检测: {'通过' if strategy_opt.get('overfitting_passed', False) else '警告'}")
             
             # 模型训练结果

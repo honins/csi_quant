@@ -797,7 +797,7 @@ class AIOptimizerImproved:
     
     def optimize_strategy_parameters_improved(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        改进版策略参数优化
+        改进版策略参数优化（使用严格三层数据分割）
         
         参数:
         strategy_module: 策略模块
@@ -806,7 +806,7 @@ class AIOptimizerImproved:
         返回:
         dict: 优化结果
         """
-        self.logger.info("开始改进版策略参数优化")
+        self.logger.info("开始改进版策略参数优化（严格三层分割）")
         
         try:
             # 检查是否有足够的数据
@@ -816,39 +816,102 @@ class AIOptimizerImproved:
                     'error': '数据量不足，无法进行参数优化'
                 }
             
-            # 数据分割（训练集用于优化）
-            split_ratio = 0.8
-            split_index = int(len(data) * split_ratio)
-            train_data = data.iloc[:split_index].copy()
-            validation_data = data.iloc[split_index:].copy()
+            # 从配置文件获取三层数据分割比例
+            validation_config = self.config.get('ai', {}).get('validation', {})
+            train_ratio = validation_config.get('train_ratio', 0.65)
+            val_ratio = validation_config.get('validation_ratio', 0.2) 
+            test_ratio = validation_config.get('test_ratio', 0.15)
             
-            self.logger.info(f"数据分割 - 训练集: {len(train_data)}条, 验证集: {len(validation_data)}条")
+            # 验证比例总和
+            total_ratio = train_ratio + val_ratio + test_ratio
+            if abs(total_ratio - 1.0) > 0.01:
+                self.logger.warning(f"数据分割比例总和不等于1.0: {total_ratio:.3f}，自动调整")
+                # 重新归一化
+                train_ratio = train_ratio / total_ratio
+                val_ratio = val_ratio / total_ratio 
+                test_ratio = test_ratio / total_ratio
+            
+            # 计算分割点
+            train_end = int(len(data) * train_ratio)
+            val_end = int(len(data) * (train_ratio + val_ratio))
+            
+            # 严格三层数据分割
+            train_data = data.iloc[:train_end].copy()
+            validation_data = data.iloc[train_end:val_end].copy()
+            test_data = data.iloc[val_end:].copy()
+            
+            self.logger.info(f"严格三层数据分割:")
+            self.logger.info(f"   📊 训练集: {len(train_data)}条 ({train_ratio:.1%}) - 仅用于参数优化")
+            self.logger.info(f"   📈 验证集: {len(validation_data)}条 ({val_ratio:.1%}) - 用于模型验证和过拟合检测")
+            self.logger.info(f"   🔒 测试集: {len(test_data)}条 ({test_ratio:.1%}) - 完全锁定，仅最终评估")
             
             # 定义优化参数范围
             param_ranges = self.config.get('optimization', {}).get('param_ranges', {})
             
-            # 使用网格搜索进行参数优化
+            # 使用网格搜索进行参数优化（仅在训练集上）
+            self.logger.info("🔧 步骤1: 在训练集上进行参数搜索...")
             best_params, best_score = self._grid_search_optimization(
                 strategy_module, train_data, param_ranges
             )
             
             # 在验证集上验证最佳参数
+            self.logger.info("📈 步骤2: 在验证集上验证最佳参数...")
             strategy_module.update_params(best_params)
             val_backtest = strategy_module.backtest(validation_data)
             val_evaluation = strategy_module.evaluate_strategy(val_backtest)
             val_score = val_evaluation['score']
+            val_success_rate = val_evaluation.get('success_rate', 0)
+            val_total_points = val_evaluation.get('total_points', 0)
+            val_avg_rise = val_evaluation.get('avg_rise', 0)
             
             # 检查过拟合
             overfitting_threshold = 0.8  # 验证集得分应该至少是训练集得分的80%
             overfitting_passed = val_score >= best_score * overfitting_threshold
+            
+            # 在完全锁定的测试集上进行最终评估
+            self.logger.info("🔒 步骤3: 在测试集上进行最终评估...")
+            test_backtest = strategy_module.backtest(test_data)
+            test_evaluation = strategy_module.evaluate_strategy(test_backtest)
+            test_score = test_evaluation['score']
+            test_success_rate = test_evaluation.get('success_rate', 0)
+            test_total_points = test_evaluation.get('total_points', 0)
+            test_avg_rise = test_evaluation.get('avg_rise', 0)
+            
+            # 评估模型泛化能力
+            generalization_ratio = test_score / val_score if val_score > 0 else 0
+            generalization_passed = generalization_ratio >= 0.85  # 测试集得分应该接近验证集
+            
+            self.logger.info(f"✅ 三层验证结果:")
+            self.logger.info(f"   📊 训练集得分: {best_score:.4f}")
+            self.logger.info(f"   📈 验证集得分: {val_score:.4f} | 成功率: {val_success_rate:.2%} | 识别点数: {val_total_points} | 平均涨幅: {val_avg_rise:.2%}")
+            self.logger.info(f"   🔒 测试集得分: {test_score:.4f} | 成功率: {test_success_rate:.2%} | 识别点数: {test_total_points} | 平均涨幅: {test_avg_rise:.2%}")
+            self.logger.info(f"   🛡️ 过拟合检测: {'✅ 通过' if overfitting_passed else '⚠️ 警告'}")
+            self.logger.info(f"   🎯 泛化能力: {'✅ 良好' if generalization_passed else '⚠️ 一般'} (比率: {generalization_ratio:.3f})")
             
             return {
                 'success': True,
                 'best_params': best_params,
                 'best_score': best_score,
                 'validation_score': val_score,
+                'validation_success_rate': val_success_rate,
+                'validation_total_points': val_total_points,
+                'validation_avg_rise': val_avg_rise,
+                'test_score': test_score,
+                'test_success_rate': test_success_rate,
+                'test_total_points': test_total_points,
+                'test_avg_rise': test_avg_rise,
                 'overfitting_passed': overfitting_passed,
-                'optimization_method': 'grid_search_improved'
+                'generalization_passed': generalization_passed,
+                'generalization_ratio': generalization_ratio,
+                'optimization_method': 'grid_search_improved_3layer',
+                'data_split': {
+                    'train_ratio': train_ratio,
+                    'validation_ratio': val_ratio,
+                    'test_ratio': test_ratio,
+                    'train_samples': len(train_data),
+                    'validation_samples': len(validation_data),
+                    'test_samples': len(test_data)
+                }
             }
             
         except Exception as e:
