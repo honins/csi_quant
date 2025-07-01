@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
-from src.ai.ai_optimizer import AIOptimizer
+from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
 from src.utils.utils import load_config
 
 def setup_logging(log_level=logging.INFO):
@@ -81,7 +81,7 @@ class LLMStrategyOptimizer:
         try:
             # 获取所有历史数据用于优化
             end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=365 * 5)).strftime("%Y-%m-%d") # 过去5年数据
+            start_date = (datetime.now() - timedelta(days=365 * 6)).strftime("%Y-%m-%d") # 过去6年数据
             
             self.logger.info(f"获取历史数据从 {start_date} 到 {end_date} 用于策略优化")
             historical_data = self.data_module.get_history_data(start_date, end_date)

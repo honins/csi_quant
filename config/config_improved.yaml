@@ -186,7 +186,7 @@ strategy:
   results_dir: results
   rise_threshold: 0.04
   rsi_low_threshold: 45
-  rsi_oversold_threshold: 31
+  rsi_oversold_threshold: 29
   rsi_period: 14
   scoring:
     days_benchmark: 10.0

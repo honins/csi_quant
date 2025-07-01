@@ -6,6 +6,7 @@
 
 ### ⚡ 立即开始 (推荐新用户)
 - **[📋 项目主页](README.md)** - 项目介绍、功能特点、核心算法概览
+- **[📖 完整使用指南](USER_GUIDE.md)** - ⭐ **最全面的使用手册** (新!)
 - **[⚡ 快速启动](QUICKSTART.md)** - 5分钟部署指南
 - **[📖 文档总览](DOCS.md)** - 完整文档导航和阅读路径
 
@@ -27,16 +28,19 @@
 
 ### 🎯 算法技术
 - [算法概览](docs/algorithms_overview.md) - 全部算法详解
+- **[模型选择分析](docs/model_selection_analysis.md)** - ⭐ **为什么选择RandomForest而非深度学习** (新!)
 - [AI优化参数](docs/ai_optimization_params.md) - AI技术详解
 - [严格数据分割](docs/strict_data_split_usage.md) - 数据处理技术
 - [优化最佳实践](docs/optimization_best_practices.md) - 优化经验总结
 
 ### 📖 使用指导
+- **[完整使用指南](USER_GUIDE.md)** - 最全面的使用手册 ⭐ 推荐
 - [项目配置指南](docs/setup_guide.md) - 安装配置
 - [使用指南](docs/usage_guide.md) - 操作说明
 - [Token配置指南](docs/token_config_guide.md) - API配置
 
 ### 🔬 技术分析
+- [置信度阈值机制分析](docs/confidence_threshold_analysis.md) - 置信度工作机制与AI优化
 - [参数重要性分析](docs/parameter_importance_analysis.md) - 参数影响分析
 - [测试集大小分析](docs/test_set_size_analysis.md) - 数据划分分析
 - [功能测试报告](docs/functionality_test_report.md) - 测试结果
@@ -51,7 +55,7 @@
 
 ### 🏆 高级示例 (推荐)
 - **`examples/advanced_optimization_demo.py`** - 高级优化演示
-- **`examples/optimize_strategy_ai.py`** - AI策略优化完整流程
+- **`src/ai/ai_optimizer_improved.py`** - 改进版AI策略优化模块
 - **`examples/run_rolling_backtest.py`** - 滚动回测实现
 
 ### 📚 学习示例
@@ -68,12 +72,12 @@
 
 ### 👶 新手用户 (30分钟入门)
 ```
-README.md → QUICKSTART.md → docs/setup_guide.md → examples/basic_test.py
+README.md → USER_GUIDE.md → QUICKSTART.md → examples/basic_test.py
 ```
 
 ### 🧠 算法研究者 (深度学习)
 ```
-docs/algorithms_overview.md → docs/ai_optimization_params.md → examples/advanced_optimization_demo.py
+docs/model_selection_analysis.md → docs/algorithms_overview.md → docs/ai_optimization_params.md → examples/advanced_optimization_demo.py
 ```
 
 ### 👨‍💻 开发者 (代码研究)
@@ -90,13 +94,17 @@ docs/setup_guide.md → docs/token_config_guide.md → docs/usage_guide.md
 
 ### 按关键词搜索
 - **算法**: [algorithms_overview.md](docs/algorithms_overview.md)
+- **模型选择**: [model_selection_analysis.md](docs/model_selection_analysis.md) - RandomForest vs 深度学习
 - **配置**: [setup_guide.md](docs/setup_guide.md), [token_config_guide.md](docs/token_config_guide.md)
 - **使用**: [usage_guide.md](docs/usage_guide.md), [QUICKSTART.md](QUICKSTART.md)
 - **优化**: [optimization_best_practices.md](docs/optimization_best_practices.md)
+- **置信度**: [confidence_threshold_analysis.md](docs/confidence_threshold_analysis.md)
 - **测试**: [functionality_test_report.md](docs/functionality_test_report.md)
 
 ### 按技术栈搜索
-- **机器学习**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.1
+- **机器学习**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.1, [model_selection_analysis.md](docs/model_selection_analysis.md)
+- **深度学习**: [model_selection_analysis.md](docs/model_selection_analysis.md) - 为什么不使用深度学习
+- **RandomForest**: [model_selection_analysis.md](docs/model_selection_analysis.md) - 模型选择原理
 - **贝叶斯优化**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.2
 - **遗传算法**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.3
 - **时间序列**: [strict_data_split_usage.md](docs/strict_data_split_usage.md)

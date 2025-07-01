@@ -17,7 +17,6 @@ from typing import Dict, Any, List, Tuple, Optional
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 
 class ConfidenceSmoother:
@@ -603,8 +602,7 @@ class AIOptimizerImproved:
             # 使用最新数据进行预测
             latest_features = features[-1:].reshape(1, -1)
             
-            # 预测
-            prediction = self.model.predict(latest_features)[0]
+            # 获取预测概率（不使用predict方法，避免内置阈值影响）
             prediction_proba = self.model.predict_proba(latest_features)[0]
             
             # 获取原始置信度
@@ -618,21 +616,29 @@ class AIOptimizerImproved:
             else:
                 smoothed_confidence = raw_confidence
             
+            # 使用配置的阈值和平滑后的置信度进行最终预测
+            confidence_config = self.config.get('strategy', {}).get('confidence_weights', {})
+            final_threshold = confidence_config.get('final_threshold', 0.5)
+            
+            # 基于平滑后的置信度和配置阈值进行预测
+            is_low_point = smoothed_confidence >= final_threshold
+            
             result = {
-                'is_low_point': bool(prediction),
+                'is_low_point': bool(is_low_point),
                 'confidence': float(raw_confidence),
                 'smoothed_confidence': float(smoothed_confidence),
                 'prediction_proba': prediction_proba.tolist(),
                 'feature_count': len(feature_names),
-                'model_type': type(self.model.named_steps['classifier']).__name__
+                'model_type': type(self.model.named_steps['classifier']).__name__,
+                'threshold_used': final_threshold
             }
             
             # 输出预测结果
             self.logger.info("----------------------------------------------------")
             self.logger.info("AI预测结果（改进版）: \033[1m%s\033[0m", 
-                           "相对低点" if prediction else "非相对低点")
-            self.logger.info("原始置信度: \033[1m%.4f\033[0m, 平滑置信度: \033[1m%.4f\033[0m", 
-                           raw_confidence, smoothed_confidence)
+                           "相对低点" if is_low_point else "非相对低点")
+            self.logger.info("原始置信度: \033[1m%.4f\033[0m, 平滑置信度: \033[1m%.4f\033[0m, 阈值: \033[1m%.2f\033[0m", 
+                           raw_confidence, smoothed_confidence, final_threshold)
             self.logger.info("----------------------------------------------------")
             
             return result

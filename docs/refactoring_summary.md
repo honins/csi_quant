@@ -4,7 +4,7 @@
 
 ### 重构前代码规模
 - **`src/ai/ai_optimizer.py`**: **1,077行** ⚠️ 过长
-- **`examples/optimize_strategy_ai.py`**: **696行** ⚠️ 过长
+- **`src/ai/ai_optimizer_improved.py`**: **改进版AI优化模块** ✅ 已重构
 - **总计**: **1,773行**
 
 ### 重构后代码规模

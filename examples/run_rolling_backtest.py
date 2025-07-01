@@ -23,12 +23,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
-from src.ai.ai_optimizer import AIOptimizer
+from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
 from src.utils.utils import load_config
 from src.prediction.prediction_utils import setup_logging, predict_and_validate
 from src.utils.trade_date import is_trading_day
 
-def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window_days: int = 365):
+def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window_days: int = 365, 
+                         reuse_model: bool = True, retrain_interval_days: int = None):
     setup_logging()
     logger = logging.getLogger("RollingBacktest")
 
@@ -36,6 +37,11 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         # 使用改进版配置文件以启用置信度平滑
         config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
         config = load_config(config_path=config_path)
+        
+        # 应用训练策略配置
+        if retrain_interval_days is not None:
+            config.setdefault('ai', {})['retrain_interval_days'] = retrain_interval_days
+        config.setdefault('ai', {})['enable_model_reuse'] = reuse_model
         
         # 初始化模块
         data_module = DataModule(config)
@@ -49,11 +55,23 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
         results = []
         current_date = start_date
+        training_count = 0  # 记录实际训练次数
 
         # 预先获取所有可用交易日
         all_data = data_module.get_history_data(start_date=start_date, end_date=end_date)
         all_data = data_module.preprocess_data(all_data)
         available_dates = set(pd.to_datetime(all_data['date']).dt.date)
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🚀 滚动回测配置")
+        logger.info(f"{'='*60}")
+        logger.info(f"📅 回测期间: {start_date_str} 至 {end_date_str}")
+        logger.info(f"🤖 模型复用: {'启用' if reuse_model else '禁用'}")
+        if reuse_model:
+            interval = config.get('ai', {}).get('retrain_interval_days', 30)
+            logger.info(f"🔄 重训练间隔: {interval} 天")
+        logger.info(f"📊 可用交易日: {len(available_dates)} 天")
+        logger.info(f"{'='*60}")
 
         while current_date <= end_date:
             # 新增：判断该日期是否在交易数据源中
@@ -66,15 +84,20 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
             logger.info(f"\n--- 滚动回测日期: {current_date.strftime('%Y-%m-%d')} ---")
 
-            # 使用公共模块进行预测和验证
+            # 使用公共模块进行预测和验证，但支持模型复用
             result = predict_and_validate(
                 predict_date=current_date,
                 data_module=data_module,
                 strategy_module=strategy_module,
                 ai_optimizer=ai_optimizer,
                 config=config,
-                logger=logger
+                logger=logger,
+                force_retrain=not reuse_model  # 如果禁用复用，则强制重训练
             )
+            
+            # 统计训练次数
+            if hasattr(ai_optimizer, '_last_training_date') and ai_optimizer._last_training_date == current_date:
+                training_count += 1
 
             if result is not None and getattr(result, 'date', None) is not None:
                 results.append(result)
@@ -82,6 +105,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             current_date += timedelta(days=1) # 移动到下一个日期
 
         # 统计和可视化结果
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📊 回测效率统计")
+        logger.info(f"{'='*60}")
+        logger.info(f"🎯 总回测天数: {len(results)}")
+        logger.info(f"🔄 实际训练次数: {training_count}")
+        logger.info(f"⚡ 效率提升: {((len(results) - training_count) / len(results) * 100):.1f}%")
+        logger.info(f"{'='*60}")
+        
         results_df = pd.DataFrame([vars(r) for r in results])
         if 'date' not in results_df.columns:
             logger.error(f"结果DataFrame缺少date列，实际列: {results_df.columns.tolist()}")
@@ -125,7 +156,9 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             rsi_low = confidence_weights.get('rsi_low_threshold', 40)
             final_threshold = confidence_weights.get('final_threshold', 0.5)
 
-            plt.title(f'AI Prediction Model Rolling Backtest Results\n(Rise Threshold: {rise_threshold:.1%}, Max Days: {max_days})', fontsize=14)
+            # 更新标题以包含训练效率信息
+            efficiency_str = f"训练次数: {training_count}/{len(results)} (节省 {((len(results) - training_count) / len(results) * 100):.1f}%)"
+            plt.title(f'AI Prediction Model Rolling Backtest Results\n(Rise Threshold: {rise_threshold:.1%}, Max Days: {max_days}, {efficiency_str})', fontsize=14)
             plt.xlabel('Date')
             plt.ylabel('Is Low Point (True/False)')
             plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: 'True' if x > 0.5 else 'False'))
@@ -145,11 +178,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             last_data_date = results_df.index.max().strftime('%Y-%m-%d')
             summary_text = f"Total Predictions: {total_predictions} | Correct: {correct_predictions} | Success Rate: {success_rate:.2f}% | Data Until: {last_data_date}"
             param_text = f"Strategy Params: Rise Threshold={rise_threshold:.1%}, Max Days={max_days}, RSI Oversold={rsi_oversold}, RSI Low={rsi_low}, Confidence Threshold={final_threshold:.2f}"
+            efficiency_text = f"Training Efficiency: {training_count}/{len(results)} trainings (Saved {((len(results) - training_count) / len(results) * 100):.1f}% computing time)"
             
-            plt.figtext(0.5, 0.08, summary_text, ha='center', fontsize=11, 
+            plt.figtext(0.5, 0.10, summary_text, ha='center', fontsize=11, 
                        bbox=dict(facecolor='lightblue', alpha=0.8))
-            plt.figtext(0.5, 0.03, param_text, ha='center', fontsize=10, 
+            plt.figtext(0.5, 0.06, param_text, ha='center', fontsize=10, 
                        bbox=dict(facecolor='lightgray', alpha=0.8))
+            plt.figtext(0.5, 0.02, efficiency_text, ha='center', fontsize=10, 
+                       bbox=dict(facecolor='lightgreen', alpha=0.8))
             
             # 确保results目录存在
             results_dir = os.path.join(os.path.dirname(__file__), '..', 'results')

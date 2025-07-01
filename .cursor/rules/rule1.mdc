@@ -3,6 +3,8 @@ description:
 globs: 
 alwaysApply: true
 ---
+0.所有的判断和代码基于理性，基于数据，基于事实，不要只顺从我的表达
 1.使用虚拟环境运行python项目
 2.测试文件放在/tests目录下
+
 

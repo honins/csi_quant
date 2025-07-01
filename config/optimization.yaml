@@ -132,7 +132,7 @@ strategy_ranges:
 
 confidence_weights:
   # 核心阈值
-  final_threshold: 0.618809442835982
+  final_threshold: 0.5
   
   # 移动平均线权重
   ma_all_below: 0.3
@@ -149,9 +149,9 @@ confidence_weights:
   
   # RSI指标权重
   rsi_low: 0.2
-  rsi_low_threshold: 38
+  rsi_low_threshold: 40
   rsi_oversold: 0.3
-  rsi_oversold_threshold: 34
+  rsi_oversold_threshold: 30
   
   # MACD指标权重
   macd_negative: 0.1
@@ -165,9 +165,9 @@ confidence_weights:
   volume_shrink_threshold: 0.8
   
   # 高级权重
-  dynamic_confidence_adjustment: 0.1
-  market_sentiment_weight: 0.15
-  trend_strength_weight: 0.12
+  dynamic_confidence_adjustment: 0.05
+  market_sentiment_weight: 0.16
+  trend_strength_weight: 0.16
   volume_weight: 0.25
   price_momentum_weight: 0.2
 

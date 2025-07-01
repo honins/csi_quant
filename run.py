@@ -145,13 +145,15 @@ def run_basic_test():
 
 def run_ai_test():
     """运行AI优化测试"""
-    print("运行AI优化测试...")
+    print("运行改进版AI优化测试...")
     try:
-        from examples.optimize_strategy_ai import main
-        return main()
-    except ImportError as e:
-        print(f"❌ 无法导入AI测试模块: {e}")
-        return False
+        config = load_config_safely()
+        if not config:
+            print("❌ 配置文件加载失败")
+            return False
+        
+        # 使用改进版AI优化替代传统优化
+        return run_ai_optimization_improved(config)
     except Exception as e:
         print(f"❌ AI测试执行失败: {e}")
         return False
@@ -189,7 +191,43 @@ def run_rolling_backtest(start_date, end_date):
     print(f"   💾 回测图表将自动保存到 results/charts/rolling_backtest/ 目录")
     print("="*80)
     
-    success = rolling_func(start_date, end_date)
+    # 智能训练策略选择
+    print("\n🤖 选择训练策略:")
+    print("   1. 智能训练 (推荐) - 30天重训练一次，大幅提升效率")
+    print("   2. 保守训练 - 10天重训练一次，保证准确性")
+    print("   3. 传统模式 - 每日重训练，最高准确性但效率低")
+    
+    try:
+        choice = input("\n请选择训练策略 (1-3) [默认:1]: ").strip()
+        if not choice:
+            choice = "1"
+            
+        if choice == "1":
+            print("✅ 选择: 智能训练模式 (30天间隔)")
+            reuse_model = True
+            retrain_interval = 30
+        elif choice == "2":
+            print("✅ 选择: 保守训练模式 (10天间隔)")
+            reuse_model = True
+            retrain_interval = 10
+        elif choice == "3":
+            print("✅ 选择: 传统模式 (每日重训练)")
+            reuse_model = False
+            retrain_interval = 1
+        else:
+            print("❌ 无效选择，使用默认智能训练模式")
+            reuse_model = True
+            retrain_interval = 30
+    except KeyboardInterrupt:
+        print("\n❌ 用户取消操作")
+        return False
+    except:
+        print("❌ 输入错误，使用默认智能训练模式")
+        reuse_model = True
+        retrain_interval = 30
+    
+    print(f"\n🚀 开始回测...")
+    success = rolling_func(start_date, end_date, reuse_model=reuse_model, retrain_interval_days=retrain_interval)
     
     if success:
         print("\n" + "="*80)
@@ -381,7 +419,8 @@ def run_incremental_training(mode='incremental'):
             
             # 获取最近的数据
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=60)
+            incremental_years = config.get('ai', {}).get('training_data', {}).get('incremental_years', 1)
+            start_date = end_date - timedelta(days=365*incremental_years)
             
             training_data = data_module.get_history_data(
                 start_date.strftime('%Y-%m-%d'),
@@ -415,7 +454,8 @@ def run_incremental_training(mode='incremental'):
             
             # 获取更长时间的数据用于完全重训练
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=365*2)  # 2年数据
+            training_years = config.get('ai', {}).get('training_data', {}).get('full_train_years', 8)
+            start_date = end_date - timedelta(days=365*training_years)  # 可配置年数，默认8年
             
             training_data = data_module.get_history_data(
                 start_date.strftime('%Y-%m-%d'),
@@ -428,8 +468,9 @@ def run_incremental_training(mode='incremental'):
                 
                 print(f"\n📊 训练结果:")
                 print(f"   ✅ 训练状态: {'成功' if train_result['success'] else '失败'}")
-                print(f"   📊 训练样本数: {train_result.get('total_samples', 0)}")
-                print(f"   🎯 模型准确率: {train_result.get('accuracy', 0):.4f}")
+                print(f"   📊 训练样本数: {train_result.get('train_samples', 0)}")
+                print(f"   📈 特征数量: {train_result.get('feature_count', 0)}")
+                print(f"   🔄 训练方式: {train_result.get('method', 'unknown')}")
                 
                 success = train_result['success']
             else:
@@ -486,6 +527,142 @@ def run_incremental_training(mode='incremental'):
         print(traceback.format_exc())
         return False
 
+def print_complete_optimization_results(optimization_result: dict, config: dict):
+    """
+    打印完整的优化结果和所有参数
+    
+    参数:
+    optimization_result: 优化结果字典
+    config: 配置字典
+    """
+    print("\n" + "="*80)
+    print("📊 完整优化参数报告")
+    print("="*80)
+    
+    # 1. 策略优化参数
+    strategy_opt = optimization_result.get('strategy_optimization', {})
+    if strategy_opt.get('success'):
+        print("\n🔧 策略参数优化结果:")
+        print("-"*60)
+        best_params = strategy_opt.get('best_params', {})
+        print(f"   ✅ 优化方法: {strategy_opt.get('optimization_method', 'unknown')}")
+        print(f"   📊 训练集得分: {strategy_opt.get('best_score', 0):.4f}")
+        print(f"   📈 验证集得分: {strategy_opt.get('validation_score', 0):.4f}")
+        print(f"   🛡️ 过拟合检测: {'✅ 通过' if strategy_opt.get('overfitting_passed', False) else '⚠️ 警告'}")
+        
+        print(f"\n   🎯 优化后的策略参数:")
+        for param_name, param_value in best_params.items():
+            if isinstance(param_value, float):
+                print(f"      • {param_name}: {param_value:.4f}")
+            else:
+                print(f"      • {param_name}: {param_value}")
+    
+    # 2. 模型训练参数
+    model_training = optimization_result.get('model_training', {})
+    if model_training.get('success'):
+        print(f"\n🤖 模型训练参数:")
+        print("-"*60)
+        print(f"   ✅ 训练状态: 成功")
+        print(f"   📊 训练方式: {model_training.get('method', 'unknown')}")
+        print(f"   🔢 训练样本数: {model_training.get('train_samples', 0):,}")
+        print(f"   📈 特征数量: {model_training.get('feature_count', 0)}")
+        
+        # 添加模型配置参数
+        print(f"\n   🌲 RandomForest模型配置:")
+        print(f"      • n_estimators: 150 (决策树数量)")
+        print(f"      • max_depth: 12 (最大深度)")
+        print(f"      • min_samples_split: 8 (最小分割样本数)")
+        print(f"      • min_samples_leaf: 3 (最小叶子节点样本数)")
+        print(f"      • class_weight: balanced (类别权重)")
+        print(f"      • n_jobs: -1 (并行训练)")
+        print(f"      • random_state: 42 (随机种子)")
+    
+    # 3. AI配置参数
+    ai_config = config.get('ai', {})
+    print(f"\n⚙️ AI系统配置:")
+    print("-"*60)
+    print(f"   🔄 模型重训练间隔: {ai_config.get('retrain_interval_days', 30)} 天")
+    print(f"   💾 模型复用: {'✅ 启用' if ai_config.get('enable_model_reuse', True) else '❌ 禁用'}")
+    print(f"   📊 训练测试分割比例: {ai_config.get('train_test_split_ratio', 0.8):.1%} : {(1-ai_config.get('train_test_split_ratio', 0.8)):.1%}")
+    print(f"   📉 数据衰减率: {ai_config.get('data_decay_rate', 0.4):.2f}")
+    
+    training_data_config = ai_config.get('training_data', {})
+    print(f"\n   📅 训练数据配置:")
+    print(f"      • 完全训练年数: {training_data_config.get('full_train_years', 6)} 年")
+    print(f"      • 优化模式年数: {training_data_config.get('optimize_years', 6)} 年")
+    print(f"      • 增量训练年数: {training_data_config.get('incremental_years', 1)} 年")
+    
+    # 4. 策略配置参数
+    strategy_config = config.get('strategy', {})
+    print(f"\n📈 策略系统配置:")
+    print("-"*60)
+    print(f"   💰 基础涨幅阈值: {strategy_config.get('rise_threshold', 0.04):.2%}")
+    print(f"   ⏱️ 最大持有天数: {strategy_config.get('max_days', 20)} 天")
+    
+    # 技术指标参数
+    print(f"\n   📊 技术指标参数:")
+    print(f"      • 布林带周期: {strategy_config.get('bb_period', 20)} 天")
+    print(f"      • 布林带标准差: {strategy_config.get('bb_std', 2)}")
+    print(f"      • RSI周期: {strategy_config.get('rsi_period', 14)} 天")
+    print(f"      • MACD快线: {strategy_config.get('macd_fast', 12)} 天")
+    print(f"      • MACD慢线: {strategy_config.get('macd_slow', 26)} 天")
+    print(f"      • MACD信号线: {strategy_config.get('macd_signal', 9)} 天")
+    
+    ma_periods = strategy_config.get('ma_periods', [5, 10, 20, 60])
+    print(f"      • 移动平均线周期: {', '.join(map(str, ma_periods))} 天")
+    
+    # 5. 置信度权重参数
+    confidence_weights = strategy_config.get('confidence_weights', {})
+    if confidence_weights:
+        print(f"\n   🎯 置信度权重参数:")
+        for weight_name, weight_value in confidence_weights.items():
+            if isinstance(weight_value, float):
+                if 'threshold' in weight_name:
+                    print(f"      • {weight_name}: {weight_value:.3f}")
+                else:
+                    print(f"      • {weight_name}: {weight_value:.3f}")
+            else:
+                print(f"      • {weight_name}: {weight_value}")
+    
+    # 6. 最终性能评估
+    evaluation = optimization_result.get('final_evaluation', {})
+    if evaluation.get('success'):
+        print(f"\n📈 系统性能评估:")
+        print("-"*60)
+        print(f"   🎯 策略总得分: {evaluation.get('strategy_score', 0):.4f}")
+        print(f"   📊 策略成功率: {evaluation.get('strategy_success_rate', 0):.2%}")
+        print(f"   🔍 识别低点数: {evaluation.get('identified_points', 0)} 个")
+        print(f"   📈 平均涨幅: {evaluation.get('avg_rise', 0):.2%}")
+        print(f"   🤖 AI置信度: {evaluation.get('ai_confidence', 0):.4f}")
+        print(f"   🎲 AI预测结果: {'📈 相对低点' if evaluation.get('ai_prediction', False) else '📉 非相对低点'}")
+    
+    # 7. 优化算法配置
+    optimization_config = config.get('optimization', {})
+    if optimization_config:
+        print(f"\n🔬 优化算法配置:")
+        print("-"*60)
+        print(f"   🔄 全局迭代次数: {optimization_config.get('global_iterations', 500)}")
+        print(f"   📈 增量迭代次数: {optimization_config.get('incremental_iterations', 1000)}")
+        print(f"   🔧 启用增量优化: {'✅' if optimization_config.get('enable_incremental', True) else '❌'}")
+        print(f"   📚 启用历史记录: {'✅' if optimization_config.get('enable_history', True) else '❌'}")
+        print(f"   💾 最大历史记录: {optimization_config.get('max_history_records', 100)} 条")
+    
+    # 8. 数据配置
+    data_config = config.get('data', {})
+    print(f"\n📊 数据源配置:")
+    print("-"*60)
+    print(f"   📁 数据文件: {data_config.get('data_file_path', 'unknown')}")
+    print(f"   🌐 数据源: {data_config.get('data_source', 'unknown')}")
+    print(f"   📈 指数代码: {data_config.get('index_code', 'unknown')}")
+    print(f"   ⏰ 数据频率: {data_config.get('frequency', 'unknown')}")
+    print(f"   📅 历史数据天数: {data_config.get('history_days', 1000)} 天")
+    print(f"   💾 缓存启用: {'✅' if data_config.get('cache_enabled', True) else '❌'}")
+    
+    print("\n" + "="*80)
+    print("🎉 优化参数报告完成！")
+    print("💡 提示: 所有参数已保存到配置文件中，可随时查看和调整")
+    print("="*80)
+
 def run_ai_optimization_improved(config):
     """
     运行改进版AI完整优化（包含参数优化 + 模型训练）
@@ -502,7 +679,7 @@ def run_ai_optimization_improved(config):
         from src.ai.ai_optimizer_improved import AIOptimizerImproved
         from src.data.data_module import DataModule
         from src.strategy.strategy_module import StrategyModule
-        from datetime import datetime
+        from datetime import datetime, timedelta
         
         print("📋 初始化改进版模块...")
         
@@ -515,8 +692,10 @@ def run_ai_optimization_improved(config):
         
         # 获取数据
         print("📊 准备数据...")
-        start_date = '2020-01-01'
-        end_date = datetime.now().strftime('%Y-%m-%d')
+        training_years = config.get('ai', {}).get('training_data', {}).get('optimize_years', 8)
+        end_date = datetime.now()
+        start_date = (end_date - timedelta(days=365*training_years)).strftime('%Y-%m-%d')
+        end_date = end_date.strftime('%Y-%m-%d')
         
         raw_data = data_module.get_history_data(start_date, end_date)
         processed_data = data_module.preprocess_data(raw_data)
@@ -526,7 +705,7 @@ def run_ai_optimization_improved(config):
         print("🔧 开始完整优化流程...")
         optimization_result = ai_optimizer.run_complete_optimization(processed_data, strategy_module)
         
-        # 输出结果
+        # 输出简要结果
         print("\n" + "="*60)
         print("📊 改进版AI优化结果汇总")
         print("="*60)
@@ -561,6 +740,10 @@ def run_ai_optimization_improved(config):
                 print(f"   🔍 识别点数: {evaluation.get('identified_points', 0)}")
                 print(f"   📈 平均涨幅: {evaluation.get('avg_rise', 0):.2%}")
                 print(f"   🤖 AI置信度: {evaluation.get('ai_confidence', 0):.4f}")
+            
+            # 🔥 调用详细参数打印功能
+            print_complete_optimization_results(optimization_result, config)
+            
         else:
             print("❌ 优化失败！")
             errors = optimization_result.get('errors', [])

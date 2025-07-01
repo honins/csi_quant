@@ -9,6 +9,14 @@ ai:
   model_type: machine_learning
   model_save_path: models/ai_model.pkl
   models_dir: models
+  # 模型重训练控制
+  retrain_interval_days: 30       # 模型重新训练间隔天数，默认30天
+  enable_model_reuse: true        # 是否启用模型复用以提高效率
+  # 训练数据时间范围配置
+  training_data:
+    full_train_years: 6           # 完全训练使用6年数据
+    optimize_years: 6             # 优化模式使用6年数据
+    incremental_years: 1          # 增量训练使用1年数据
 
 # =============================================================================
 # 数据配置

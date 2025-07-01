@@ -121,6 +121,22 @@ python run.py ai --no-timer
 > 📖 **详细算法说明请参考**: [`docs/algorithms_overview.md`](docs/algorithms_overview.md)
 > 📚 **完整文档导航请参考**: [`DOCS.md`](DOCS.md)
 
+## 📋 完整使用指南
+
+**🌟 新手用户请直接查看：[**完整使用指南 (USER_GUIDE.md)**](USER_GUIDE.md)**
+
+该指南包含：
+- 🚀 **详细的快速开始步骤**
+- 📋 **完整的命令参考手册** 
+- ⚙️ **配置文件详解**
+- 🎯 **典型使用场景**
+- 🔧 **故障排除指南**
+- 🚀 **高级用法和性能优化**
+
+本 README 提供技术概述，**USER_GUIDE.md** 提供实用的操作指南。
+
+---
+
 ## 环境要求
 
 - **Python 3.8+** (推荐 3.9 或 3.10)
@@ -141,118 +157,36 @@ pyyaml>=6.0             # 配置文件解析
 
 ## 🏁 快速开始
 
-### 第一步：环境准备 (必须)
+### 基础使用流程
 
 ```bash
-# 1. 创建虚拟环境 (必须步骤)
-python -m venv venv
-
-# 2. 激活虚拟环境
-# Windows:
+# 1. 激活虚拟环境 (Windows)
 venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
 
-# 3. 升级pip (推荐)
-python -m pip install --upgrade pip
-
-# 4. 安装项目依赖
-pip install -r requirements.txt
-
-# 5. 验证安装 (可选)
-python -c "import pandas, numpy, sklearn, matplotlib; print('✅ 依赖安装成功')"
-```
-
-**⚠️ 重要提醒**: 如果跳过虚拟环境步骤，可能遇到包版本冲突等问题。
-
-### 第二步：获取最新数据
-
-```bash
-# 方法一：运行模块脚本（推荐）
-python src/data/fetch_latest_data.py
-
-# 方法二：直接调用（如果存在独立脚本）
-python fetch_latest_data.py
-```
-
-脚本会自动获取000852（中证1000指数）和000905（中证500指数）的最新数据，并保存到`data`目录下的CSV文件中。
-
-### 第三步：配置参数 (可选)
-
-```bash
-# 使用默认配置（推荐）
+# 2. 基础测试
 python run.py b
 
-# 自定义配置文件路径（高级用法）
-export CSI_CONFIG_PATH=/path/to/custom.yaml  # Linux/Mac
-set CSI_CONFIG_PATH=C:\path\to\custom.yaml   # Windows
+# 3. AI训练 (6年数据，6-12分钟)
+python run.py ai -m full
 
-# 编辑配置文件
-# 核心系统配置: config/config_core.yaml
-# 优化相关配置: config/optimization.yaml
-# 兼容性配置: config/config.yaml
-```
+# 4. 单日预测
+python run.py s 2024-12-01
 
-**💡 配置建议**：
-- **日常使用**：无需修改，系统自动加载所有配置
-- **优化调整**：在 `optimization.yaml` 中修改优化参数
-- **系统配置**：在 `config_core.yaml` 中修改基础配置
-
-### 第四步：运行系统 (含性能监控)
-
-```bash
-# 基础策略测试 (含执行时间统计)
-python run.py b
-
-# AI优化（推荐，自动分层优化+参数持久化+性能监控）
-python run.py ai
-
-# 禁用性能监控（如需要）
-python run.py ai --no-timer
-
-# 单日预测
-python run.py s 2024-01-15
-
-# 回测分析
+# 5. 策略回测
 python run.py r 2023-01-01 2023-12-31
 ```
 
-### 第五步：查看结果
+### 完整安装步骤
 
-```bash
-# 查看性能监控结果（自动显示）
-⏱️  开始执行 'ai' 命令...
-⏱️  'ai' 命令执行完成
-📊 执行时间: 125.34秒 (2分5秒)
+如果您是新用户，请查看 **[完整使用指南](USER_GUIDE.md)** 获取详细的安装和配置说明。
 
-# 查看生成的结果文件
-ls results/          # Linux/Mac
-dir results\         # Windows
-```
+简化步骤：
+1. 创建并激活虚拟环境
+2. 安装依赖 `pip install -r requirements.txt`
+3. 运行基础测试 `python run.py b`
+4. 开始使用系统
 
-### 第六步：运行示例脚本
-
-```bash
-# 新功能演示（推荐先运行）
-python examples/new_features_demo.py
-
-# 高级优化演示
-python examples/advanced_optimization_demo.py
-
-# 完整AI优化测试
-python examples/ai_optimization_test.py
-
-# 滚动回测
-python examples/run_rolling_backtest.py
-```
-
-6. 验证优化效果
-
-```bash
-# 查看优化后的参数
-python examples/predict_single_day.py 2024-06-03
-# 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
-```
+**⚠️ 重要**：必须在虚拟环境中运行，避免包依赖冲突。
 
 ## 📈 数据获取说明
 

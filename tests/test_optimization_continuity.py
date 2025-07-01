@@ -105,32 +105,33 @@ def test_optimization_continuity():
         return False
 
 def test_load_previous_params_function():
-    """测试load_previous_optimized_params函数"""
+    """测试参数加载功能（改进版）"""
     print("\n" + "="*60)
-    print("测试load_previous_optimized_params函数")
+    print("测试改进版参数加载功能")
     print("="*60)
     
-    # 导入函数
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'examples'))
-    from optimize_strategy_ai import load_previous_optimized_params
+    # 加载配置文件来检查是否有优化后的参数
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
+    if not os.path.exists(config_path):
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
     
-    # 加载配置
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
     config = load_config(config_path)
     
     if not config:
         print("❌ 配置文件加载失败")
         return False
     
-    # 测试函数
-    previous_params = load_previous_optimized_params(config)
+    # 检查配置中是否有优化参数
+    strategy_config = config.get('strategy', {})
+    confidence_weights = strategy_config.get('confidence_weights', {})
     
-    if previous_params:
-        print("✅ load_previous_optimized_params函数正常工作")
-        print(f"   返回参数: {previous_params}")
+    if confidence_weights:
+        print("✅ 配置文件参数加载功能正常")
+        print(f"   配置文件: {os.path.basename(config_path)}")
+        print(f"   参数数量: {len(confidence_weights)}")
         return True
     else:
-        print("ℹ️ load_previous_optimized_params函数返回None（正常情况）")
+        print("ℹ️ 未找到优化参数（这是正常情况）")
         return True
 
 def main():
@@ -146,9 +147,10 @@ def main():
         print("✅ 所有测试通过")
         print("\n📝 说明:")
         print("1. 优化参数连续性功能已实现")
-        print("2. 每次运行都会读取之前保存的优化参数")
-        print("3. 优化算法会基于之前的参数进行进一步优化")
+        print("2. 改进版AI优化会自动保存参数到config_improved.yaml")
+        print("3. 系统会优先使用config_improved.yaml中的优化参数")
         print("4. 参数历史记录已保存到results/history/optimization/optimization_history.json")
+        print("5. 传统AI优化已被改进版替代")
         return True
     else:
         print("❌ 部分测试失败")

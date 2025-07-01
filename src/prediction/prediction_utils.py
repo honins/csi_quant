@@ -40,7 +40,8 @@ def predict_and_validate(
     strategy_module,
     ai_optimizer,
     config,
-    logger
+    logger,
+    force_retrain: bool = False
 ) -> PredictionResult:
     """
     预测指定日期是否为相对低点并验证结果
@@ -52,6 +53,7 @@ def predict_and_validate(
         ai_optimizer: AI优化器实例
         config: 配置信息
         logger: 日志记录器
+        force_retrain: 是否强制重新训练模型
     
     Returns:
         PredictionResult: 包含预测和验证结果的对象
@@ -84,38 +86,72 @@ def predict_and_validate(
         # 预处理数据
         training_data = data_module.preprocess_data(training_data)
 
-        # 2. 训练AI模型
-        logger.info("开始训练AI模型...")
-        # 检查是否是改进版AI优化器
-        if hasattr(ai_optimizer, 'full_train'):
-            train_result = ai_optimizer.full_train(training_data, strategy_module)
-            # 改进版没有单独的validate_model方法，训练结果包含验证信息
-            validate_result = train_result
-        else:
-            train_result = ai_optimizer.train_model(training_data, strategy_module)
-            validate_result = ai_optimizer.validate_model(training_data, strategy_module)
-        print('训练结果:', train_result)
-        print('验证结果:', validate_result)
+        # 2. 智能训练策略：避免重复训练
+        need_retrain = force_retrain
         
-        if not train_result.get("success"):
-            logger.error(f"AI模型训练失败: {train_result.get('error', '未知错误')}")
-            return PredictionResult(
-                date=predict_date,
-                predicted_low_point=None,
-                actual_low_point=None,
-                confidence=None,
-                smoothed_confidence=None,
-                future_max_rise=None,
-                days_to_rise=None,
-                prediction_correct=None,
-                predict_price=None
-            )
-        if not validate_result.get("success"):
-            logger.error(f"AI模型验证失败: {validate_result.get('error', '未知错误')}")
-        # 训练成功后再输出验证集准确率
-        logger.info("AI模型训练成功，验证集准确率: %.2f%%", (validate_result.get("accuracy") or 0) * 100)
+        # 检查是否需要重新训练
+        if not need_retrain:
+            if hasattr(ai_optimizer, 'model') and ai_optimizer.model is not None:
+                # 模型已存在，检查是否需要更新
+                logger.info("检测到已训练的模型，检查是否需要更新...")
+                
+                # 检查数据时间范围是否发生显著变化
+                if hasattr(ai_optimizer, '_last_training_date'):
+                    days_since_last_train = (predict_date - ai_optimizer._last_training_date).days
+                    retrain_interval = config.get("ai", {}).get("retrain_interval_days", 30)  # 默认30天重新训练一次
+                    
+                    if days_since_last_train >= retrain_interval:
+                        logger.info(f"距离上次训练已过 {days_since_last_train} 天，触发重新训练")
+                        need_retrain = True
+                    else:
+                        logger.info(f"距离上次训练仅 {days_since_last_train} 天，使用现有模型")
+                else:
+                    # 首次运行，需要训练
+                    need_retrain = True
+            else:
+                # 没有模型，需要训练
+                logger.info("未检测到训练模型，需要首次训练")
+                need_retrain = True
 
-        # 3. 预测输入日期是否为相对低点
+        # 3. 根据需要训练或使用现有模型
+        if need_retrain:
+            logger.info("开始训练AI模型...")
+            # 检查是否是改进版AI优化器
+            if hasattr(ai_optimizer, 'full_train'):
+                train_result = ai_optimizer.full_train(training_data, strategy_module)
+                # 改进版没有单独的validate_model方法，训练结果包含验证信息
+                validate_result = train_result
+            else:
+                train_result = ai_optimizer.train_model(training_data, strategy_module)
+                validate_result = ai_optimizer.validate_model(training_data, strategy_module)
+            
+            print('训练结果:', train_result)
+            print('验证结果:', validate_result)
+            
+            if not train_result.get("success"):
+                logger.error(f"AI模型训练失败: {train_result.get('error', '未知错误')}")
+                return PredictionResult(
+                    date=predict_date,
+                    predicted_low_point=None,
+                    actual_low_point=None,
+                    confidence=None,
+                    smoothed_confidence=None,
+                    future_max_rise=None,
+                    days_to_rise=None,
+                    prediction_correct=None,
+                    predict_price=None
+                )
+            if not validate_result.get("success"):
+                logger.error(f"AI模型验证失败: {validate_result.get('error', '未知错误')}")
+            
+            # 记录训练时间
+            ai_optimizer._last_training_date = predict_date
+            # 训练成功后再输出验证集准确率
+            logger.info("AI模型训练成功，验证集准确率: %.2f%%", (validate_result.get("accuracy") or 0) * 100)
+        else:
+            logger.info("使用现有AI模型进行预测...")
+
+        # 4. 预测输入日期是否为相对低点
         predict_day_data = training_data.iloc[-1:].copy()
         prediction_result = ai_optimizer.predict_low_point(predict_day_data, predict_date.strftime('%Y-%m-%d'))
         is_predicted_low_point = prediction_result.get("is_low_point")
@@ -124,7 +160,7 @@ def predict_and_validate(
 
         logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，原始置信度: {confidence:.2f}, 平滑置信度: {smoothed_confidence:.2f}")
 
-        # 4. 验证预测结果
+        # 5. 验证预测结果
         end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
         start_date_for_validation = predict_date - timedelta(days=config["strategy"]["max_days"] + 10)
         

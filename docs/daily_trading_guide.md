@@ -241,7 +241,7 @@ python examples/confidence_limit_analysis.py
 
 ```bash
 # 运行参数优化
-python examples/optimize_strategy_ai.py
+python run.py ai -m optimize
 ```
 
 ### **4. 数据管理**

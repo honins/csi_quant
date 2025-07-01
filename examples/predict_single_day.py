@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
-from src.ai.ai_optimizer import AIOptimizer
+from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
 from src.utils.utils import load_config
 from src.prediction.prediction_utils import setup_logging, predict_and_validate
 from src.utils.trade_date import is_trading_day

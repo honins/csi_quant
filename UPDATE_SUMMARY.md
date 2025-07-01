@@ -34,7 +34,7 @@
 
 ### 示例文件
 - `examples/run_rolling_backtest.py` - 滚动回测示例
-- `examples/optimize_strategy_ai.py` - AI优化示例
+- `src/ai/ai_optimizer_improved.py` - 改进版AI优化模块
 - `examples/basic_test.py` - 基础测试示例
 
 ### 文档文件
