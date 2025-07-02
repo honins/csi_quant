@@ -726,6 +726,55 @@ class AIOptimizerImproved:
             self.logger.error(f"加载改进模型失败: {e}")
             return False
     
+    def get_feature_importance(self) -> Dict[str, float]:
+        """
+        获取特征重要性
+        
+        返回:
+        dict: 特征重要性字典，按重要性降序排列
+        """
+        try:
+            if self.model is None:
+                self.logger.warning("模型未训练，尝试加载已保存的模型")
+                if not self._load_model():
+                    self.logger.error("无法获取特征重要性：模型未训练且无法加载")
+                    return {}
+            
+            if self.feature_names is None:
+                self.logger.error("特征名称未设置，无法获取特征重要性")
+                return {}
+            
+            # 从Pipeline中获取分类器
+            if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
+                classifier = self.model.named_steps['classifier']
+            else:
+                # 如果模型不是Pipeline，直接使用
+                classifier = self.model
+            
+            # 检查分类器是否有feature_importances_属性
+            if hasattr(classifier, 'feature_importances_'):
+                importances = classifier.feature_importances_
+                
+                # 创建特征重要性字典
+                feature_importance = dict(zip(self.feature_names, importances))
+                
+                # 按重要性降序排列
+                sorted_importance = dict(sorted(
+                    feature_importance.items(), 
+                    key=lambda x: x[1], 
+                    reverse=True
+                ))
+                
+                self.logger.info(f"成功获取 {len(sorted_importance)} 个特征的重要性")
+                return sorted_importance
+            else:
+                self.logger.warning(f"分类器 {type(classifier).__name__} 不支持特征重要性")
+                return {}
+                
+        except Exception as e:
+            self.logger.error(f"获取特征重要性失败: {e}")
+            return {}
+    
     def run_complete_optimization(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
         """
         运行完整的AI优化流程（包含参数优化 + 模型训练）

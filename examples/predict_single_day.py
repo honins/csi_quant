@@ -538,6 +538,7 @@ def predict_with_trained_model(
         
         is_predicted_low_point = prediction_result.get("is_low_point")
         confidence = prediction_result.get("confidence")
+        smoothed_confidence = prediction_result.get("smoothed_confidence", confidence)
         prediction_proba = prediction_result.get("prediction_proba", [])
         
         # 收集模型分析数据
@@ -719,6 +720,7 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
+                smoothed_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -749,6 +751,7 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
+                smoothed_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -778,6 +781,7 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
+                smoothed_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -865,6 +869,7 @@ def predict_with_trained_model(
             predicted_low_point=is_predicted_low_point,
             actual_low_point=actual_is_low_point,
             confidence=confidence,
+            smoothed_confidence=smoothed_confidence,
             future_max_rise=max_rise,
             days_to_rise=days_to_rise,
             prediction_correct=prediction_correct,

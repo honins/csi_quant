@@ -129,6 +129,16 @@ def check_virtual_environment():
         print(f"✅ 运行在虚拟环境: {os.path.basename(venv_path)}")
         return True
 
+def run_data_fetch():
+    """运行数据获取"""
+    print("运行数据获取...")
+    try:
+        from src.data.data_fetch import main
+        return main()
+    except Exception as e:
+        print(f"❌ 数据获取执行失败: {e}")
+        return False
+
 def run_basic_test():
     """运行基础测试"""
     print("运行基础测试...")
@@ -892,6 +902,7 @@ def main():
         epilog="""
 示例用法:
   python run.py b                    # 基础测试
+  python run.py fetch                # 数据获取
   python run.py r 2023-01-01 2023-12-31  # 回测
   python run.py s 2023-12-01         # 单日预测
   python run.py ai -m incremental    # 增量训练
@@ -902,8 +913,8 @@ def main():
         """
     )
     
-    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot'], 
-                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=交易机器人, all=全部')
+    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot', 'fetch'], 
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=交易机器人, fetch=数据获取, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')
     parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
     parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
@@ -949,7 +960,10 @@ def main():
             return 1
     
     # 执行命令
-    if args.command == 'b':
+    if args.command == 'fetch':
+        fetch_result = run_data_fetch()
+        success = (fetch_result.get('code') == 200 if isinstance(fetch_result, dict) else bool(fetch_result))
+    elif args.command == 'b':
         success = run_basic_test()
     elif args.command == 'a':
         success = run_ai_test()
@@ -980,24 +994,28 @@ def main():
         mode = args.mode if args.mode else 'run'
         success = run_trading_bot(mode)
     elif args.command == 'all':
-        print("\n1. 运行基础测试...")
+        print("\n1. 运行数据获取...")
+        fetch_result = run_data_fetch()
+        success &= (fetch_result.get('code') == 200 if isinstance(fetch_result, dict) else bool(fetch_result))
+        
+        print("\n2. 运行基础测试...")
         success &= run_basic_test()
         
-        print("\n2. 运行AI优化测试...")
+        print("\n3. 运行AI优化测试...")
         success &= run_ai_test()
         
-        print("\n3. 运行单元测试...")
+        print("\n4. 运行单元测试...")
         success &= run_unit_tests()
 
         if args.start and args.end:
-            print("\n4. 运行回测...")
+            print("\n5. 运行回测...")
             success &= run_rolling_backtest(args.start, args.end)
 
         if args.start:
-            print("\n5. 运行单日预测...")
+            print("\n6. 运行单日预测...")
             success &= run_single_day_test(args.start)
 
-        print("\n6. 运行策略优化...")
+        print("\n7. 运行策略优化...")
         success &= run_strategy_test(args.iter)
 
     # 停止性能计时器
