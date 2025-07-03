@@ -13,7 +13,7 @@
 - 📋 **详细报告**: 生成预测报告和可视化图表
 
 ### 🎨 技术特点
-- **置信度平滑**: 避免预测结果剧烈波动
+- **直接置信度使用**: 完整保留AI模型原始判断，零信息损失
 - **增量学习**: 支持模型的增量更新
 - **严格数据分割**: 防止数据泄露，确保结果可靠
 - **多配置支持**: 灵活的配置管理
@@ -174,11 +174,8 @@ ai:
   train_test_split_ratio: 0.8
   data_decay_rate: 0.4
   
-  # 置信度平滑配置
-  confidence_smoothing:
-    enabled: true
-    ema_alpha: 0.3
-    max_daily_change: 0.25
+  # 置信度配置（已简化，无平滑处理）
+  # 注：置信度平滑功能已废弃，现在直接使用AI模型原始输出
 ```
 
 #### 策略配置
@@ -343,7 +340,7 @@ logs/                           # 日志文件
   "prediction": {
     "is_low_point": true,
     "confidence": 0.7234,
-    "smoothed_confidence": 0.6891
+    "final_confidence": 0.7234
   },
   "model_info": {
     "model_type": "RandomForestClassifier",
@@ -358,7 +355,7 @@ logs/                           # 日志文件
 
 ## 预测结果
 - 📈 **预测**: 相对低点
-- 📊 **置信度**: 68.91%
+- 📊 **AI置信度**: 72.34% (原始模型输出)
 - 🤖 **模型**: RandomForest
 
 ## 技术指标分析

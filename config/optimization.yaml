@@ -1,194 +1,394 @@
-# 策略与AI优化配置文件
-# 集中管理所有优化相关的参数，便于调整和维护
+# =============================================================================
+# 中证500指数相对低点识别系统 - 策略与AI优化配置文件
+# =============================================================================
+# 说明：集中管理所有优化相关的参数，便于调整和维护
+# 用途：提升系统准确率和稳定性的核心配置文件
+# 建议：准确率不高时，可重点调整此文件中的参数
+# 最后更新：2025年
+# =============================================================================
 
 # =============================================================================
-# AI优化算法配置
+# AI优化算法核心配置
 # =============================================================================
 
 # 全局优化设置
 optimization:
-  global_iterations: 500
-  incremental_iterations: 1000
-  incremental_contraction_factor: 0.5
-  enable_incremental: true
-  enable_history: true
-  max_history_records: 100
+  global_iterations: 500            # 全局优化迭代次数
+                                    # 用途：策略参数全局搜索的迭代数
+                                    # 建议值：300-800（平衡精度和时间）
+                                    # 调高：提高优化质量但增加时间
+                                    # 调低：减少时间但可能降低优化效果
+  
+  incremental_iterations: 1000      # 增量优化迭代次数
+                                    # 用途：在已优化参数基础上精细调整
+                                    # 建议值：800-1500（精细优化）
+                                    # 通常比全局优化需要更多迭代
+  
+  incremental_contraction_factor: 0.5  # 增量优化收缩因子
+                                    # 用途：控制增量优化的搜索范围
+                                    # 范围：0.1-0.8，越小搜索范围越小
+                                    # 0.5：在最优值附近50%范围内搜索
+  
+  enable_incremental: true          # 是否启用增量优化
+                                    # true：先全局后增量，推荐设置
+                                    # false：仅全局优化，速度快但精度低
+  
+  enable_history: true              # 是否启用历史记录
+                                    # true：记录优化历史，避免重复计算
+                                    # false：每次重新计算，确保最新但耗时
+  
+  max_history_records: 100          # 最大历史记录数量
+                                    # 用途：控制内存使用和查询速度
+                                    # 建议值：50-200条记录
 
 # 高级优化功能开关
 advanced_optimization:
-  enabled: true
-  use_hierarchical: true
-  use_scipy: true
-  use_time_series_cv: true
+  enabled: true                     # 是否启用高级优化算法
+                                    # true：使用贝叶斯+遗传算法，推荐
+                                    # false：使用基础优化，速度快但精度低
+  
+  use_hierarchical: true            # 是否使用分层优化
+                                    # true：分阶段优化不同类型参数
+                                    # false：同时优化所有参数
+  
+  use_scipy: true                   # 是否使用SciPy优化库
+                                    # true：使用专业优化算法
+                                    # false：使用内置优化方法
+  
+  use_time_series_cv: true          # 是否使用时间序列交叉验证
+                                    # true：考虑时间顺序，更适合金融数据
+                                    # false：随机验证，可能导致前瞻偏差
 
-# 数据验证与分割
+# 数据验证与分割配置
 validation:
-  train_ratio: 0.65
-  validation_ratio: 0.2
-  test_ratio: 0.15
+  train_ratio: 0.65                 # 训练集比例（65%）
+                                    # 用途：参数优化和模型训练
+                                    # 建议值：0.6-0.7（确保足够训练数据）
+  
+  validation_ratio: 0.2             # 验证集比例（20%）
+                                    # 用途：模型选择和超参数调优
+                                    # 建议值：0.15-0.25（平衡验证效果）
+  
+  test_ratio: 0.15                  # 测试集比例（15%）
+                                    # 用途：最终性能评估（完全锁定）
+                                    # 建议值：0.1-0.2（确保评估可靠性）
+  
+  # 前向分析窗口配置
   walk_forward:
-    enabled: true
-    window_size: 252
-    step_size: 63
+    enabled: true                   # 是否启用前向分析
+                                    # true：模拟真实交易环境，推荐
+                                    # false：使用静态分割，可能过拟合
+    
+    window_size: 252                # 训练窗口大小（交易日）
+                                    # 252天≈1年，滚动训练窗口
+                                    # 建议值：200-500天（1-2年数据）
+    
+    step_size: 63                   # 前向步长（交易日）
+                                    # 63天≈3个月，模型更新频率
+                                    # 建议值：20-90天（1-4个月）
 
-# 早停机制
+# 早停机制配置
 early_stopping:
-  enabled: true
-  patience: 50
-  min_delta: 0.001
+  enabled: true                     # 是否启用早停机制
+                                    # true：避免过拟合，节省时间
+                                    # false：完整训练，可能过拟合
+  
+  patience: 50                      # 早停耐心值（迭代次数）
+                                    # 定义：连续多少次无改善后停止
+                                    # 建议值：30-100次迭代
+  
+  min_delta: 0.001                  # 最小改善阈值
+                                    # 定义：低于此值认为无显著改善
+                                    # 建议值：0.0005-0.005
 
-# 贝叶斯优化配置
+# 贝叶斯优化配置（智能参数搜索）
 bayesian_optimization:
-  enabled: true
-  n_calls: 100  # 优化调用次数
-  n_initial_points: 20  # 初始随机点数量
-  acq_func: 'EI'  # 采集函数：EI, PI, LCB
-  xi: 0.01  # 探索参数
-  kappa: 1.96  # 置信界限参数
-  n_jobs: 1  # 并行作业数
-  random_state: 42  # 随机种子
+  enabled: true                     # 是否启用贝叶斯优化
+                                    # true：智能搜索，效率高精度好
+                                    # false：随机搜索，效率低但稳定
+  
+  n_calls: 100                      # 优化调用次数
+                                    # 用途：贝叶斯优化的评估次数
+                                    # 建议值：50-200次（平衡效果和时间）
+                                    # 准确率不高时可调至150-300
+  
+  n_initial_points: 20              # 初始随机点数量
+                                    # 用途：贝叶斯优化的探索基础
+                                    # 建议值：n_calls的10-30%
+  
+  acq_func: 'EI'                    # 采集函数类型
+                                    # EI：期望改善（平衡探索和利用）
+                                    # PI：改善概率（更保守）
+                                    # LCB：置信下界（更激进）
+  
+  xi: 0.01                          # 探索参数
+                                    # 范围：0.001-0.1
+                                    # 调高：增加探索，发现全局最优
+                                    # 调低：增加利用，快速收敛
+  
+  kappa: 1.96                       # 置信界限参数（仅LCB使用）
+                                    # 范围：1.0-3.0
+                                    # 调高：更保守的搜索策略
+  
+  n_jobs: 1                         # 并行作业数
+                                    # 1：单线程（稳定）
+                                    # -1：使用所有CPU核心（快速但占用资源）
+  
+  random_state: 42                  # 随机种子
+                                    # 用途：确保结果可重现
 
-# 遗传算法配置
+# 遗传算法配置（进化优化）
 genetic_algorithm:
-  population_size: 20
-  generations: 10
-  crossover_rate: 0.8
-  mutation_rate: 0.1
+  population_size: 20               # 种群大小
+                                    # 用途：每代个体数量
+                                    # 建议值：15-50（平衡多样性和效率）
+  
+  generations: 10                   # 进化代数
+                                    # 用途：遗传算法运行轮数
+                                    # 建议值：5-20代
+  
+  crossover_rate: 0.8               # 交叉概率
+                                    # 范围：0.6-0.9
+                                    # 用途：控制基因交换频率
+  
+  mutation_rate: 0.1                # 变异概率
+                                    # 范围：0.05-0.2
+                                    # 用途：保持种群多样性，避免局部最优
 
 # =============================================================================
-# 评分与权重配置
+# 评分与权重系统配置
 # =============================================================================
 
-# AI评分权重
+# AI模型评分权重（影响AI置信度计算）
 ai_scoring:
-  success_weight: 0.4
-  rise_weight: 0.3
-  speed_weight: 0.2
-  risk_weight: 0.1
-  rise_benchmark: 0.1
-  risk_benchmark: 0.2
+  success_weight: 0.4               # 成功率权重（40%）
+                                    # 定义：预测准确率的重要性
+                                    # 调高：更重视准确率
+  
+  rise_weight: 0.3                  # 涨幅权重（30%）
+                                    # 定义：平均涨幅的重要性
+                                    # 调高：更重视收益大小
+  
+  speed_weight: 0.2                 # 速度权重（20%）
+                                    # 定义：涨幅实现速度的重要性
+                                    # 调高：更重视快速盈利
+  
+  risk_weight: 0.1                  # 风险权重（10%）
+                                    # 定义：最大回撤的重要性
+                                    # 调高：更重视风险控制
+  
+  rise_benchmark: 0.1               # 涨幅基准（10%）
+                                    # 定义：期望的最低涨幅
+  
+  risk_benchmark: 0.2               # 风险基准（20%）
+                                    # 定义：可接受的最大回撤
 
-# 策略评分权重
+# 策略评分权重（影响策略参数优化）
 strategy_scoring:
-  success_weight: 0.5
-  rise_weight: 0.3
-  days_weight: 0.2
-  rise_benchmark: 0.1
-  days_benchmark: 10.0
+  success_weight: 0.5               # 成功率权重（50%）
+                                    # 策略评分更重视成功率
+  
+  rise_weight: 0.3                  # 涨幅权重（30%）
+  days_weight: 0.2                  # 持有天数权重（20%）
+                                    # 定义：持有时间的重要性
+  
+  rise_benchmark: 0.1               # 涨幅基准
+  days_benchmark: 10.0              # 天数基准（10天）
 
 # =============================================================================
-# 参数优化范围
+# 参数优化搜索范围配置
 # =============================================================================
 
-# AI参数优化范围
+# AI模型参数优化范围
 optimization_ranges:
+  # 动态置信度调整参数
   dynamic_confidence_adjustment:
-    min: 0.05
-    max: 0.25
-    step: 0.02
+    min: 0.05                       # 最小值：5%
+    max: 0.25                       # 最大值：25%
+    step: 0.02                      # 步长：2%
+                                    # 用途：动态调整AI置信度的幅度
+  
+  # 市场情绪权重
   market_sentiment_weight:
-    min: 0.08
-    max: 0.25
-    step: 0.02
+    min: 0.08                       # 最小值：8%
+    max: 0.25                       # 最大值：25%
+    step: 0.02                      # 步长：2%
+                                    # 用途：市场整体情绪对判断的影响
+  
+  # 趋势强度权重
   trend_strength_weight:
-    min: 0.06
-    max: 0.2
-    step: 0.02
+    min: 0.06                       # 最小值：6%
+    max: 0.2                        # 最大值：20%
+    step: 0.02                      # 步长：2%
+                                    # 用途：价格趋势强度的权重
+  
+  # 成交量权重
   volume_weight:
-    min: 0.15
-    max: 0.35
-    step: 0.02
+    min: 0.15                       # 最小值：15%
+    max: 0.35                       # 最大值：35%
+    step: 0.02                      # 步长：2%
+                                    # 用途：成交量变化的重要性
+  
+  # 价格动量权重
   price_momentum_weight:
-    min: 0.12
-    max: 0.3
-    step: 0.02
+    min: 0.12                       # 最小值：12%
+    max: 0.3                        # 最大值：30%
+    step: 0.02                      # 步长：2%
+                                    # 用途：价格动量指标的权重
 
-# 策略参数优化范围
+# 策略核心参数优化范围
 strategy_ranges:
+  # 涨幅阈值（相对低点定义）
   rise_threshold:
-    min: 0.03
-    max: 0.08
-    step: 0.005
+    min: 0.03                       # 最小值：3%
+    max: 0.08                       # 最大值：8%
+    step: 0.005                     # 步长：0.5%
+                                    # 调整建议：准确率低时可降低阈值
+  
+  # 最大持有天数
   max_days:
-    min: 10
-    max: 30
-    step: 1
+    min: 10                         # 最小值：10天
+    max: 30                         # 最大值：30天
+    step: 1                         # 步长：1天
+                                    # 调整建议：震荡市可缩短持有期
+  
+  # RSI超卖阈值
   rsi_oversold_threshold:
-    min: 25
-    max: 35
-    step: 1
+    min: 25                         # 最小值：25
+    max: 35                         # 最大值：35
+    step: 1                         # 步长：1
+                                    # 用途：定义超卖区域
+  
+  # RSI低位阈值
   rsi_low_threshold:
-    min: 35
-    max: 45
-    step: 1
+    min: 35                         # 最小值：35
+    max: 45                         # 最大值：45
+    step: 1                         # 步长：1
+                                    # 用途：定义低位区域
+  
+  # 最终置信度阈值
   final_threshold:
-    min: 0.3
-    max: 0.8
-    step: 0.05
+    min: 0.3                        # 最小值：30%
+    max: 0.8                        # 最大值：80%
+    step: 0.05                      # 步长：5%
+                                    # 调整建议：准确率低时可降低阈值
 
 # =============================================================================
-# 置信度权重配置
+# 置信度权重详细配置（核心策略参数）
 # =============================================================================
 
 confidence_weights:
-  # 核心阈值
-  final_threshold: 0.5
+  # 核心决策阈值
+  final_threshold: 0.5              # 最终置信度阈值（50%）
+                                    # 调整建议：准确率不高时降至0.4-0.45
   
-  # 移动平均线权重
-  ma_all_below: 0.3
-  ma_partial_below: 0.2
+  # 移动平均线相关权重
+  ma_all_below: 0.3                 # 价格低于所有均线权重（30%）
+                                    # 用途：强势看涨信号识别
   
-  # 布林带权重
-  bb_lower_near: 0.2
-  bb_near_threshold: 1.02
+  ma_partial_below: 0.2             # 价格低于部分均线权重（20%）
+                                    # 用途：中等强度看涨信号
   
-  # 价格趋势权重
-  decline_threshold: -0.05
-  recent_decline: 0.2
-  price_decline_threshold: -0.02
+  # 布林带相关权重
+  bb_lower_near: 0.2                # 接近布林带下轨权重（20%）
+                                    # 用途：超卖状态识别
   
-  # RSI指标权重
-  rsi_low: 0.2
-  rsi_low_threshold: 40
-  rsi_oversold: 0.3
-  rsi_oversold_threshold: 30
+  bb_near_threshold: 1.02           # 接近布林带阈值（102%）
+                                    # 定义：价格/下轨比值，越小越接近
+  
+  # 价格趋势相关权重
+  decline_threshold: -0.05          # 下跌阈值（-5%）
+                                    # 定义：短期下跌幅度标准
+  
+  recent_decline: 0.2               # 近期下跌权重（20%）
+                                    # 用途：捕捉短期调整机会
+  
+  price_decline_threshold: -0.02    # 价格下跌阈值（-2%）
+                                    # 定义：日内下跌幅度标准
+  
+  # RSI指标相关权重
+  rsi_low: 0.2                      # RSI低位权重（20%）
+  rsi_low_threshold: 40             # RSI低位阈值（40）
+  rsi_oversold: 0.3                 # RSI超卖权重（30%）
+  rsi_oversold_threshold: 30        # RSI超卖阈值（30）
+                                    # 调整建议：熊市中可降低阈值
   
   # MACD指标权重
-  macd_negative: 0.1
+  macd_negative: 0.1                # MACD负值权重（10%）
+                                    # 用途：趋势转换信号识别
   
-  # 成交量权重
-  volume_panic_bonus: 0.1
-  volume_surge_bonus: 0.05
-  volume_shrink_penalty: 0.7
-  volume_panic_threshold: 1.4
-  volume_surge_threshold: 1.2
-  volume_shrink_threshold: 0.8
+  # 成交量相关权重（重要：影响恐慌抄底）
+  volume_panic_bonus: 0.1           # 恐慌性放量奖励（10%）
+  volume_surge_bonus: 0.05          # 成交量激增奖励（5%）
+  volume_shrink_penalty: 0.7        # 成交量萎缩惩罚（30%）
+                                    # 调整建议：重视成交量确认
   
-  # 高级权重
-  dynamic_confidence_adjustment: 0.05
-  market_sentiment_weight: 0.16
-  trend_strength_weight: 0.16
-  volume_weight: 0.25
-  price_momentum_weight: 0.2
+  volume_panic_threshold: 1.4       # 恐慌放量阈值（140%）
+  volume_surge_threshold: 1.2       # 放量阈值（120%）
+  volume_shrink_threshold: 0.8      # 缩量阈值（80%）
+  
+  # 高级AI权重（影响机器学习预测）
+  dynamic_confidence_adjustment: 0.05  # 动态置信度调整权重（5%）
+  market_sentiment_weight: 0.16       # 市场情绪权重（16%）
+  trend_strength_weight: 0.16         # 趋势强度权重（16%）
+  volume_weight: 0.25                 # 成交量权重（25%）
+  price_momentum_weight: 0.2          # 价格动量权重（20%）
 
 # =============================================================================
-# 优化执行配置
+# 优化执行控制配置
 # =============================================================================
 
 execution:
-  # 优化间隔（天）
-  optimization_interval: 30
+  # 执行时间控制
+  optimization_interval: 30         # 优化执行间隔（天）
+                                    # 建议值：15-60天
+                                    # 调小：更频繁优化，适应性强
+                                    # 调大：减少计算负担，稳定性好
   
-  # 数据衰减率
-  data_decay_rate: 0.4
+  # 数据处理配置
+  data_decay_rate: 0.4              # 数据衰减率（40%）
+                                    # 用途：历史数据权重衰减
+                                    # 范围：0.2-0.6，越大越重视近期数据
   
-  # 训练测试分割比例
-  train_test_split_ratio: 0.8
+  train_test_split_ratio: 0.8       # 训练测试分割比例（80%:20%）
+                                    # 建议值：0.7-0.85
   
-  # 保存设置
-  save_results: true
-  save_intermediate: false
+  # 结果保存设置
+  save_results: true                # 是否保存优化结果
+  save_intermediate: false          # 是否保存中间结果（调试用）
   
-  # 并行设置
-  parallel_jobs: 1
-  use_multiprocessing: false 
+  # 性能优化设置
+  parallel_jobs: 1                  # 并行作业数量
+                                    # 1：单线程（稳定）
+                                    # >1：多线程（快速但占用资源）
+  
+  use_multiprocessing: false        # 是否使用多进程
+                                    # true：多进程并行（快速）
+                                    # false：单进程（稳定，推荐）
+
+# =============================================================================
+# 配置调优指南
+# =============================================================================
+# 准确率不高时的调优策略：
+# 
+# 1. 降低阈值类参数：
+#    - final_threshold: 0.5 → 0.4
+#    - rise_threshold: 0.04 → 0.035
+#    - rsi_oversold_threshold: 30 → 28
+# 
+# 2. 增加优化强度：
+#    - n_calls: 100 → 150
+#    - global_iterations: 500 → 700
+# 
+# 3. 调整权重分配：
+#    - 增加volume_weight（成交量更重要）
+#    - 增加market_sentiment_weight（市场情绪）
+# 
+# 4. 启用所有高级功能：
+#    - 确保所有enabled: true
+#    - 使用贝叶斯+遗传双重优化
+# 
+# 5. 数据质量优化：
+#    - 增加training_data年数
+#    - 启用time_series_cv
+# ============================================================================= 

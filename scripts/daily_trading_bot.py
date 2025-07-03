@@ -312,7 +312,7 @@ class DailyTradingBot:
                 'success': True,
                 'is_low_point': pred_result.get('is_low_point', False),
                 'confidence': pred_result.get('confidence', 0.0),
-                'smoothed_confidence': pred_result.get('smoothed_confidence', 0.0),
+                'final_confidence': pred_result.get('final_confidence', 0.0),
                 'model_type': pred_result.get('model_type', 'unknown')
             }
             
@@ -333,7 +333,7 @@ class DailyTradingBot:
                 }
             
             is_low_point = prediction_result['is_low_point']
-            confidence = prediction_result['smoothed_confidence']
+            confidence = prediction_result['final_confidence']
             
             # 信号生成逻辑
             signal = {
@@ -459,7 +459,7 @@ class DailyTradingBot:
 ## 🤖 AI预测结果
 - **预测结果**: {'📈 相对低点' if prediction.get('is_low_point', False) else '📉 非相对低点'}
 - **原始置信度**: {prediction.get('confidence', 0):.4f}
-- **平滑置信度**: {prediction.get('smoothed_confidence', 0):.4f}
+                - **最终置信度**: {prediction.get('final_confidence', 0):.4f}
 - **模型类型**: {prediction.get('model_type', 'N/A')}
 
 ## 📈 交易信号
@@ -492,7 +492,7 @@ class DailyTradingBot:
             
             # 添加建议
             report_content += "\n### 💡 建议:\n"
-            confidence = prediction.get('smoothed_confidence', 0)
+            confidence = prediction.get('final_confidence', 0)
             if confidence >= 0.6:
                 report_content += "- 置信度较高，可考虑适当加仓\n"
             elif confidence >= 0.4:
@@ -538,7 +538,7 @@ class DailyTradingBot:
 
 📅 日期: {date}
 {prediction_emoji} 预测: {'相对低点' if prediction.get('is_low_point', False) else '非相对低点'}
-🎯 置信度: {prediction.get('smoothed_confidence', 0):.3f}
+🎯 置信度: {prediction.get('final_confidence', 0):.3f}
 📈 建议: {signal.get('signal', {}).get('action', 'N/A')}
 ⭐ 强度: {signal.get('signal', {}).get('strength', 0)}/5
 
@@ -551,7 +551,7 @@ class DailyTradingBot:
                 notification_result = {
                     'is_low_point': prediction.get('is_low_point', False),
                     'date': date,
-                    'confidence': prediction.get('smoothed_confidence', 0),
+                    'confidence': prediction.get('final_confidence', 0),
                     'price': 0,  # 这里可以从数据中获取价格
                     'reasons': [signal.get('signal', {}).get('reason', '未知原因')]
                 }
@@ -639,7 +639,7 @@ def main():
             if result['steps'].get('prediction', {}).get('success'):
                 pred = result['steps']['prediction']
                 print(f"预测: {'📈 相对低点' if pred['is_low_point'] else '📉 非相对低点'}")
-                print(f"置信度: {pred['smoothed_confidence']:.3f}")
+                print(f"置信度: {pred['final_confidence']:.3f}")
             
             if result['steps'].get('signal', {}).get('success'):
                 signal = result['steps']['signal']['signal']

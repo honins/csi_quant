@@ -1,5 +1,15 @@
 [
   {
+    "date": "2025-07-03",
+    "timestamp": "20250703_235845",
+    "prediction_time": "2025-07-03T23:58:45.613423",
+    "predicted_low_point": false,
+    "confidence": 0.0018927191399100848,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "model_file": ""
+  },
+  {
     "date": "2025-07-02",
     "timestamp": "20250703_011143",
     "prediction_time": "2025-07-03T01:11:43.349643",

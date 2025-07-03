@@ -3,239 +3,25 @@
 
 """
 改进版AI优化器
-实现增量学习、置信度平滑、权重调整和趋势确认指标
+集成增量学习、特征权重优化和趋势确认指标
+已废弃置信度平滑功能，直接使用AI模型原始输出
 """
 
-import os
 import logging
-import json
+import os
 import pickle
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Tuple, Optional
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from typing import Dict, Any, Tuple, List, Optional
+import json
+import yaml
 
-
-class ConfidenceSmoother:
-    """置信度平滑器"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.logger = logging.getLogger(__name__)
-        
-        # 平滑参数
-        smooth_config = config.get('ai', {}).get('confidence_smoothing', {})
-        self.enabled = smooth_config.get('enabled', True)
-        self.ema_alpha = smooth_config.get('ema_alpha', 0.3)  # EMA平滑系数
-        self.max_daily_change = smooth_config.get('max_daily_change', 0.25)  # 基础最大日变化
-        self.history_path = os.path.join('models', 'confidence_history.json')
-        
-        # 动态调整配置
-        dynamic_config = smooth_config.get('dynamic_adjustment', {})
-        self.dynamic_enabled = dynamic_config.get('enabled', True)
-        self.min_limit = dynamic_config.get('min_limit', 0.15)
-        self.max_limit = dynamic_config.get('max_limit', 0.50)
-        
-        # 各因子配置
-        self.volatility_config = dynamic_config.get('volatility_factor', {})
-        self.price_config = dynamic_config.get('price_factor', {})
-        self.volume_config = dynamic_config.get('volume_factor', {})
-        self.confidence_config = dynamic_config.get('confidence_factor', {})
-        
-        # 调试配置
-        self.debug_mode = smooth_config.get('debug_mode', False)
-        self.log_adjustments = smooth_config.get('log_adjustments', True)
-        
-        # 加载历史置信度
-        self.confidence_history = self._load_confidence_history()
-        
-    def smooth_confidence(self, raw_confidence: float, date: str, market_data: pd.DataFrame = None) -> float:
-        """
-        平滑置信度（改进版：动态调整限制）
-        
-        参数:
-        raw_confidence: 原始置信度
-        date: 预测日期
-        market_data: 市场数据（用于计算波动性）
-        
-        返回:
-        float: 平滑后的置信度
-        """
-        if not self.enabled:
-            return raw_confidence
-            
-        try:
-            # 获取上一个交易日的置信度
-            last_confidence = self._get_last_confidence()
-            
-            if last_confidence is None:
-                # 第一次预测，直接返回
-                smoothed_confidence = raw_confidence
-            else:
-                # 计算动态最大变化限制
-                dynamic_max_change = self._calculate_dynamic_max_change(market_data, raw_confidence, last_confidence)
-                
-                # 应用EMA平滑
-                smoothed_confidence = (
-                    self.ema_alpha * raw_confidence + 
-                    (1 - self.ema_alpha) * last_confidence
-                )
-                
-                # 限制最大变化幅度（使用动态限制）
-                change = smoothed_confidence - last_confidence
-                if abs(change) > dynamic_max_change:
-                    if change > 0:
-                        smoothed_confidence = last_confidence + dynamic_max_change
-                    else:
-                        smoothed_confidence = last_confidence - dynamic_max_change
-                        
-                self.logger.info(f"置信度平滑: {raw_confidence:.4f} → {smoothed_confidence:.4f} "
-                               f"(变化: {smoothed_confidence-last_confidence:+.4f}, "
-                               f"限制: ±{dynamic_max_change:.3f})")
-            
-            # 确保在有效范围内
-            smoothed_confidence = max(0.0, min(1.0, smoothed_confidence))
-            
-            # 保存到历史记录
-            self._save_confidence(date, raw_confidence, smoothed_confidence)
-            
-            return smoothed_confidence
-            
-        except Exception as e:
-            self.logger.error(f"置信度平滑失败: {e}")
-            return raw_confidence
-    
-    def _calculate_dynamic_max_change(self, market_data: pd.DataFrame, raw_confidence: float, last_confidence: float) -> float:
-        """
-        计算动态最大变化限制（配置化版本）
-        
-        参数:
-        market_data: 市场数据
-        raw_confidence: 原始置信度
-        last_confidence: 上次置信度
-        
-        返回:
-        float: 动态最大变化限制
-        """
-        base_limit = self.max_daily_change  # 基础限制
-        
-        # 如果未启用动态调整或没有市场数据，使用基础限制
-        if not self.dynamic_enabled or market_data is None or len(market_data) < 20:
-            return base_limit
-        
-        try:
-            volatility_factor = 1.0
-            price_factor = 1.0
-            volume_factor = 1.0
-            change_factor = 1.0
-            
-            # 1. 计算市场波动性因子
-            if self.volatility_config.get('enabled', True):
-                recent_volatility = market_data['volatility'].tail(5).mean() if 'volatility' in market_data.columns else 0
-                historical_volatility = market_data['volatility'].tail(60).mean() if 'volatility' in market_data.columns else recent_volatility
-                
-                if historical_volatility > 0:
-                    volatility_ratio = recent_volatility / historical_volatility
-                    max_mult = self.volatility_config.get('max_multiplier', 2.0)
-                    min_mult = self.volatility_config.get('min_multiplier', 0.5)
-                    volatility_factor = min(max_mult, max(min_mult, volatility_ratio))
-            
-            # 2. 计算价格变化因子
-            if self.price_config.get('enabled', True) and 'close' in market_data.columns and len(market_data) >= 2:
-                latest_price = market_data['close'].iloc[-1]
-                prev_price = market_data['close'].iloc[-2]
-                price_change = abs(latest_price - prev_price) / prev_price
-                
-                sensitivity = self.price_config.get('sensitivity', 10)
-                max_mult = self.price_config.get('max_multiplier', 2.0)
-                price_factor = min(max_mult, 1.0 + price_change * sensitivity)
-            
-            # 3. 计算成交量因子
-            if self.volume_config.get('enabled', True) and 'volume' in market_data.columns and len(market_data) >= 20:
-                recent_volume = market_data['volume'].tail(3).mean()
-                avg_volume = market_data['volume'].tail(20).mean()
-                
-                if avg_volume > 0:
-                    volume_ratio = recent_volume / avg_volume
-                    panic_threshold = self.volume_config.get('panic_threshold', 1.5)
-                    low_threshold = self.volume_config.get('low_threshold', 0.7)
-                    max_mult = self.volume_config.get('max_multiplier', 1.8)
-                    
-                    # 成交量异常时（恐慌或狂热）放宽限制
-                    if volume_ratio > panic_threshold or volume_ratio < low_threshold:
-                        volume_factor = min(max_mult, 1.0 + abs(volume_ratio - 1.0))
-            
-            # 4. 计算置信度变化幅度因子
-            if self.confidence_config.get('enabled', True):
-                confidence_change = abs(raw_confidence - last_confidence)
-                threshold = self.confidence_config.get('large_change_threshold', 0.5)
-                max_mult = self.confidence_config.get('max_multiplier', 1.5)
-                
-                if confidence_change > threshold:
-                    change_factor = min(max_mult, 1.0 + (confidence_change - threshold))
-            
-            # 5. 综合计算动态限制
-            dynamic_limit = base_limit * volatility_factor * price_factor * volume_factor * change_factor
-            
-            # 使用配置的上下界
-            dynamic_limit = max(self.min_limit, min(self.max_limit, dynamic_limit))
-            
-            # 记录调整信息
-            if self.log_adjustments:
-                log_level = logging.DEBUG if not self.debug_mode else logging.INFO
-                self.logger.log(log_level, 
-                              f"动态限制计算: 基础={base_limit:.3f}, "
-                              f"波动={volatility_factor:.2f}, 价格={price_factor:.2f}, "
-                              f"成交量={volume_factor:.2f}, 变化={change_factor:.2f}, "
-                              f"最终={dynamic_limit:.3f}")
-            
-            return dynamic_limit
-            
-        except Exception as e:
-            self.logger.warning(f"动态限制计算失败，使用基础限制: {e}")
-            return base_limit
-    
-    def _load_confidence_history(self) -> List[Dict]:
-        """加载置信度历史"""
-        try:
-            if os.path.exists(self.history_path):
-                with open(self.history_path, 'r') as f:
-                    return json.load(f)
-        except Exception as e:
-            self.logger.warning(f"加载置信度历史失败: {e}")
-        return []
-    
-    def _get_last_confidence(self) -> Optional[float]:
-        """获取最近的置信度"""
-        if self.confidence_history:
-            return self.confidence_history[-1].get('smoothed_confidence')
-        return None
-    
-    def _save_confidence(self, date: str, raw: float, smoothed: float):
-        """保存置信度记录"""
-        try:
-            # 添加新记录
-            self.confidence_history.append({
-                'date': str(date),
-                'raw_confidence': float(raw),
-                'smoothed_confidence': float(smoothed),
-                'timestamp': datetime.now().isoformat()
-            })
-            
-            # 只保留最近30天的记录
-            if len(self.confidence_history) > 30:
-                self.confidence_history = self.confidence_history[-30:]
-            
-            # 保存到文件
-            os.makedirs(os.path.dirname(self.history_path), exist_ok=True)
-            with open(self.history_path, 'w') as f:
-                json.dump(self.confidence_history, f, indent=2)
-                
-        except Exception as e:
-            self.logger.error(f"保存置信度历史失败: {e}")
+# 注释：以下ConfidenceSmoother类已废弃，不再使用平滑处理
+# 现在直接使用模型的原始输出，保持信息完整性
 
 
 class AIOptimizerImproved:
@@ -262,8 +48,8 @@ class AIOptimizerImproved:
         self.max_incremental_updates = incremental_config.get('max_updates', 10)  # 最大增量更新次数
         self.incremental_count = 0
         
-        # 置信度平滑器
-        self.confidence_smoother = ConfidenceSmoother(config)
+        # 移除置信度平滑器 - 使用模型原始输出
+        # self.confidence_smoother = ConfidenceSmoother(config)
         
         self.logger.info("改进版AI优化器初始化完成")
     
@@ -595,7 +381,7 @@ class AIOptimizerImproved:
                 return {
                     'is_low_point': False,
                     'confidence': 0.0,
-                    'smoothed_confidence': 0.0,
+                    'final_confidence': 0.0,
                     'error': '无法提取特征'
                 }
             
@@ -605,28 +391,23 @@ class AIOptimizerImproved:
             # 获取预测概率（不使用predict方法，避免内置阈值影响）
             prediction_proba = self.model.predict_proba(latest_features)[0]
             
-            # 获取原始置信度
+            # 获取原始置信度（不再进行平滑处理）
             raw_confidence = prediction_proba[1] if len(prediction_proba) > 1 else 0.0
             
-            # 应用置信度平滑（传递市场数据）
-            if prediction_date:
-                smoothed_confidence = self.confidence_smoother.smooth_confidence(
-                    raw_confidence, prediction_date, data
-                )
-            else:
-                smoothed_confidence = raw_confidence
+            # 直接使用原始置信度，不进行平滑处理
+            final_confidence = raw_confidence
             
-            # 使用配置的阈值和平滑后的置信度进行最终预测
+            # 使用配置的阈值和原始置信度进行最终预测
             confidence_config = self.config.get('strategy', {}).get('confidence_weights', {})
             final_threshold = confidence_config.get('final_threshold', 0.5)
             
-            # 基于平滑后的置信度和配置阈值进行预测
-            is_low_point = smoothed_confidence >= final_threshold
+            # 基于原始置信度和配置阈值进行预测
+            is_low_point = final_confidence >= final_threshold
             
             result = {
                 'is_low_point': bool(is_low_point),
                 'confidence': float(raw_confidence),
-                'smoothed_confidence': float(smoothed_confidence),
+                'final_confidence': float(final_confidence),  # 现在等于原始置信度
                 'prediction_proba': prediction_proba.tolist(),
                 'feature_count': len(feature_names),
                 'model_type': type(self.model.named_steps['classifier']).__name__,
@@ -635,10 +416,10 @@ class AIOptimizerImproved:
             
             # 输出预测结果
             self.logger.info("----------------------------------------------------")
-            self.logger.info("AI预测结果（改进版）: \033[1m%s\033[0m", 
+            self.logger.info("AI预测结果（无平滑）: \033[1m%s\033[0m", 
                            "相对低点" if is_low_point else "非相对低点")
-            self.logger.info("原始置信度: \033[1m%.4f\033[0m, 平滑置信度: \033[1m%.4f\033[0m, 阈值: \033[1m%.2f\033[0m", 
-                           raw_confidence, smoothed_confidence, final_threshold)
+            self.logger.info("原始置信度: \033[1m%.4f\033[0m, 阈值: \033[1m%.2f\033[0m", 
+                           raw_confidence, final_threshold)
             self.logger.info("----------------------------------------------------")
             
             return result
@@ -648,7 +429,7 @@ class AIOptimizerImproved:
             return {
                 'is_low_point': False,
                 'confidence': 0.0,
-                'smoothed_confidence': 0.0,
+                'final_confidence': 0.0,
                 'error': str(e)
             }
     
@@ -1074,7 +855,7 @@ class AIOptimizerImproved:
                 'strategy_success_rate': strategy_evaluation['success_rate'],
                 'identified_points': strategy_evaluation['total_points'],
                 'avg_rise': strategy_evaluation['avg_rise'],
-                'ai_confidence': prediction_result.get('smoothed_confidence', 0),
+                'ai_confidence': prediction_result.get('final_confidence', 0),
                 'ai_prediction': prediction_result.get('is_low_point', False)
             }
             
@@ -1087,37 +868,64 @@ class AIOptimizerImproved:
     
     def save_optimized_params(self, params: dict):
         """
-        保存优化后的参数到配置文件
+        保存优化后的参数到配置文件（保留注释版）
         
         参数:
         params: 优化后的参数
         """
         try:
-            # 保存到改进版配置文件
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                'config', 'config_improved.yaml'
-            )
-            
-            if os.path.exists(config_path):
-                import yaml
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                
-                # 更新策略参数
-                if 'strategy' not in config:
-                    config['strategy'] = {}
-                
-                for key, value in params.items():
-                    config['strategy'][key] = value
-                
-                # 保存更新后的配置
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
-                
-                self.logger.info(f"优化参数已保存到: {config_path}")
-            else:
-                self.logger.warning(f"配置文件不存在: {config_path}")
-                
+            # 尝试使用保留注释的保存器
+            try:
+                from src.utils.config_saver import ConfigSaver
+                saver = ConfigSaver()
+                saver.save_optimized_params(params)
+                self.logger.info("参数已保存（保留注释版本）")
+                return
+            except Exception as e:
+                self.logger.warning(f"保留注释版本保存失败，使用传统方式: {e}")
+                self._save_params_fallback(params)
         except Exception as e:
-            self.logger.error(f"保存优化参数失败: {e}") 
+            self.logger.error(f"保存优化参数失败: {e}")
+    
+    def _save_params_fallback(self, params: dict):
+        """
+        传统的参数保存方式（备用方案）
+        
+        参数:
+        params: 优化后的参数
+        """
+        try:
+            config_path = 'config/config_improved.yaml'
+            
+            # 读取现有配置
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            # 更新参数
+            for param_name, param_value in params.items():
+                if param_name == 'final_threshold':
+                    if 'strategy' not in config:
+                        config['strategy'] = {}
+                    if 'confidence_weights' not in config['strategy']:
+                        config['strategy']['confidence_weights'] = {}
+                    config['strategy']['confidence_weights']['final_threshold'] = param_value
+                elif param_name in ['rsi_oversold_threshold', 'rsi_low_threshold']:
+                    if 'strategy' not in config:
+                        config['strategy'] = {}
+                    if 'confidence_weights' not in config['strategy']:
+                        config['strategy']['confidence_weights'] = {}
+                    config['strategy']['confidence_weights'][param_name] = param_value
+                else:
+                    # 其他参数按原有逻辑处理
+                    if 'strategy' not in config:
+                        config['strategy'] = {}
+                    config['strategy'][param_name] = param_value
+            
+            # 保存配置
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+            
+            self.logger.info("参数已保存到配置文件（传统方式）")
+            
+        except Exception as e:
+            self.logger.error(f"传统方式保存参数失败: {e}") 

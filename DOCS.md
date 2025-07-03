@@ -40,13 +40,15 @@
 - [Token配置指南](docs/token_config_guide.md) - API配置
 
 ### 🔬 技术分析
-- [置信度阈值机制分析](docs/confidence_threshold_analysis.md) - 置信度工作机制与AI优化
+- **[置信度处理机制说明](docs/confidence_smoothing_explanation.md)** - ⭐ **为什么废弃平滑功能** (重要!)
+- [置信度阈值机制分析](docs/confidence_threshold_analysis.md) - 置信度工作机制与AI优化  
 - [参数重要性分析](docs/parameter_importance_analysis.md) - 参数影响分析
 - [测试集大小分析](docs/test_set_size_analysis.md) - 数据划分分析
 - [功能测试报告](docs/functionality_test_report.md) - 测试结果
 - [代码审查报告](docs/parameter_optimization_code_review.md) - 代码质量
 
 ### 📝 项目历史
+- **[🚨 系统重大更新摘要](docs/system_update_summary.md)** - ⭐ **v2.0重大更新：废弃置信度平滑** (新!)
 - [重构总结](docs/refactoring_summary.md) - 项目演进历程
 - [更新摘要](UPDATE_SUMMARY.md) - 功能改进记录
 - [更新日志](CHANGELOG.md) - 版本变更记录
@@ -98,7 +100,8 @@ docs/setup_guide.md → docs/token_config_guide.md → docs/usage_guide.md
 - **配置**: [setup_guide.md](docs/setup_guide.md), [token_config_guide.md](docs/token_config_guide.md)
 - **使用**: [usage_guide.md](docs/usage_guide.md), [QUICKSTART.md](QUICKSTART.md)
 - **优化**: [optimization_best_practices.md](docs/optimization_best_practices.md)
-- **置信度**: [confidence_threshold_analysis.md](docs/confidence_threshold_analysis.md)
+- **置信度**: [confidence_smoothing_explanation.md](docs/confidence_smoothing_explanation.md), [confidence_threshold_analysis.md](docs/confidence_threshold_analysis.md)
+- **系统更新**: [system_update_summary.md](docs/system_update_summary.md) - v2.0重大更新
 - **测试**: [functionality_test_report.md](docs/functionality_test_report.md)
 
 ### 按技术栈搜索

@@ -18,7 +18,7 @@ class PredictionResult:
     predicted_low_point: Optional[bool]
     actual_low_point: Optional[bool]
     confidence: Optional[float]
-    smoothed_confidence: Optional[float]
+    final_confidence: Optional[float]
     future_max_rise: Optional[float]
     days_to_rise: Optional[int]
     prediction_correct: Optional[bool]
@@ -76,7 +76,7 @@ def predict_and_validate(
                 predicted_low_point=None,
                 actual_low_point=None,
                 confidence=None,
-                smoothed_confidence=None,
+                final_confidence=None,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -135,7 +135,7 @@ def predict_and_validate(
                     predicted_low_point=None,
                     actual_low_point=None,
                     confidence=None,
-                    smoothed_confidence=None,
+                    final_confidence=None,
                     future_max_rise=None,
                     days_to_rise=None,
                     prediction_correct=None,
@@ -156,9 +156,9 @@ def predict_and_validate(
         prediction_result = ai_optimizer.predict_low_point(predict_day_data, predict_date.strftime('%Y-%m-%d'))
         is_predicted_low_point = prediction_result.get("is_low_point")
         confidence = prediction_result.get("confidence")
-        smoothed_confidence = prediction_result.get("smoothed_confidence", confidence)
+        smoothed_confidence = prediction_result.get("final_confidence", confidence)
 
-        logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，原始置信度: {confidence:.2f}, 平滑置信度: {smoothed_confidence:.2f}")
+        logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，原始置信度: {confidence:.2f}, 最终置信度: {smoothed_confidence:.2f}")
 
         # 5. 验证预测结果
         end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
@@ -176,7 +176,7 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                smoothed_confidence=smoothed_confidence,
+                final_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -194,7 +194,7 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                smoothed_confidence=smoothed_confidence,
+                final_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -211,7 +211,7 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                smoothed_confidence=smoothed_confidence,
+                final_confidence=smoothed_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -242,7 +242,7 @@ def predict_and_validate(
             predicted_low_point=is_predicted_low_point,
             actual_low_point=actual_is_low_point,
             confidence=confidence,
-            smoothed_confidence=smoothed_confidence,
+            final_confidence=smoothed_confidence,
             future_max_rise=max_rise,
             days_to_rise=days_to_rise,
             prediction_correct=is_predicted_low_point == actual_is_low_point,
@@ -256,7 +256,7 @@ def predict_and_validate(
             predicted_low_point=None,
             actual_low_point=None,
             confidence=None,
-            smoothed_confidence=None,
+            final_confidence=None,
             future_max_rise=None,
             days_to_rise=None,
             prediction_correct=None,

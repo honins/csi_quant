@@ -513,7 +513,7 @@ def run_incremental_training(mode='incremental'):
                 print(f"   📅 预测日期: {predict_date}")
                 print(f"   🎯 预测结果: {'📈 相对低点' if prediction_result.get('is_low_point', False) else '📉 非相对低点'}")
                 print(f"   🔢 原始置信度: {prediction_result.get('confidence', 0):.4f}")
-                print(f"   ✨ 平滑置信度: {prediction_result.get('smoothed_confidence', 0):.4f}")
+                print(f"   ✨ 最终置信度: {prediction_result.get('final_confidence', 0):.4f}")
                 print(f"   🤖 模型类型: {prediction_result.get('model_type', 'unknown')}")
                 
                 success = True

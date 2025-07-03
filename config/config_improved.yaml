@@ -153,7 +153,7 @@ strategy:
     bb_near_threshold: 1.018
     decline_threshold: -0.048
     dynamic_confidence_adjustment: 0.12
-    final_threshold: 0.62
+    final_threshold: 0.4
     ma_all_below: 0.32
     ma_partial_below: 0.22
     macd_negative: 0.12
@@ -162,9 +162,9 @@ strategy:
     price_momentum_weight: 0.22
     recent_decline: 0.22
     rsi_low: 0.22
-    rsi_low_threshold: 37
+    rsi_low_threshold: 45
     rsi_oversold: 0.32
-    rsi_oversold_threshold: 33
+    rsi_oversold_threshold: 29
     trend_strength_weight: 0.14
     volume_panic_bonus: 0.12
     volume_panic_threshold: 1.45
