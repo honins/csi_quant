@@ -61,13 +61,19 @@ class DataModule:
             return pd.DataFrame()
 
         try:
-            # 读取CSV文件
-            # 假设日期列名为 'date'，并且需要解析为datetime对象
+            # 读取CSV文件，严格要求日期列正确解析
             df = pd.read_csv(full_data_path, parse_dates=['date'])
             
-            # 确保日期列是datetime类型
+            # 严格验证日期列类型
+            if 'date' not in df.columns:
+                raise ValueError(f"数据文件 {data_file_path} 缺少必需的'date'列")
+            
             if not pd.api.types.is_datetime64_any_dtype(df['date']):
-                df['date'] = pd.to_datetime(df['date'])
+                raise ValueError(
+                    f"数据文件 {data_file_path} 的'date'列不是datetime类型。\n"
+                    f"实际类型: {df['date'].dtype}\n"
+                    f"请确保CSV文件的date列格式正确，能被pandas自动解析为datetime类型"
+                )
 
             # 过滤日期范围
             df_filtered = df[(df['date'] >= pd.to_datetime(start_date)) & (df['date'] <= pd.to_datetime(end_date))]
@@ -94,9 +100,21 @@ class DataModule:
         self.logger.info("预处理数据")
         
         try:
-            # 确保日期列是datetime类型
-            if 'date' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date']):
-                data['date'] = pd.to_datetime(data['date'])
+            # 严格验证日期列
+            if 'date' not in data.columns:
+                raise ValueError("预处理数据缺少必需的'date'列")
+                
+            if not pd.api.types.is_datetime64_any_dtype(data['date']):
+                raise ValueError(
+                    f"预处理数据的'date'列不是datetime类型。\n"
+                    f"实际类型: {data['date'].dtype}\n"
+                    f"数据必须在预处理前确保日期列正确"
+                )
+                
+            # 验证日期列无空值
+            if data['date'].isnull().any():
+                null_count = data['date'].isnull().sum()
+                raise ValueError(f"日期列包含 {null_count} 个空值，无法进行准确的预处理")
                 
             # 按日期排序
             data = data.sort_values('date').reset_index(drop=True)
@@ -227,42 +245,37 @@ class DataModule:
                 self.logger.error("日期列类型不正确")
                 return False
                 
-            # 检查价格数据的逻辑性
+            # 严格检查价格数据的逻辑性：不允许任何逻辑错误
             invalid_rows = []
             for i in range(len(data)):
                 row = data.iloc[i]
                 if not (row['low'] <= row['open'] <= row['high'] and 
                        row['low'] <= row['close'] <= row['high']):
                     invalid_rows.append(i)
-                    self.logger.warning("第 %d 行价格数据逻辑不正确 - High: %.2f, Low: %.2f, Open: %.2f, Close: %.2f", 
-                                      i, row['high'], row['low'], row['open'], row['close'])
+                    self.logger.error("第 %d 行价格数据逻辑错误 - High: %.2f, Low: %.2f, Open: %.2f, Close: %.2f", 
+                                    i, row['high'], row['low'], row['open'], row['close'])
             
-            # 如果存在无效行且超过阈值，则验证失败
+            # 严格要求：任何价格逻辑错误都不被接受
             if len(invalid_rows) > 0:
-                invalid_ratio = len(invalid_rows) / len(data)
-                max_invalid_ratio = 0.05  # 允许最多5%的数据有问题
-                
-                if invalid_ratio > max_invalid_ratio:
-                    self.logger.error("价格数据验证失败：%d 行数据逻辑错误 (%.2f%%)，超过允许阈值 (%.2f%%)", 
-                                    len(invalid_rows), invalid_ratio * 100, max_invalid_ratio * 100)
-                    return False
-                else:
-                    self.logger.warning("发现 %d 行价格数据逻辑错误 (%.2f%%)，在允许范围内，继续处理", 
-                                      len(invalid_rows), invalid_ratio * 100)
+                self.logger.error("数据验证失败：发现 %d 行价格数据逻辑错误，严格模式下不接受任何错误数据", 
+                                len(invalid_rows))
+                return False
                     
-            # 检查缺失值
-            missing_count = data.isnull().sum().sum()
-            if missing_count > 0:
-                missing_ratio = missing_count / (len(data) * len(data.columns))
-                max_missing_ratio = 0.1  # 允许最多10%的缺失值
-                
-                if missing_ratio > max_missing_ratio:
-                    self.logger.error("数据验证失败：缺失值过多 (%d 个，占 %.2f%%)，超过允许阈值 (%.2f%%)", 
-                                    missing_count, missing_ratio * 100, max_missing_ratio * 100)
-                    return False
-                else:
-                    self.logger.warning("数据中有 %d 个缺失值 (%.2f%%)，在允许范围内", 
-                                      missing_count, missing_ratio * 100)
+            # 严格检查缺失值：核心列不允许有任何缺失值
+            # 核心列：date, open, high, low, close, volume
+            core_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+            for col in core_columns:
+                if col in data.columns:
+                    missing_count = data[col].isnull().sum()
+                    if missing_count > 0:
+                        self.logger.error("数据验证失败：核心列 '%s' 包含 %d 个缺失值，严格模式下不接受任何核心数据缺失", 
+                                        col, missing_count)
+                        return False
+            
+            # 检查其他列的缺失值（技术指标列允许一定缺失，因为计算窗口导致）
+            other_missing = data.drop(columns=core_columns, errors='ignore').isnull().sum().sum()
+            if other_missing > 0:
+                self.logger.info("技术指标列存在 %d 个缺失值（正常，由计算窗口导致）", other_missing)
                 
             self.logger.info("数据验证完成")
             return True

@@ -708,7 +708,11 @@ def run_ai_optimization_improved(config):
     返回:
     bool: 是否成功
     """
+    import time
+    optimization_start_time = time.time()
+    
     print("🚀 启动改进版AI完整优化...")
+    print("=" * 80)
     
     try:
         from src.ai.ai_optimizer_improved import AIOptimizerImproved
@@ -716,34 +720,54 @@ def run_ai_optimization_improved(config):
         from src.strategy.strategy_module import StrategyModule
         from datetime import datetime, timedelta
         
-        print("📋 初始化改进版模块...")
+        # 步骤1: 模块初始化
+        print("📋 步骤1: 初始化改进版模块...")
+        init_start_time = time.time()
         
         # 初始化模块
         data_module = DataModule(config)
         strategy_module = StrategyModule(config)
         ai_optimizer = AIOptimizerImproved(config)
         
-        print("✅ 改进版模块初始化完成")
+        init_time = time.time() - init_start_time
+        print(f"✅ 改进版模块初始化完成 (耗时: {init_time:.2f}s)")
+        print("-" * 60)
         
-        # 获取数据
-        print("📊 准备数据...")
+        # 步骤2: 数据准备
+        print("📊 步骤2: 准备训练数据...")
+        data_start_time = time.time()
+        
         training_years = config.get('ai', {}).get('training_data', {}).get('optimize_years', 8)
         end_date = datetime.now()
         start_date = (end_date - timedelta(days=365*training_years)).strftime('%Y-%m-%d')
         end_date = end_date.strftime('%Y-%m-%d')
         
-        raw_data = data_module.get_history_data(start_date, end_date)
-        processed_data = data_module.preprocess_data(raw_data)
-        print(f"✅ 数据准备完成，共 {len(processed_data)} 条记录")
+        print(f"   📅 数据时间范围: {start_date} ~ {end_date} ({training_years}年)")
+        print("   🔄 获取历史数据...")
         
-        # 运行完整优化流程
-        print("🔧 开始完整优化流程...")
+        raw_data = data_module.get_history_data(start_date, end_date)
+        print(f"   📥 获取到 {len(raw_data)} 条原始数据")
+        
+        print("   ⚙️ 数据预处理中...")
+        processed_data = data_module.preprocess_data(raw_data)
+        
+        data_time = time.time() - data_start_time
+        print(f"✅ 数据准备完成 (耗时: {data_time:.2f}s)")
+        print(f"   📊 处理后数据: {len(processed_data)} 条记录")
+        print("-" * 60)
+        
+        # 步骤3: 运行完整优化流程
+        print("🔧 步骤3: 运行完整优化流程...")
         optimization_result = ai_optimizer.run_complete_optimization(processed_data, strategy_module)
         
+        # 计算总耗时
+        total_time = time.time() - optimization_start_time
+        
         # 输出简要结果
-        print("\n" + "="*60)
+        print("\n" + "="*80)
         print("📊 改进版AI优化结果汇总")
-        print("="*60)
+        print("="*80)
+        print(f"⏱️ 总耗时: {total_time:.2f}s ({total_time/60:.1f}分钟)")
         
         if optimization_result['success']:
             print("✅ 完整优化成功！")
@@ -752,6 +776,10 @@ def run_ai_optimization_improved(config):
             strategy_opt = optimization_result.get('strategy_optimization', {})
             if strategy_opt.get('success'):
                 print(f"\n🔧 策略参数优化:")
+                optimization_method = strategy_opt.get('optimization_method', 'unknown')
+                optimization_time = strategy_opt.get('optimization_time', 0)
+                print(f"   🔬 优化方法: {optimization_method}")
+                print(f"   ⏱️ 优化耗时: {optimization_time:.2f}s ({optimization_time/60:.1f}分钟)")
                 print(f"   ✅ 最佳参数: {strategy_opt.get('best_params', {})}")
                 print(f"   📊 训练集得分: {strategy_opt.get('best_score', 0):.4f}")
                 print(f"   📈 验证集得分: {strategy_opt.get('validation_score', 0):.4f} | 成功率: {strategy_opt.get('validation_success_rate', 0):.2%}")
@@ -759,15 +787,23 @@ def run_ai_optimization_improved(config):
                     print(f"   🔒 测试集得分: {strategy_opt.get('test_score', 0):.4f} | 成功率: {strategy_opt.get('test_success_rate', 0):.2%}")
                     print(f"   🎯 泛化能力: {'✅ 良好' if strategy_opt.get('generalization_passed', False) else '⚠️ 一般'}")
                 print(f"   🛡️ 过拟合检测: {'通过' if strategy_opt.get('overfitting_passed', False) else '警告'}")
+                
+                # 如果使用了遗传算法，显示特殊标识
+                if strategy_opt.get('genetic_algorithm_used', False):
+                    print("   🧬 使用了高精度遗传算法优化")
             
             # 模型训练结果
             model_training = optimization_result.get('model_training', {})
             if model_training.get('success'):
                 print(f"\n🤖 改进版模型训练:")
+                training_time = model_training.get('training_time', 0)
+                print(f"   ⏱️ 训练耗时: {training_time:.2f}s ({training_time/60:.1f}分钟)")
                 print(f"   ✅ 训练状态: 成功")
                 print(f"   📊 训练方式: {model_training.get('method', 'unknown')}")
-                print(f"   🔢 训练样本数: {model_training.get('train_samples', 0)}")
+                print(f"   🔢 训练样本数: {model_training.get('train_samples', 0):,}")
                 print(f"   📈 特征数量: {model_training.get('feature_count', 0)}")
+                print(f"   📊 正样本比例: {model_training.get('positive_ratio', 0):.2%}")
+                print(f"   💾 模型保存: {'成功' if model_training.get('save_success', False) else '失败'}")
             
             # 最终评估
             evaluation = optimization_result.get('final_evaluation', {})
@@ -790,9 +826,27 @@ def run_ai_optimization_improved(config):
                 for error in errors:
                     print(f"   - {error}")
         
-        print("="*60)
+        print("="*80)
         print("🎉 改进版AI优化流程完成！")
+        
+        # 性能分析
+        if optimization_result['success']:
+            strategy_opt = optimization_result.get('strategy_optimization', {})
+            model_training = optimization_result.get('model_training', {})
+            
+            init_pct = (init_time / total_time) * 100
+            data_pct = (data_time / total_time) * 100
+            strategy_pct = (strategy_opt.get('optimization_time', 0) / total_time) * 100
+            model_pct = (model_training.get('training_time', 0) / total_time) * 100
+            
+            print(f"📊 时间分析:")
+            print(f"   初始化: {init_time:.2f}s ({init_pct:.1f}%)")
+            print(f"   数据准备: {data_time:.2f}s ({data_pct:.1f}%)")
+            print(f"   参数优化: {strategy_opt.get('optimization_time', 0):.2f}s ({strategy_pct:.1f}%)")
+            print(f"   模型训练: {model_training.get('training_time', 0):.2f}s ({model_pct:.1f}%)")
+        
         print("💡 提示: 所有改进功能已启用（置信度平滑、改进特征工程、增量学习等）")
+        print("=" * 80)
         
         return optimization_result['success']
         
@@ -800,7 +854,8 @@ def run_ai_optimization_improved(config):
         print(f"\n❌ 无法导入AI优化模块: {str(e)}")
         return False
     except Exception as e:
-        print(f"\n❌ 改进版AI优化过程中发生错误: {str(e)}")
+        total_time = time.time() - optimization_start_time
+        print(f"\n❌ 改进版AI优化过程中发生错误 (已运行 {total_time:.2f}s): {str(e)}")
         import traceback
         traceback.print_exc()
         return False

@@ -216,8 +216,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             for date, row in results_df.iterrows():
                 predict_price = safe_str(row['predict_price'])
                 predicted = "Yes" if row['predicted_low_point'] else "No"
-                # 优先使用平滑置信度，如果不存在则使用原始置信度
-                confidence = safe_str(row.get('smoothed_confidence', row.get('confidence', 0)))
+                # 使用最终置信度（已废弃平滑功能，直接使用模型原始输出）
+                confidence = safe_str(row.get('final_confidence', row.get('confidence', 0)))
                 actual = "Yes" if row['actual_low_point'] else "No"
                 max_rise = safe_str(row['future_max_rise'], "{:.2%}")
                 days_to_rise = safe_str(row['days_to_rise'], "{:.0f}")
@@ -239,7 +239,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     days_to_rise,
                     prediction_correct
                 ])
-            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Smoothed Confidence', 'Actual', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
+            table = plt.table(cellText=table_data, colLabels=['Date', 'Predict Price', 'Predicted', 'Final Confidence', 'Actual', 'Max Future Rise', 'Days to Target Rise', 'Prediction Correct'], loc='center', cellLoc='center')
             table.auto_set_font_size(False)
             table.set_fontsize(10)
             table.scale(1.2, 1.5)
