@@ -128,13 +128,17 @@ class DataModule:
         data['ma20'] = data['close'].rolling(20).mean()
         data['ma60'] = data['close'].rolling(60).mean()
         
-        # 计算相对强弱指标RSI
+        # 计算相对强弱指标RSI (修复除零错误)
         delta = data['close'].diff()
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
         avg_gain = gain.rolling(14).mean()
         avg_loss = loss.rolling(14).mean()
-        rs = avg_gain / avg_loss
+        
+        # 修复除零错误：当avg_loss为0时，RSI应为100
+        # 当avg_gain为0时，RSI应为0
+        rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss)
+        rs = np.where(avg_gain == 0, 0, rs)
         data['rsi'] = 100 - (100 / (1 + rs))
         
         # 计算MACD
@@ -224,16 +228,41 @@ class DataModule:
                 return False
                 
             # 检查价格数据的逻辑性
+            invalid_rows = []
             for i in range(len(data)):
                 row = data.iloc[i]
                 if not (row['low'] <= row['open'] <= row['high'] and 
                        row['low'] <= row['close'] <= row['high']):
-                    self.logger.warning("第 %d 行价格数据逻辑不正确", i)
+                    invalid_rows.append(i)
+                    self.logger.warning("第 %d 行价格数据逻辑不正确 - High: %.2f, Low: %.2f, Open: %.2f, Close: %.2f", 
+                                      i, row['high'], row['low'], row['open'], row['close'])
+            
+            # 如果存在无效行且超过阈值，则验证失败
+            if len(invalid_rows) > 0:
+                invalid_ratio = len(invalid_rows) / len(data)
+                max_invalid_ratio = 0.05  # 允许最多5%的数据有问题
+                
+                if invalid_ratio > max_invalid_ratio:
+                    self.logger.error("价格数据验证失败：%d 行数据逻辑错误 (%.2f%%)，超过允许阈值 (%.2f%%)", 
+                                    len(invalid_rows), invalid_ratio * 100, max_invalid_ratio * 100)
+                    return False
+                else:
+                    self.logger.warning("发现 %d 行价格数据逻辑错误 (%.2f%%)，在允许范围内，继续处理", 
+                                      len(invalid_rows), invalid_ratio * 100)
                     
             # 检查缺失值
             missing_count = data.isnull().sum().sum()
             if missing_count > 0:
-                self.logger.warning("数据中有 %d 个缺失值", missing_count)
+                missing_ratio = missing_count / (len(data) * len(data.columns))
+                max_missing_ratio = 0.1  # 允许最多10%的缺失值
+                
+                if missing_ratio > max_missing_ratio:
+                    self.logger.error("数据验证失败：缺失值过多 (%d 个，占 %.2f%%)，超过允许阈值 (%.2f%%)", 
+                                    missing_count, missing_ratio * 100, max_missing_ratio * 100)
+                    return False
+                else:
+                    self.logger.warning("数据中有 %d 个缺失值 (%.2f%%)，在允许范围内", 
+                                      missing_count, missing_ratio * 100)
                 
             self.logger.info("数据验证完成")
             return True
