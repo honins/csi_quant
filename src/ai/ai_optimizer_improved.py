@@ -482,7 +482,7 @@ class AIOptimizerImproved:
             return False
     
     def _load_model(self) -> bool:
-        """加载模型"""
+        """加载模型（安全版本）"""
         try:
             latest_path = os.path.join(self.models_dir, 'latest_improved_model.txt')
             
@@ -493,8 +493,55 @@ class AIOptimizerImproved:
             with open(latest_path, 'r') as f:
                 model_path = f.read().strip()
             
+            # 安全检查：验证模型文件路径
+            if not os.path.abspath(model_path).startswith(os.path.abspath(self.models_dir)):
+                self.logger.error(f"模型文件路径不安全: {model_path}")
+                return False
+            
+            # 安全检查：验证文件大小（防止过大的恶意文件）
+            max_file_size = 500 * 1024 * 1024  # 500MB限制
+            if os.path.getsize(model_path) > max_file_size:
+                self.logger.error(f"模型文件过大，可能存在安全风险: {model_path}")
+                return False
+            
             with open(model_path, 'rb') as f:
-                data = pickle.load(f)
+                # 使用受限的pickle加载器（限制可导入的模块）
+                import pickle
+                import builtins
+                
+                # 创建安全的unpickler
+                logger = self.logger  # 保存logger引用
+                class SafeUnpickler(pickle.Unpickler):
+                    def find_class(self, module, name):
+                        # 只允许加载特定的安全模块
+                        safe_modules = {
+                            'sklearn.ensemble._forest',
+                            'sklearn.ensemble',
+                            'sklearn.pipeline',
+                            'sklearn.preprocessing._data',
+                            'sklearn.preprocessing',
+                            'numpy',
+                            'pandas.core.frame',
+                            'pandas',
+                            'builtins'
+                        }
+                        
+                        if module in safe_modules or module.startswith('numpy') or module.startswith('sklearn'):
+                            return getattr(__import__(module, fromlist=[name]), name)
+                        else:
+                            logger.warning(f"拒绝加载不安全的模块: {module}.{name}")
+                            raise pickle.PicklingError(f"Unsafe module: {module}")
+                
+                # 使用安全的unpickler加载数据
+                safe_unpickler = SafeUnpickler(f)
+                data = safe_unpickler.load()
+                
+                # 验证加载的数据结构
+                required_keys = ['model', 'feature_names']
+                if not isinstance(data, dict) or not all(key in data for key in required_keys):
+                    self.logger.error("模型文件格式不正确")
+                    return False
+                
                 self.model = data['model']
                 self.feature_names = data['feature_names']
                 self.incremental_count = data.get('incremental_count', 0)
