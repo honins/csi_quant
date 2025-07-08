@@ -114,7 +114,7 @@ def reset_config_backup():
                 logger.info(f"📦 备份配置文件: {file_path.name}")
         
         logger.info(f"✅ 配置文件备份已整理到: {new_backup_dir}")
-            else:
+    else:
         logger.info("✅ 没有找到配置文件备份")
 
 def create_fresh_start_marker():
