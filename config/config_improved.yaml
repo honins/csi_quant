@@ -150,7 +150,7 @@ risk:
   max_daily_signals: 3
   min_confidence: 0.58
 strategy:
-  bb_near_threshold: 1.02046
+  bb_near_threshold: 1.02043
   bb_period: 20
   bb_std: 2
   confidence_weights:
@@ -158,7 +158,7 @@ strategy:
     bb_near_threshold: 1.018
     decline_threshold: -0.048
     dynamic_confidence_adjustment: 0.12
-    final_threshold: 0.378
+    final_threshold: 0.3007
     ma_all_below: 0.32
     ma_partial_below: 0.22
     macd_negative: 0.12
@@ -167,9 +167,9 @@ strategy:
     price_momentum_weight: 0.22
     recent_decline: 0.22
     rsi_low: 0.22
-    rsi_low_threshold: 50.0
+    rsi_low_threshold: 49.0
     rsi_oversold: 0.32
-    rsi_oversold_threshold: 25.0
+    rsi_oversold_threshold: 30.0
     trend_strength_weight: 0.14
     volume_panic_bonus: 0.12
     volume_panic_threshold: 1.45
@@ -178,7 +178,7 @@ strategy:
     volume_surge_bonus: 0.06
     volume_surge_threshold: 1.25
     volume_weight: 0.28
-  dynamic_confidence_adjustment: 0.187
+  dynamic_confidence_adjustment: 0.1177
   final_threshold: 0.4
   ma_periods:
   - 5
@@ -188,9 +188,9 @@ strategy:
   macd_fast: 12
   macd_signal: 9
   macd_slow: 26
-  market_sentiment_weight: 0.2436
+  market_sentiment_weight: 0.2133
   max_days: 20
-  price_momentum_weight: 0.1714
+  price_momentum_weight: 0.2822
   results_dir: results
   rise_threshold: 0.04
   rsi_low_threshold: 45
@@ -202,11 +202,11 @@ strategy:
     rise_benchmark: 0.1
     rise_weight: 0.28
     success_weight: 0.52
-  trend_strength_weight: 0.0713
-  volume_panic_threshold: 1.784
-  volume_shrink_threshold: 0.843
-  volume_surge_threshold: 1.369
-  volume_weight: 0.2197
+  trend_strength_weight: 0.2161
+  volume_panic_threshold: 1.925
+  volume_shrink_threshold: 0.654
+  volume_surge_threshold: 1.271
+  volume_weight: 0.3345
 system:
   log_file: logs/system_improved.log
   log_level: INFO
