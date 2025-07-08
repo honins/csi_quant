@@ -27,34 +27,36 @@ python run.py bot -m health
 
 ## 🛠️ 生产部署
 
-### Linux/Mac 系统
+### Linux/Mac 用户
+
 ```bash
 # 启动守护进程
-./scripts/start_enhanced_bot_daemon.sh start
+./scripts/bot_daemon.sh start
 
-# 查看状态
-./scripts/start_enhanced_bot_daemon.sh status
+# 查看运行状态
+./scripts/bot_daemon.sh status
 
-# 查看日志
-./scripts/start_enhanced_bot_daemon.sh logs
+# 查看实时日志
+./scripts/bot_daemon.sh logs
 
 # 停止守护进程
-./scripts/start_enhanced_bot_daemon.sh stop
+./scripts/bot_daemon.sh stop
 ```
 
-### Windows 系统
+### Windows 用户
+
 ```cmd
 :: 启动守护进程
-scripts\start_enhanced_bot_daemon.bat start
+scripts\bot_daemon.bat start
 
-:: 查看状态
-scripts\start_enhanced_bot_daemon.bat status
+:: 查看运行状态
+scripts\bot_daemon.bat status
 
-:: 查看日志
-scripts\start_enhanced_bot_daemon.bat logs
+:: 查看实时日志
+scripts\bot_daemon.bat logs
 
 :: 停止守护进程
-scripts\start_enhanced_bot_daemon.bat stop
+scripts\bot_daemon.bat stop
 ```
 
 ## 📊 监控管理

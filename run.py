@@ -905,7 +905,7 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
             if scripts_dir not in sys.path:
                 sys.path.insert(0, scripts_dir)
             
-            from daily_trading_bot import EnhancedDailyTradingBot
+            from bot_core import EnhancedDailyTradingBot
         except ImportError as e:
             print(f"❌ 无法导入增强版交易机器人模块: {e}")
             print("💡 提示: 请检查依赖包是否已安装:")
@@ -1143,8 +1143,8 @@ def main():
   python run.py bot -m restore --backup-timestamp 20240101_120000  # 恢复数据
   
   # 守护进程管理（推荐使用脚本）
-  scripts/start_enhanced_bot_daemon.sh start    # Linux/Mac启动守护进程
-  scripts/start_enhanced_bot_daemon.bat start   # Windows启动守护进程
+  scripts/bot_daemon.sh start    # Linux/Mac启动守护进程
+  scripts/bot_daemon.bat start   # Windows启动守护进程
   
   python run.py report               # 生成最近7天的汇总报告
   python run.py report 14            # 生成最近14天的汇总报告

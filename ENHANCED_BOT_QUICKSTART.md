@@ -38,31 +38,31 @@ pip install -r requirements.txt
 #### Linux/Mac
 ```bash
 # 启动守护进程
-./scripts/start_enhanced_bot_daemon.sh start
+./scripts/bot_daemon.sh start
 
 # 查看状态
-./scripts/start_enhanced_bot_daemon.sh status
+./scripts/bot_daemon.sh status
 
 # 查看日志
-./scripts/start_enhanced_bot_daemon.sh logs
+./scripts/bot_daemon.sh logs
 
 # 停止守护进程
-./scripts/start_enhanced_bot_daemon.sh stop
+./scripts/bot_daemon.sh stop
 ```
 
 #### Windows
 ```cmd
 :: 启动守护进程
-scripts\start_enhanced_bot_daemon.bat start
+scripts\bot_daemon.bat start
 
 :: 查看状态
-scripts\start_enhanced_bot_daemon.bat status
+scripts\bot_daemon.bat status
 
 :: 查看日志
-scripts\start_enhanced_bot_daemon.bat logs
+scripts\bot_daemon.bat logs
 
 :: 停止守护进程
-scripts\start_enhanced_bot_daemon.bat stop
+scripts\bot_daemon.bat stop
 ```
 
 ### 方法二：使用run.py命令
@@ -104,8 +104,8 @@ python run.py bot -m status
 ### 日志管理
 ```bash
 # 实时查看日志
-./scripts/start_enhanced_bot_daemon.sh logs   # Linux/Mac
-scripts\start_enhanced_bot_daemon.bat logs    # Windows
+./scripts/bot_daemon.sh logs   # Linux/Mac
+scripts\bot_daemon.bat logs    # Windows
 
 # 日志文件位置
 logs/enhanced_trading_bot.log      # 主日志
@@ -153,9 +153,9 @@ bot:
 ```
 csi1000_quant/
 ├── scripts/
-│   ├── daily_trading_bot.py              # 增强版机器人核心
-│   ├── start_enhanced_bot_daemon.sh      # Linux/Mac守护进程管理
-│   └── start_enhanced_bot_daemon.bat     # Windows守护进程管理
+│   ├── bot_core.py              # 增强版机器人核心
+│   ├── bot_daemon.sh      # Linux/Mac守护进程管理
+│   └── bot_daemon.bat     # Windows守护进程管理
 ├── results/
 │   ├── daily_trading/
 │   │   ├── bot_state.json                # 机器人状态
@@ -208,8 +208,8 @@ cat results/daily_trading/performance_metrics.json
 ### 手动重启
 ```bash
 # 重启守护进程
-./scripts/start_enhanced_bot_daemon.sh restart   # Linux/Mac
-scripts\start_enhanced_bot_daemon.bat restart    # Windows
+./scripts/bot_daemon.sh restart   # Linux/Mac
+scripts\bot_daemon.bat restart    # Windows
 ```
 
 ### 数据恢复

@@ -3,7 +3,7 @@
 # 增强版交易机器人守护进程启动脚本
 
 # 脚本配置
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BOT_NAME="enhanced_trading_bot"
 PID_FILE="$PROJECT_ROOT/results/daily_trading/$BOT_NAME.pid"
@@ -40,10 +40,10 @@ check_venv() {
     if [ -d "$VENV_PATH" ]; then
         print_status "检测到虚拟环境: $VENV_PATH"
         if [ -f "$VENV_PATH/bin/activate" ]; then
-            source "$VENV_PATH/bin/activate"
+            . "$VENV_PATH/bin/activate"
             print_success "虚拟环境已激活"
         elif [ -f "$VENV_PATH/Scripts/activate" ]; then
-            source "$VENV_PATH/Scripts/activate"
+            . "$VENV_PATH/Scripts/activate"
             print_success "虚拟环境已激活 (Windows)"
         else
             print_warning "虚拟环境目录存在但无法激活"
@@ -57,23 +57,28 @@ check_venv() {
 check_dependencies() {
     print_status "检查Python依赖..."
     
-    required_packages=("psutil" "GitPython" "schedule" "pandas" "numpy")
-    missing_packages=()
+    # 使用兼容sh的方式检查依赖
+    required_packages="psutil GitPython schedule pandas numpy"
+    missing_packages=""
     
-    for package in "${required_packages[@]}"; do
+    for package in $required_packages; do
         if ! python -c "import $package" 2>/dev/null; then
-            missing_packages+=($package)
+            if [ -z "$missing_packages" ]; then
+                missing_packages="$package"
+            else
+                missing_packages="$missing_packages $package"
+            fi
         fi
     done
     
-    if [ ${#missing_packages[@]} -ne 0 ]; then
-        print_error "缺少依赖包: ${missing_packages[*]}"
+    if [ -n "$missing_packages" ]; then
+        print_error "缺少依赖包: $missing_packages"
         print_status "正在安装缺少的依赖..."
         
         if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
             pip install -r "$PROJECT_ROOT/requirements.txt"
         else
-            pip install "${missing_packages[@]}"
+            pip install $missing_packages
         fi
         
         if [ $? -eq 0 ]; then

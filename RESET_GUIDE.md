@@ -98,7 +98,7 @@ examples/
 
 scripts/
 ├── reset_parameters.py  # 参数重置工具
-└── daily_trading_bot.py
+└── bot_core.py
 ```
 
 这次清理让项目更加简洁和统一，所有组件现在都使用改进版的AI优化器，并且消除了数据泄露风险。

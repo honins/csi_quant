@@ -313,16 +313,16 @@ python run.py bot -m backup
 **使用管理脚本（推荐）**:
 ```bash
 # Linux/Mac
-./scripts/start_enhanced_bot_daemon.sh start    # 启动守护进程
-./scripts/start_enhanced_bot_daemon.sh status   # 查看状态
-./scripts/start_enhanced_bot_daemon.sh logs     # 查看日志
-./scripts/start_enhanced_bot_daemon.sh stop     # 停止守护进程
+./scripts/bot_daemon.sh start    # 启动守护进程
+./scripts/bot_daemon.sh status   # 查看状态
+./scripts/bot_daemon.sh logs     # 查看日志
+./scripts/bot_daemon.sh stop     # 停止守护进程
 
 # Windows
-scripts\start_enhanced_bot_daemon.bat start     # 启动守护进程
-scripts\start_enhanced_bot_daemon.bat status    # 查看状态
-scripts\start_enhanced_bot_daemon.bat logs      # 查看日志
-scripts\start_enhanced_bot_daemon.bat stop      # 停止守护进程
+scripts\bot_daemon.bat start     # 启动守护进程
+scripts\bot_daemon.bat status    # 查看状态
+scripts\bot_daemon.bat logs      # 查看日志
+scripts\bot_daemon.bat stop      # 停止守护进程
 ```
 
 ### 🔧 场景5: 参数优化
@@ -377,9 +377,9 @@ logs/                           # 日志文件
 └── performance_monitor.log    # 性能监控日志
 
 scripts/                        # 脚本目录
-├── daily_trading_bot.py        # 增强版机器人核心
-├── start_enhanced_bot_daemon.sh # Linux/Mac守护进程管理
-└── start_enhanced_bot_daemon.bat # Windows守护进程管理
+├── bot_core.py        # 增强版机器人核心
+├── bot_daemon.sh # Linux/Mac守护进程管理
+└── bot_daemon.bat # Windows守护进程管理
 ```
 
 ### 📄 结果文件格式
@@ -615,37 +615,37 @@ python run.py bot -m restore --backup-timestamp 20240101_120000
 **Linux/Mac系统**:
 ```bash
 # 启动守护进程
-./scripts/start_enhanced_bot_daemon.sh start
+./scripts/bot_daemon.sh start
 
 # 查看状态
-./scripts/start_enhanced_bot_daemon.sh status
+./scripts/bot_daemon.sh status
 
 # 查看日志
-./scripts/start_enhanced_bot_daemon.sh logs
+./scripts/bot_daemon.sh logs
 
 # 停止守护进程
-./scripts/start_enhanced_bot_daemon.sh stop
+./scripts/bot_daemon.sh stop
 
 # 重启守护进程
-./scripts/start_enhanced_bot_daemon.sh restart
+./scripts/bot_daemon.sh restart
 ```
 
 **Windows系统**:
 ```cmd
 :: 启动守护进程
-scripts\start_enhanced_bot_daemon.bat start
+scripts\bot_daemon.bat start
 
 :: 查看状态
-scripts\start_enhanced_bot_daemon.bat status
+scripts\bot_daemon.bat status
 
 :: 查看日志
-scripts\start_enhanced_bot_daemon.bat logs
+scripts\bot_daemon.bat logs
 
 :: 停止守护进程
-scripts\start_enhanced_bot_daemon.bat stop
+scripts\bot_daemon.bat stop
 
 :: 重启守护进程
-scripts\start_enhanced_bot_daemon.bat restart
+scripts\bot_daemon.bat restart
 ```
 
 ### 📅 定时任务说明
@@ -675,8 +675,8 @@ python run.py bot -m status
 #### 日志管理
 ```bash
 # 实时查看日志
-./scripts/start_enhanced_bot_daemon.sh logs   # Linux/Mac
-scripts\start_enhanced_bot_daemon.bat logs    # Windows
+./scripts/bot_daemon.sh logs   # Linux/Mac
+scripts\bot_daemon.bat logs    # Windows
 
 # 日志文件位置
 logs/enhanced_trading_bot.log      # 主日志
@@ -743,8 +743,8 @@ bot:
 #### 手动重启
 ```bash
 # 重启守护进程
-./scripts/start_enhanced_bot_daemon.sh restart   # Linux/Mac
-scripts\start_enhanced_bot_daemon.bat restart    # Windows
+./scripts/bot_daemon.sh restart   # Linux/Mac
+scripts\bot_daemon.bat restart    # Windows
 ```
 
 #### 数据恢复

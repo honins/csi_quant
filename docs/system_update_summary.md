@@ -74,7 +74,7 @@
 + 统一使用final_confidence替代smoothed_confidence
 ```
 
-#### 3. `scripts/daily_trading_bot.py`
+#### 3. `scripts/bot_core.py`
 ```python
 # 修改
 - 移除所有对smoothed_confidence的引用
