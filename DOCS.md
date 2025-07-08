@@ -7,6 +7,7 @@
 ### ⚡ 立即开始 (推荐新用户)
 - **[📋 项目主页](README.md)** - 项目介绍、功能特点、核心算法概览
 - **[📖 完整使用指南](USER_GUIDE.md)** - ⭐ **最全面的使用手册** (新!)
+- **[🤖 增强版机器人指南](ENHANCED_BOT_GUIDE.md)** - ⭐ **无人值守交易机器人** (新!)
 - **[⚡ 快速启动](QUICKSTART.md)** - 5分钟部署指南
 - **[📖 文档总览](DOCS.md)** - 完整文档导航和阅读路径
 
@@ -35,6 +36,8 @@
 
 ### 📖 使用指导
 - **[完整使用指南](USER_GUIDE.md)** - 最全面的使用手册 ⭐ 推荐
+- **[🤖 增强版机器人指南](ENHANCED_BOT_GUIDE.md)** - 无人值守交易机器人 ⭐ 推荐
+- **[🤖 机器人使用示例](BOT_USAGE_EXAMPLES.md)** - 快速上手示例 ⭐ 推荐
 - [项目配置指南](docs/setup_guide.md) - 安装配置
 - [使用指南](docs/usage_guide.md) - 操作说明
 - [Token配置指南](docs/token_config_guide.md) - API配置
@@ -77,6 +80,11 @@
 README.md → USER_GUIDE.md → QUICKSTART.md → examples/basic_test.py
 ```
 
+### 🤖 运维人员 (生产部署)
+```
+BOT_USAGE_EXAMPLES.md → ENHANCED_BOT_GUIDE.md → USER_GUIDE.md → docs/setup_guide.md → scripts/
+```
+
 ### 🧠 算法研究者 (深度学习)
 ```
 docs/model_selection_analysis.md → docs/algorithms_overview.md → docs/ai_optimization_params.md → examples/advanced_optimization_demo.py
@@ -103,6 +111,8 @@ docs/setup_guide.md → docs/token_config_guide.md → docs/usage_guide.md
 - **置信度**: [confidence_smoothing_explanation.md](docs/confidence_smoothing_explanation.md), [confidence_threshold_analysis.md](docs/confidence_threshold_analysis.md)
 - **系统更新**: [system_update_summary.md](docs/system_update_summary.md) - v2.0重大更新
 - **测试**: [functionality_test_report.md](docs/functionality_test_report.md)
+- **交易机器人**: [ENHANCED_BOT_GUIDE.md](ENHANCED_BOT_GUIDE.md) - 无人值守运行
+- **机器人示例**: [BOT_USAGE_EXAMPLES.md](BOT_USAGE_EXAMPLES.md) - 快速上手示例
 
 ### 按技术栈搜索
 - **机器学习**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.1, [model_selection_analysis.md](docs/model_selection_analysis.md)
