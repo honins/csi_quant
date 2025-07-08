@@ -466,7 +466,7 @@ class AIOptimizerImproved:
                     return {
                         'is_low_point': False,
                         'confidence': 0.0,
-                        'smoothed_confidence': 0.0,
+                        'final_confidence': 0.0,
                         'error': '模型未训练且无法加载已保存的模型'
                     }
             
@@ -474,7 +474,7 @@ class AIOptimizerImproved:
                 return {
                     'is_low_point': False,
                     'confidence': 0.0,
-                    'smoothed_confidence': 0.0,
+                    'final_confidence': 0.0,
                     'error': '数据为空'
                 }
             

@@ -22,7 +22,7 @@
         "success": true,
         "is_low_point": false,
         "confidence": 0.0,
-        "smoothed_confidence": 0.011063261036022487,
+        "final_confidence": 0.011063261036022487,
         "model_type": "RandomForestClassifier"
       },
       "signal": {
@@ -60,7 +60,7 @@
         "success": true,
         "is_low_point": false,
         "confidence": 0.0,
-        "smoothed_confidence": 0.00774428272521574,
+        "final_confidence": 0.00774428272521574,
         "model_type": "RandomForestClassifier"
       },
       "signal": {
@@ -98,7 +98,7 @@
         "success": true,
         "is_low_point": false,
         "confidence": 0.0,
-        "smoothed_confidence": 0.0037946985353557116,
+        "final_confidence": 0.0037946985353557116,
         "model_type": "RandomForestClassifier"
       },
       "signal": {

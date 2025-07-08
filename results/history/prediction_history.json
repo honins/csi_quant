@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2025-07-08",
+    "timestamp": "20250709_002518",
+    "prediction_time": "2025-07-09T00:25:18.699194",
+    "predicted_low_point": false,
+    "confidence": 0.01824908526564486,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "model_file": ""
+  }
+]

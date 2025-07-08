@@ -201,40 +201,17 @@ def run_rolling_backtest(start_date, end_date):
     print(f"   💾 回测图表将自动保存到 results/charts/rolling_backtest/ 目录")
     print("="*80)
     
-    # 智能训练策略选择
-    print("\n🤖 选择训练策略:")
-    print("   1. 智能训练 (推荐) - 30天重训练一次，大幅提升效率")
-    print("   2. 保守训练 - 10天重训练一次，保证准确性")
+    # 智能训练策略配置 - 默认使用保守训练模式
+    print("\n🤖 训练策略配置:")
+    print("   1. 智能训练 - 30天重训练一次，大幅提升效率")
+    print("   2. 保守训练 (当前) - 10天重训练一次，保证准确性")
     print("   3. 传统模式 - 每日重训练，最高准确性但效率低")
     
-    try:
-        choice = input("\n请选择训练策略 (1-3) [默认:1]: ").strip()
-        if not choice:
-            choice = "1"
-            
-        if choice == "1":
-            print("✅ 选择: 智能训练模式 (30天间隔)")
-            reuse_model = True
-            retrain_interval = 30
-        elif choice == "2":
-            print("✅ 选择: 保守训练模式 (10天间隔)")
-            reuse_model = True
-            retrain_interval = 10
-        elif choice == "3":
-            print("✅ 选择: 传统模式 (每日重训练)")
-            reuse_model = False
-            retrain_interval = 1
-        else:
-            print("❌ 无效选择，使用默认智能训练模式")
-            reuse_model = True
-            retrain_interval = 30
-    except KeyboardInterrupt:
-        print("\n❌ 用户取消操作")
-        return False
-    except:
-        print("❌ 输入错误，使用默认智能训练模式")
-        reuse_model = True
-        retrain_interval = 30
+    # 默认使用保守训练模式 (选项2)
+    choice = "2"
+    print("✅ 自动选择: 保守训练模式 (10天间隔)")
+    reuse_model = True
+    retrain_interval = 10
     
     print(f"\n🚀 开始回测...")
     success = rolling_func(start_date, end_date, reuse_model=reuse_model, retrain_interval_days=retrain_interval)
@@ -895,7 +872,7 @@ def run_ai_optimization_improved(config):
             print(f"   参数优化: {strategy_opt.get('optimization_time', 0):.2f}s ({strategy_pct:.1f}%)")
             print(f"   模型训练: {model_training.get('training_time', 0):.2f}s ({model_pct:.1f}%)")
         
-        print("💡 提示: 所有改进功能已启用（置信度平滑、改进特征工程、增量学习等）")
+        print("💡 提示: 所有改进功能已启用（改进特征工程、增量学习等）")
         print("=" * 80)
         
         return optimization_result['success']

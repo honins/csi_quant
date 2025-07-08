@@ -59,7 +59,7 @@
 # 移除
 - class ConfidenceSmoother
 - self.confidence_smoother = ConfidenceSmoother(config)
-- smoothed_confidence = self.confidence_smoother.smooth_confidence(...)
+- 所有平滑置信度相关代码
 
 # 新增
 + 直接使用原始置信度
@@ -70,22 +70,22 @@
 #### 2. `run.py`
 ```python
 # 修改
-- print(f"   ✨ 平滑置信度: {result.get('smoothed_confidence', 0):.4f}")
-+ print(f"   ✨ 最终置信度: {result.get('final_confidence', 0):.4f}")
+- 移除所有平滑置信度相关的输出和处理
++ 统一使用final_confidence替代smoothed_confidence
 ```
 
 #### 3. `scripts/daily_trading_bot.py`
 ```python
 # 修改
-- 'smoothed_confidence': pred_result.get('smoothed_confidence', 0.0)
-+ 'final_confidence': pred_result.get('final_confidence', 0.0)
+- 移除所有对smoothed_confidence的引用
++ 统一使用final_confidence字段
 ```
 
 #### 4. `src/prediction/prediction_utils.py`
 ```python
 # 修改数据结构
-- smoothed_confidence: Optional[float]
-+ final_confidence: Optional[float]
+- 所有smoothed_confidence字段和相关处理逻辑
++ 统一使用final_confidence字段
 ```
 
 ### **配置文件简化**
@@ -155,10 +155,10 @@ strategy:
 
 #### 📊 **API变更**
 ```python
-# 旧API（仍然兼容）
-result['smoothed_confidence']  # 返回与confidence相同的值
+# 旧API（已完全移除）
+# result['smoothed_confidence']  # 已不再支持
 
-# 新API（推荐使用）
+# 新API（当前使用）
 result['final_confidence']     # 等于原始confidence
 result['confidence']           # AI模型原始输出
 ```
