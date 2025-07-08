@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Optional
+import numpy as np
 
 @dataclass
 class PredictionResult:
@@ -113,17 +114,121 @@ def predict_and_validate(
                 logger.info("未检测到训练模型，需要首次训练")
                 need_retrain = True
 
-        # 3. 根据需要训练或使用现有模型
+        # 3. 根据需要训练或使用现有模型（使用严格三层数据分割）
         if need_retrain:
-            logger.info("开始训练AI模型...")
-            # 检查是否是改进版AI优化器
-            if hasattr(ai_optimizer, 'full_train'):
-                train_result = ai_optimizer.full_train(training_data, strategy_module)
-                # 改进版没有单独的validate_model方法，训练结果包含验证信息
-                validate_result = train_result
+            logger.info("开始训练AI模型（使用严格三层数据分割）...")
+            
+            # === 严格三层数据分割实现 ===
+            # 确保训练数据足够大，至少100条记录
+            if len(training_data) < 100:
+                logger.warning(f"训练数据量不足({len(training_data)}条)，跳过三层分割")
+                # 数据不足时直接使用全部数据
+                train_data = training_data.copy()
             else:
-                train_result = ai_optimizer.train_model(training_data, strategy_module)
-                validate_result = ai_optimizer.validate_model(training_data, strategy_module)
+                # 获取数据分割比例
+                validation_config = config.get('ai', {}).get('validation', {})
+                train_ratio = validation_config.get('train_ratio', 0.6)
+                val_ratio = validation_config.get('validation_ratio', 0.25)
+                test_ratio = validation_config.get('test_ratio', 0.15)
+                
+                # 验证比例总和
+                total_ratio = train_ratio + val_ratio + test_ratio
+                if abs(total_ratio - 1.0) > 0.01:
+                    logger.warning(f"数据分割比例总和不等于1.0: {total_ratio:.3f}，自动调整")
+                    train_ratio = train_ratio / total_ratio
+                    val_ratio = val_ratio / total_ratio
+                    test_ratio = test_ratio / total_ratio
+                
+                # 时间序列数据分割（严格按时间顺序）
+                n = len(training_data)
+                train_end = int(n * train_ratio)
+                val_end = int(n * (train_ratio + val_ratio))
+                
+                train_data = training_data.iloc[:train_end].copy()
+                validation_data = training_data.iloc[train_end:val_end].copy()
+                test_data = training_data.iloc[val_end:].copy()
+                
+                logger.info(f"严格三层数据分割:")
+                logger.info(f"  训练集: {len(train_data)}条 ({len(train_data)/n:.1%})")
+                logger.info(f"  验证集: {len(validation_data)}条 ({len(validation_data)/n:.1%})")
+                logger.info(f"  测试集: {len(test_data)}条 ({len(test_data)/n:.1%})")
+                
+                # 过拟合检测：只在训练集上训练，在验证集上评估
+                if hasattr(ai_optimizer, 'full_train'):
+                    train_result = ai_optimizer.full_train(train_data, strategy_module)
+                    
+                    # 在验证集上评估模型性能并进行过拟合检测
+                    if len(validation_data) > 0:
+                        from src.ai.overfitting_detector import OverfittingDetector, validate_data_split
+                        
+                        # 验证数据分割的正确性
+                        split_validation = validate_data_split(train_data, validation_data, test_data)
+                        if not split_validation['valid']:
+                            for issue in split_validation['issues']:
+                                logger.error(f"数据分割问题: {issue}")
+                        
+                        # 收集验证集预测结果
+                        val_prediction_results = []
+                        for _, row in validation_data.iterrows():
+                            single_row_df = pd.DataFrame([row])
+                            pred_result = ai_optimizer.predict_low_point(single_row_df)
+                            val_prediction_results.append(pred_result.get('confidence', 0))
+                        
+                        # 收集训练集预测结果（用于对比）
+                        train_prediction_results = []
+                        train_sample_size = min(50, len(train_data))  # 最多采样50个训练样本
+                        for _, row in train_data.sample(n=train_sample_size).iterrows():
+                            single_row_df = pd.DataFrame([row])
+                            pred_result = ai_optimizer.predict_low_point(single_row_df)
+                            train_prediction_results.append(pred_result.get('confidence', 0))
+                        
+                        # 使用专业的过拟合检测器
+                        detector = OverfittingDetector(config)
+                        
+                        # 计算训练集和验证集得分
+                        train_score = train_result.get('training_score', 0.8)  # 默认值
+                        val_strategy_results = strategy_module.backtest(validation_data)
+                        val_evaluation = strategy_module.evaluate_strategy(val_strategy_results)
+                        val_score = val_evaluation.get('score', 0)
+                        
+                        # 执行综合过拟合检测
+                        overfitting_result = detector.detect_overfitting(
+                            train_score=train_score,
+                            val_score=val_score,
+                            val_predictions=val_prediction_results,
+                            train_predictions=train_prediction_results
+                        )
+                        
+                        # 如果检测到过拟合，记录详细信息
+                        if overfitting_result['overfitting_detected']:
+                            logger.error("🚨 检测到严重过拟合问题!")
+                            for warning in overfitting_result['warnings']:
+                                logger.error(f"   ⚠️ {warning}")
+                            logger.info("💡 建议采取以下措施:")
+                            for recommendation in overfitting_result['recommendations']:
+                                logger.info(f"   📝 {recommendation}")
+                    
+                    validate_result = train_result
+                else:
+                    train_result = ai_optimizer.train_model(train_data, strategy_module)
+                    validate_result = ai_optimizer.validate_model(train_data, strategy_module)
+            
+            # 对于数据充足的情况，使用三层分割的训练数据
+            if len(training_data) >= 100:
+                if hasattr(ai_optimizer, 'full_train'):
+                    train_result = ai_optimizer.full_train(train_data, strategy_module)
+                    validate_result = train_result
+                else:
+                    train_result = ai_optimizer.train_model(train_data, strategy_module)
+                    validate_result = ai_optimizer.validate_model(train_data, strategy_module)
+            else:
+                # 数据不足时使用全部数据
+                if hasattr(ai_optimizer, 'full_train'):
+                    train_result = ai_optimizer.full_train(training_data, strategy_module)
+                    validate_result = train_result
+                else:
+                    train_result = ai_optimizer.train_model(training_data, strategy_module)
+                    validate_result = ai_optimizer.validate_model(training_data, strategy_module)
             
             print('训练结果:', train_result)
             print('验证结果:', validate_result)
@@ -251,8 +356,10 @@ def predict_and_validate(
 
     except Exception as e:
         logger.error(f"预测和验证过程发生错误: {e}")
+        # 使用传入的predict_date，确保不为None
+        error_date = predict_date if predict_date is not None else datetime.now()
         return PredictionResult(
-            date=predict_date if 'predict_date' in locals() else None,
+            date=error_date,
             predicted_low_point=None,
             actual_low_point=None,
             confidence=None,

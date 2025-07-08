@@ -355,14 +355,14 @@ class AIOptimizerImproved:
             self.logger.info("🏋️ 步骤4: 模型训练...")
             model_start_time = time.time()
             
-            # 创建改进的模型pipeline
+            # 创建改进的模型pipeline（降低复杂度防止过拟合）
             model = Pipeline([
                 ('scaler', StandardScaler()),
                 ('classifier', RandomForestClassifier(
-                    n_estimators=150,
-                    max_depth=12,
-                    min_samples_split=8,
-                    min_samples_leaf=3,
+                    n_estimators=100,      # 从150降到100
+                    max_depth=8,           # 从12降到8
+                    min_samples_split=15,  # 从8提高到15
+                    min_samples_leaf=8,    # 从3提高到8
                     class_weight='balanced',
                     n_jobs=-1,
                     random_state=42,
@@ -370,11 +370,11 @@ class AIOptimizerImproved:
                 ))
             ])
             
-            self.logger.info("🌲 RandomForest模型配置:")
-            self.logger.info("   n_estimators: 150 (决策树数量)")
-            self.logger.info("   max_depth: 12 (最大深度)")
-            self.logger.info("   min_samples_split: 8 (最小分割样本数)")
-            self.logger.info("   min_samples_leaf: 3 (最小叶子节点样本数)")
+            self.logger.info("🌲 RandomForest模型配置（防过拟合）:")
+            self.logger.info("   n_estimators: 100 (决策树数量) - 降低复杂度")
+            self.logger.info("   max_depth: 8 (最大深度) - 减少过拟合")
+            self.logger.info("   min_samples_split: 15 (最小分割样本数) - 增加稳定性")
+            self.logger.info("   min_samples_leaf: 8 (最小叶子节点样本数) - 增加稳定性")
             self.logger.info("   class_weight: balanced (自动平衡类别权重)")
             self.logger.info("   n_jobs: -1 (并行训练)")
             
