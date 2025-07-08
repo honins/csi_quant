@@ -223,12 +223,12 @@ def predict_and_validate(
                     validate_result = ai_optimizer.validate_model(train_data, strategy_module)
             else:
                 # 数据不足时使用全部数据
-                if hasattr(ai_optimizer, 'full_train'):
-                    train_result = ai_optimizer.full_train(training_data, strategy_module)
-                    validate_result = train_result
-                else:
-                    train_result = ai_optimizer.train_model(training_data, strategy_module)
-                    validate_result = ai_optimizer.validate_model(training_data, strategy_module)
+            if hasattr(ai_optimizer, 'full_train'):
+                train_result = ai_optimizer.full_train(training_data, strategy_module)
+                validate_result = train_result
+            else:
+                train_result = ai_optimizer.train_model(training_data, strategy_module)
+                validate_result = ai_optimizer.validate_model(training_data, strategy_module)
             
             print('训练结果:', train_result)
             print('验证结果:', validate_result)

@@ -792,6 +792,56 @@ def run_ai_optimization_improved(config):
                 if strategy_opt.get('genetic_algorithm_used', False):
                     print("   🧬 使用了高精度遗传算法优化")
             
+            # 生成优化报告
+            try:
+                print(f"\n📊 正在生成优化报告...")
+                from src.ai.optimization_reporter import create_optimization_report
+                
+                # 收集模型信息
+                model_training = optimization_result.get('model_training', {})
+                model_info = {
+                    'model_type': 'RandomForest',
+                    'feature_count': model_training.get('feature_count', 'N/A'),
+                    'train_samples': model_training.get('train_samples', 'N/A'),
+                    'positive_ratio': model_training.get('positive_ratio', 0),
+                    'n_estimators': 100,
+                    'max_depth': 8,
+                    'min_samples_split': 15,
+                    'min_samples_leaf': 8
+                }
+                
+                # 准备报告数据
+                report_data = {
+                    'success': True,
+                    'method': strategy_opt.get('optimization_method', 'unknown'),
+                    'total_time': total_time,
+                    'iterations': strategy_opt.get('iterations', 'N/A'),
+                    'best_score': strategy_opt.get('best_score', 0),
+                    'accuracy': strategy_opt.get('validation_success_rate', 0),
+                    'success_rate': strategy_opt.get('validation_success_rate', 0),
+                    'avg_rise': optimization_result.get('final_evaluation', {}).get('avg_rise', 0),
+                    'best_params': strategy_opt.get('best_params', {}),
+                    'training_time_breakdown': model_training.get('training_time_breakdown', {}),
+                    'overfitting_detection': strategy_opt
+                }
+                
+                # 生成报告
+                report_path = create_optimization_report(
+                    optimization_result=report_data,
+                    config=config,
+                    model_info=model_info,
+                    overfitting_detection=strategy_opt
+                )
+                
+                print(f"✅ 优化报告已生成: {report_path}")
+                print(f"💡 报告包含: 详细结果、参数配置、过拟合检测、性能图表")
+                
+            except Exception as e:
+                print(f"⚠️ 报告生成失败: {e}")
+                import traceback
+                print("详细错误信息:")
+                print(traceback.format_exc())
+            
             # 模型训练结果
             model_training = optimization_result.get('model_training', {})
             if model_training.get('success'):
@@ -960,16 +1010,18 @@ def main():
   python run.py fetch                # 数据获取
   python run.py r 2023-01-01 2023-12-31  # 回测
   python run.py s 2023-12-01         # 单日预测
-  python run.py ai -m incremental    # 增量训练
+  python run.py ai -m optimize       # AI优化训练（自动生成报告）
   python run.py bot -m run           # 运行交易机器人
+  python run.py report               # 生成最近7天的汇总报告
+  python run.py report 14            # 生成最近14天的汇总报告
 
 环境变量配置:
   CSI_CONFIG_PATH=path/to/config.yaml python run.py ai  # 使用自定义配置文件
         """
     )
     
-    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot', 'fetch'], 
-                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=交易机器人, fetch=数据获取, all=全部')
+    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot', 'fetch', 'report'], 
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=交易机器人, fetch=数据获取, report=生成汇总报告, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')
     parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
     parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
@@ -1048,6 +1100,27 @@ def main():
         # 机器人模式，默认为单次运行
         mode = args.mode if args.mode else 'run'
         success = run_trading_bot(mode)
+    elif args.command == 'report':
+        # 生成汇总报告
+        print("📊 生成AI优化汇总报告...")
+        try:
+            from src.ai.optimization_reporter import OptimizationReporter
+            config = load_config_safely()
+            if config:
+                reporter = OptimizationReporter(config)
+                days_back = int(args.start) if args.start and args.start.isdigit() else 7
+                summary_path = reporter.create_summary_report(days_back)
+                if summary_path:
+                    print(f"✅ 汇总报告已生成: {summary_path}")
+                    success = True
+                else:
+                    print("❌ 没有找到报告数据")
+                    success = False
+            else:
+                success = False
+        except Exception as e:
+            print(f"❌ 汇总报告生成失败: {e}")
+            success = False
     elif args.command == 'all':
         print("\n1. 运行数据获取...")
         fetch_result = run_data_fetch()

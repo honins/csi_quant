@@ -429,7 +429,14 @@ class AIOptimizerImproved:
                 'model_time': model_time,
                 'save_time': save_time,
                 'save_success': save_success,
-                'feature_names': feature_names
+                'feature_names': feature_names,
+                'training_time_breakdown': {
+                    'feature_engineering': feature_time,
+                    'label_preparation': label_time,
+                    'weight_calculation': weight_time,
+                    'model_training': model_time,
+                    'model_saving': save_time
+                }
             }
             
         except Exception as e:
