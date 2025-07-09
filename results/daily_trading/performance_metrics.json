@@ -1,9 +1,9 @@
 [
   {
-    "timestamp": "2025-07-08T17:49:30.188183",
-    "cpu_percent": 38.6,
-    "memory_percent": 71.5,
-    "disk_usage": 87.1,
-    "process_count": 377
+    "timestamp": "2025-07-09T23:36:33.221293",
+    "cpu_percent": 7.5,
+    "memory_percent": 30.8,
+    "disk_usage": 35.5,
+    "process_count": 243
   }
 ]

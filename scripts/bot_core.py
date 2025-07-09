@@ -207,15 +207,9 @@ class EnhancedDailyTradingBot:
             self.logger.error(f"删除PID文件失败: {e}")
     
     def load_state(self) -> Dict[str, Any]:
-        """加载机器人状态"""
-        if self.state_file.exists():
-            try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
-                self.logger.warning(f"加载状态文件失败: {e}")
-        
-        return {
+        """加载机器人状态（向后兼容）"""
+        # 默认状态
+        default_state = {
             'last_training_date': None,
             'last_prediction_date': None,
             'last_data_fetch': None,
@@ -229,6 +223,33 @@ class EnhancedDailyTradingBot:
             'start_date': datetime.now().strftime('%Y-%m-%d'),
             'uptime_start': datetime.now().isoformat()
         }
+        
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, 'r', encoding='utf-8') as f:
+                    existing_state = json.load(f)
+                
+                # 合并现有状态和默认状态（现有状态优先）
+                merged_state = default_state.copy()
+                merged_state.update(existing_state)
+                
+                # 确保新字段存在
+                if 'uptime_start' not in merged_state:
+                    merged_state['uptime_start'] = datetime.now().isoformat()
+                if 'data_fetch_count' not in merged_state:
+                    merged_state['data_fetch_count'] = 0
+                if 'backup_count' not in merged_state:
+                    merged_state['backup_count'] = 0
+                if 'last_data_fetch' not in merged_state:
+                    merged_state['last_data_fetch'] = None
+                if 'last_backup' not in merged_state:
+                    merged_state['last_backup'] = None
+                
+                return merged_state
+            except (json.JSONDecodeError, IOError) as e:
+                self.logger.warning(f"加载状态文件失败: {e}")
+        
+        return default_state
     
     def save_state(self):
         """保存机器人状态（线程安全）"""

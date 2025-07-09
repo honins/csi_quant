@@ -991,22 +991,36 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
             print("\n📊 增强版机器人状态报告:")
             print("="*70)
             print(f"🤖 机器人状态: {'正常' if status_report['config_loaded'] else '异常'}")
-            print(f"📅 运行开始: {status_report['bot_state']['start_date']}")
-            print(f"⏱️ 运行时长: {status_report['bot_state']['uptime_start']}")
+            print(f"📅 运行开始: {status_report['bot_state'].get('start_date', '未知')}")
+            
+            # 计算运行时长
+            uptime_start = status_report['bot_state'].get('uptime_start')
+            if uptime_start:
+                try:
+                    start_time = datetime.fromisoformat(uptime_start)
+                    uptime = datetime.now() - start_time
+                    days = uptime.days
+                    hours, remainder = divmod(uptime.seconds, 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    print(f"⏱️ 运行时长: {days}天 {hours}小时 {minutes}分钟")
+                except:
+                    print(f"⏱️ 运行时长: {uptime_start}")
+            else:
+                print(f"⏱️ 运行时长: 未知")
             
             print(f"\n📊 执行统计:")
-            print(f"   总预测次数: {status_report['bot_state']['total_predictions']}")
-            print(f"   成功预测: {status_report['bot_state']['successful_predictions']}")
-            print(f"   训练次数: {status_report['bot_state']['training_count']}")
-            print(f"   数据拉取次数: {status_report['bot_state']['data_fetch_count']}")
-            print(f"   备份次数: {status_report['bot_state']['backup_count']}")
-            print(f"   连续错误: {status_report['bot_state']['consecutive_errors']}")
+            print(f"   总预测次数: {status_report['bot_state'].get('total_predictions', 0)}")
+            print(f"   成功预测: {status_report['bot_state'].get('successful_predictions', 0)}")
+            print(f"   训练次数: {status_report['bot_state'].get('training_count', 0)}")
+            print(f"   数据拉取次数: {status_report['bot_state'].get('data_fetch_count', 0)}")
+            print(f"   备份次数: {status_report['bot_state'].get('backup_count', 0)}")
+            print(f"   连续错误: {status_report['bot_state'].get('consecutive_errors', 0)}")
             
             print(f"\n🕐 最后执行时间:")
-            print(f"   训练: {status_report['bot_state']['last_training_date'] or '无'}")
-            print(f"   预测: {status_report['bot_state']['last_prediction_date'] or '无'}")
-            print(f"   数据拉取: {status_report['bot_state']['last_data_fetch'] or '无'}")
-            print(f"   备份: {status_report['bot_state']['last_backup'] or '无'}")
+            print(f"   训练: {status_report['bot_state'].get('last_training_date') or '无'}")
+            print(f"   预测: {status_report['bot_state'].get('last_prediction_date') or '无'}")
+            print(f"   数据拉取: {status_report['bot_state'].get('last_data_fetch') or '无'}")
+            print(f"   备份: {status_report['bot_state'].get('last_backup') or '无'}")
             
             # 执行健康检查
             print(f"\n🏥 系统健康检查:")
