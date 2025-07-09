@@ -3,7 +3,7 @@
 
 """
 数据获取模块
-负责获取中证1000指数的历史数据和实时数据
+负责获取中证500指数的历史数据和实时数据
 """
 
 import os
@@ -27,7 +27,7 @@ class DataModule:
         """
         self.logger = logging.getLogger('DataModule')
         self.config = config
-        self.index_code = config.get('data', {}).get('index_code', 'SHSE.000852')
+        self.index_code = config.get('data', {}).get('index_code', 'SHSE.000905')
         self.frequency = config.get('data', {}).get('frequency', '1d')
         
         # 创建缓存目录
@@ -61,13 +61,19 @@ class DataModule:
             return pd.DataFrame()
 
         try:
-            # 读取CSV文件
-            # 假设日期列名为 'date'，并且需要解析为datetime对象
+            # 读取CSV文件，严格要求日期列正确解析
             df = pd.read_csv(full_data_path, parse_dates=['date'])
             
-            # 确保日期列是datetime类型
+            # 严格验证日期列类型
+            if 'date' not in df.columns:
+                raise ValueError(f"数据文件 {data_file_path} 缺少必需的'date'列")
+            
             if not pd.api.types.is_datetime64_any_dtype(df['date']):
-                df['date'] = pd.to_datetime(df['date'])
+                raise ValueError(
+                    f"数据文件 {data_file_path} 的'date'列不是datetime类型。\n"
+                    f"实际类型: {df['date'].dtype}\n"
+                    f"请确保CSV文件的date列格式正确，能被pandas自动解析为datetime类型"
+                )
 
             # 过滤日期范围
             df_filtered = df[(df['date'] >= pd.to_datetime(start_date)) & (df['date'] <= pd.to_datetime(end_date))]
@@ -94,9 +100,21 @@ class DataModule:
         self.logger.info("预处理数据")
         
         try:
-            # 确保日期列是datetime类型
-            if 'date' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date']):
-                data['date'] = pd.to_datetime(data['date'])
+            # 严格验证日期列
+            if 'date' not in data.columns:
+                raise ValueError("预处理数据缺少必需的'date'列")
+                
+            if not pd.api.types.is_datetime64_any_dtype(data['date']):
+                raise ValueError(
+                    f"预处理数据的'date'列不是datetime类型。\n"
+                    f"实际类型: {data['date'].dtype}\n"
+                    f"数据必须在预处理前确保日期列正确"
+                )
+                
+            # 验证日期列无空值
+            if data['date'].isnull().any():
+                null_count = data['date'].isnull().sum()
+                raise ValueError(f"日期列包含 {null_count} 个空值，无法进行准确的预处理")
                 
             # 按日期排序
             data = data.sort_values('date').reset_index(drop=True)
@@ -128,13 +146,17 @@ class DataModule:
         data['ma20'] = data['close'].rolling(20).mean()
         data['ma60'] = data['close'].rolling(60).mean()
         
-        # 计算相对强弱指标RSI
+        # 计算相对强弱指标RSI (修复除零错误)
         delta = data['close'].diff()
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
         avg_gain = gain.rolling(14).mean()
         avg_loss = loss.rolling(14).mean()
-        rs = avg_gain / avg_loss
+        
+        # 修复除零错误：当avg_loss为0时，RSI应为100
+        # 当avg_gain为0时，RSI应为0
+        rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss)
+        rs = np.where(avg_gain == 0, 0, rs)
         data['rsi'] = 100 - (100 / (1 + rs))
         
         # 计算MACD
@@ -223,17 +245,37 @@ class DataModule:
                 self.logger.error("日期列类型不正确")
                 return False
                 
-            # 检查价格数据的逻辑性
+            # 严格检查价格数据的逻辑性：不允许任何逻辑错误
+            invalid_rows = []
             for i in range(len(data)):
                 row = data.iloc[i]
                 if not (row['low'] <= row['open'] <= row['high'] and 
                        row['low'] <= row['close'] <= row['high']):
-                    self.logger.warning("第 %d 行价格数据逻辑不正确", i)
+                    invalid_rows.append(i)
+                    self.logger.error("第 %d 行价格数据逻辑错误 - High: %.2f, Low: %.2f, Open: %.2f, Close: %.2f", 
+                                    i, row['high'], row['low'], row['open'], row['close'])
+            
+            # 严格要求：任何价格逻辑错误都不被接受
+            if len(invalid_rows) > 0:
+                self.logger.error("数据验证失败：发现 %d 行价格数据逻辑错误，严格模式下不接受任何错误数据", 
+                                len(invalid_rows))
+                return False
                     
-            # 检查缺失值
-            missing_count = data.isnull().sum().sum()
-            if missing_count > 0:
-                self.logger.warning("数据中有 %d 个缺失值", missing_count)
+            # 严格检查缺失值：核心列不允许有任何缺失值
+            # 核心列：date, open, high, low, close, volume
+            core_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+            for col in core_columns:
+                if col in data.columns:
+                    missing_count = data[col].isnull().sum()
+                    if missing_count > 0:
+                        self.logger.error("数据验证失败：核心列 '%s' 包含 %d 个缺失值，严格模式下不接受任何核心数据缺失", 
+                                        col, missing_count)
+                        return False
+            
+            # 检查其他列的缺失值（技术指标列允许一定缺失，因为计算窗口导致）
+            other_missing = data.drop(columns=core_columns, errors='ignore').isnull().sum().sum()
+            if other_missing > 0:
+                self.logger.info("技术指标列存在 %d 个缺失值（正常，由计算窗口导致）", other_missing)
                 
             self.logger.info("数据验证完成")
             return True

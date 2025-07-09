@@ -23,7 +23,7 @@ class TestDataModule(unittest.TestCase):
         """测试前准备"""
         self.config = {
             'data': {
-                'index_code': 'SHSE.000852',
+                'index_code': 'SHSE.000905',
                 'frequency': '1d'
             }
         }

@@ -1,0 +1,71 @@
+{
+  "timestamp": "20250709_001659",
+  "prediction_date": "2025-07-08",
+  "prediction_time": "2025-07-09T00:16:59.561064",
+  "model_info": {
+    "model_file": "",
+    "model_age_hours": 0,
+    "feature_count": 23,
+    "model_type": "RandomForestClassifier"
+  },
+  "market_data": {
+    "close_price": "5977.74",
+    "price_change": "1.31%",
+    "volume_change": "22.94%",
+    "volatility": "0.0167"
+  },
+  "technical_indicators": {
+    "rsi": "68.66",
+    "rsi_status": "[偏强]",
+    "macd": "55.9224",
+    "signal": "41.2610",
+    "hist": "14.6614",
+    "macd_trend": "[金叉趋势]",
+    "bb_upper": "6013.14",
+    "bb_lower": "5624.24",
+    "bb_position": "90.90%",
+    "bb_status": "[超买区域]"
+  },
+  "prediction_results": {
+    "is_predicted_low_point": false,
+    "confidence": 0.01824908526564486,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "future_max_rise": null,
+    "days_to_rise": null,
+    "predict_price": 5977.744
+  },
+  "model_analysis": {
+    "feature_importance": {
+      "price_position_20": 0.18712335550754386,
+      "dist_ma20": 0.1434480759650958,
+      "price_change_10d": 0.08186974209981539,
+      "rsi": 0.07875704068460807,
+      "trend_strength_20": 0.06521668206632815,
+      "macd": 0.060081748756968735,
+      "dist_ma10": 0.053524914925749706,
+      "bb_lower": 0.03861619303911864,
+      "bb_upper": 0.03774308164587668,
+      "ma60": 0.03761193971075652,
+      "hist": 0.0291058271552487,
+      "ma20": 0.026584349053656014,
+      "price_position_60": 0.02501104001100168,
+      "ma10": 0.023049518801976178,
+      "dist_ma5": 0.02015836983934272,
+      "price_change_5d": 0.01781859825538218,
+      "ma5": 0.01650084149710783,
+      "signal": 0.014552374471080752,
+      "volatility": 0.014543276639422242,
+      "volume_trend": 0.008856292103353317,
+      "volatility_normalized": 0.00740282226340048,
+      "volume_strength": 0.006857332616783134,
+      "trend_strength_60": 0.005566582890383405
+    },
+    "model_type": "RandomForestClassifier",
+    "feature_count": 23,
+    "prediction_proba": [
+      0.9817509147343552,
+      0.01824908526564486
+    ]
+  }
+}

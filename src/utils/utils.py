@@ -12,42 +12,26 @@ import yaml
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
-def setup_logging(log_level: str = 'INFO', log_file: Optional[str] = None) -> None:
+def setup_logging(level='INFO', log_file='logs/system.log'):
     """
-    设置日志配置
-    
-    参数:
-    log_level: 日志级别
-    log_file: 日志文件路径，如果为None则只输出到控制台
+    设置日志配置，既输出到文件，也输出到控制台
     """
-    # 创建日志格式
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    # 设置根日志器
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level.upper()))
-    
-    # 清除现有的处理器
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-    
-    # 添加控制台处理器
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-    
-    # 添加文件处理器（如果指定了文件路径）
-    if log_file:
-        # 确保日志目录存在
-        log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-            
+    logger = logging.getLogger()
+    logger.setLevel(level if isinstance(level, int) else getattr(logging, level.upper(), logging.INFO))
+    # 防止重复添加handler
+    if not logger.handlers:
+        # 控制台输出
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level if isinstance(level, int) else getattr(logging, level.upper(), logging.INFO))
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        # 文件输出
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(level if isinstance(level, int) else getattr(logging, level.upper(), logging.INFO))
         file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
+        logger.addHandler(file_handler)
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """

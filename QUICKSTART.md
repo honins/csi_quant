@@ -1,10 +1,12 @@
 # 快速开始指南
 
+> 📋 **完整使用指南**：查看 [**USER_GUIDE.md**](USER_GUIDE.md) 获取最详细的使用说明、故障排除和高级用法。
+
 ## 🚀 5分钟快速上手
 
 ### 1. 解压项目
 
-将 `csi1000_quant_final.zip` 解压到您的工作目录。
+将 `csi500_quant_final.zip` 解压到您的工作目录。
 
 ### 2. 安装依赖
 
@@ -47,10 +49,29 @@ pip install -r requirements.txt
 python run.py all
 ```
 
+### 5. 增强版交易机器人（新功能）
+
+```bash
+# 安装依赖包
+pip install psutil GitPython schedule
+
+# 运行单次交易流程
+python run.py bot -m run
+
+# 启动守护进程模式（推荐生产环境）
+python run.py bot -m daemon --daemon
+
+# 查看机器人状态
+python run.py bot -m status
+
+# 系统健康检查
+python run.py bot -m health
+```
+
 ## 📁 项目结构
 
 ```
-csi1000_quant/
+csi500_quant/
 ├── src/                    # 源代码
 │   ├── data/              # 数据模块
 │   ├── strategy/          # 策略模块
@@ -72,7 +93,11 @@ csi1000_quant/
 ├── setup.py               # 安装脚本
 ├── run.py                 # 快速运行脚本
 ├── predict_single_day.py  # 单日预测脚本
-└── llm_strategy_optimizer.py # LLM驱动策略优化脚本
+├── llm_strategy_optimizer.py # LLM驱动策略优化脚本
+└── scripts/               # 脚本目录
+    ├── bot_core.py              # 增强版机器人核心
+    ├── bot_daemon.sh      # Linux/Mac守护进程管理
+    └── bot_daemon.bat     # Windows守护进程管理
 ```
 
 ## 🔧 VS Code 使用
@@ -102,7 +127,7 @@ csi1000_quant/
 
 ### 基础功能
 
-- **数据获取**: 获取中证1000指数历史数据
+- **数据获取**: 获取中证500指数历史数据
 - **技术指标**: 计算MA、RSI、MACD等技术指标
 - **相对低点识别**: 根据定义识别相对低点
 - **策略回测**: 评估策略历史表现
@@ -121,6 +146,15 @@ csi1000_quant/
 - **邮件通知**: 发送邮件提醒（需配置）
 - **通知历史**: 查看历史通知记录
 
+### 增强版机器人功能
+
+- **无人值守运行**: 守护进程模式24/7运行
+- **自动数据更新**: 每天15:05自动拉取最新数据
+- **系统性能监控**: 实时监控CPU、内存、磁盘使用情况
+- **自动数据备份**: 定期备份重要数据
+- **健康检查和告警**: 自动检测问题并发送告警
+- **Git集成**: 自动提交数据更新到Git仓库
+
 ## ⚙️ 配置说明
 
 主要配置文件：`config/config.yaml`
@@ -130,7 +164,7 @@ csi1000_quant/
 ```yaml
 # 策略参数
 strategy:
-  rise_threshold: 0.05    # 上涨阈值（5%）
+  rise_threshold: 0.04    # 上涨阈值（4%）
   max_days: 20           # 最大交易日数
 
 # AI配置
@@ -190,233 +224,4 @@ A: 在 `src/data/data_module.py` 的 `_calculate_technical_indicators` 方法中
 
 ### Q: 如何配置邮件通知？
 
-A: 修改 `config/config.yaml` 中的 `notification.email` 配置，并在 `src/notification/notification_module.py` 中启用实际的邮件发送代码。
-
-## 📞 技术支持
-
-如果您在使用过程中遇到问题，请：
-
-1. 查看 `logs/` 目录下的日志文件
-2. 检查配置文件是否正确
-3. 确保所有依赖都已正确安装
-4. 参考 `docs/` 目录下的详细文档
-
-## 🎯 下一步
-
-1. **熟悉基础功能**: 运行基础测试，了解系统工作原理
-2. **尝试AI优化**: 运行AI优化测试，体验智能优化功能
-3. **自定义配置**: 根据需求调整配置参数
-4. **集成真实数据**: 连接真实的数据源
-5. **扩展功能**: 根据需要添加新的功能模块
-
-祝您使用愉快！🎉
-
-## 简化命令使用
-
-### 基础命令
-
-```bash
-# 基础测试
-python run.py b
-
-# AI测试（包含训练和预测）
-python run.py a
-
-# 单元测试
-python run.py t
-
-# 回测
-python run.py r
-
-# 单日预测
-python run.py s
-
-# 策略优化
-python run.py opt
-
-# 高级AI优化（推荐）
-python run.py ai
-
-# 全部测试
-python run.py all
-```
-
-### 高级AI优化
-
-新增的 `ai` 命令提供了更强大的优化功能：
-
-```bash
-# 使用分层优化策略
-python run.py ai
-
-# 生成图表
-python run.py ai plot
-```
-
-**分层优化特点：**
-- 避免循环依赖问题
-- 使用时间序列交叉验证
-- 多目标优化（成功率、涨幅、速度、风险）
-- 自动选择最佳优化方法
-
-### 示例脚本
-
-```bash
-# 运行高级优化演示
-python examples/advanced_optimization_demo.py
-
-# 运行完整AI优化测试
-python examples/ai_optimization_test.py
-
-# 运行滚动回测
-python examples/run_rolling_backtest.py
-```
-
-## AI模型训练与应用
-
-### 1. 训练AI模型
-```bash
-# 运行AI优化测试，会训练并保存模型
-python run.py a
-```
-
-### 2. 使用已训练模型进行预测
-```bash
-# 使用已训练模型预测单日
-python run.py s 2024-06-01
-
-# 或直接使用脚本
-python examples/predict_single_day.py 2024-06-01
-```
-
-### 3. 强制重新训练模型
-```bash
-# 重新训练模型进行预测
-python examples/predict_single_day.py 2024-06-01 --retrain
-```
-
-### 4. 模型文件位置
-训练好的模型保存在 `models/` 目录下：
-- `model_YYYYMMDD_HHMMSS.pkl`: 模型文件
-- `features_YYYYMMDD_HHMMSS.json`: 特征名称文件
-- `latest_model.txt`: 最新模型路径记录
-
-## 命令对照表
-
-| 简化命令 | 原命令 | 功能 |
-|---------|--------|------|
-| `b` | `basic` | 基础测试 |
-| `a` | `ai` | AI优化测试 |
-| `t` | `test` | 单元测试 |
-| `r` | `rolling` | 回测 |
-| `s` | `single` | 单日预测 |
-| `opt` | `strategy` | 策略优化 |
-| `all` | `all` | 全部运行 |
-
-## 参数说明
-
-- `-v`: 详细输出
-- `-i` 或 `--iter`: 设置迭代次数 (默认: 10)
-- 位置参数: 直接输入日期，无需 `--start-date` 等长参数
-
-## 示例
-
-```bash
-# 快速运行基础测试
-python run.py b
-
-# 运行回测并查看详细输出
-python run.py r 2023-01-01 2023-12-31 -v
-
-# 运行策略优化，设置50次迭代
-python run.py opt -i 50
-```
-
-## AI模型工作流程
-
-### 完整流程
-1. **训练阶段**: `python run.py a`
-   - 训练AI模型
-   - 保存模型到 `models/` 目录
-   - 输出训练和验证结果
-
-2. **应用阶段**: `python run.py s 2024-06-01`
-   - 自动加载已训练模型
-   - 使用模型进行预测
-   - 输出预测结果和置信度
-
-3. **验证阶段**: 查看预测结果与实际走势的对比
-
-### 模型更新
-- 每次运行 `python run.py a` 都会重新训练并保存新模型
-- 新模型会自动覆盖旧模型路径记录
-- 如需保留旧模型，请手动备份 `models/` 目录
-
-### 注意事项
-- 首次运行单日预测时，如果没有已训练模型，会自动重新训练
-- 模型训练需要较长时间，建议先运行AI优化测试
-- 模型质量取决于训练数据的质量和数量
-
-## 环境准备
-
-```bash
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-pip install -r requirements.txt
-```
-
-## 一键AI优化推荐
-
-```bash
-python run.py ai
-```
-- 自动分层优化，自动选择最佳参数和AI模型
-- **参数自动持久化**：优化后的参数自动保存到配置文件
-- **全局生效**：所有脚本自动使用优化后的参数
-- 支持生成图表：`python run.py ai plot`
-
-## 验证优化效果
-
-```bash
-# 查看优化后的参数是否生效
-python examples/predict_single_day.py 2024-06-03
-# 输出：策略模块初始化完成，参数: rise_threshold=0.0300, max_days=30
-```
-
-## 常用命令
-
-| 命令         | 说明                       |
-|--------------|----------------------------|
-| b            | 基础策略测试               |
-| a            | AI测试（含训练与预测）     |
-| ai           | 高级AI优化（分层优化）     |
-| r            | 回测                       |
-| s            | 单日预测                   |
-| opt          | 策略参数优化               |
-| all          | 全部测试                   |
-
-## 配置说明
-
-- 编辑 `config/config.yaml` 可自定义数据、策略、AI、优化等参数
-- `ai.advanced_optimization` 控制分层/高级优化开关
-- `ai.genetic_algorithm` 控制遗传算法参数
-
-## 常见问题
-
-- **如何只用AI预测，不重新训练？**
-  - 已有模型会自动加载，无需重复训练
-- **优化后参数如何应用到其他脚本？**
-  - `run.py ai`会自动将优化后的参数保存到配置文件，所有脚本都会自动使用
-- **依赖缺失怎么办？**
-  - 激活虚拟环境并`pip install -r requirements.txt`
-- **优化效果如何？**
-  - 分层优化可提升成功率77.7%，平均涨幅39.9%，综合得分33.0%
-- **参数会丢失吗？**
-  - 不会，优化后的参数会自动保存到配置文件，重启后仍然有效
-
----
-
-详细字段、图表、评估体系说明请参见README和代码注释。
-
-
+A: 修改 `config/config.yaml` 中的 `notification.email` 配置，并在 `src/notification/notification_module.py`

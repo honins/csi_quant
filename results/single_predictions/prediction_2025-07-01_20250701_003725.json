@@ -1,0 +1,70 @@
+{
+  "timestamp": "20250701_003725",
+  "prediction_date": "2025-07-01",
+  "prediction_time": "2025-07-01T00:37:25.068396",
+  "model_info": {
+    "model_file": "model_20250701_003441.pkl",
+    "model_age_hours": 0.04552923,
+    "feature_count": 18,
+    "model_type": "RandomForestClassifier"
+  },
+  "market_data": {
+    "close_price": "5915.39",
+    "price_change": "0.88%",
+    "volume_change": "-16.61%",
+    "volatility": "0.0119"
+  },
+  "technical_indicators": {
+    "rsi": "63.52",
+    "rsi_status": "[偏强]",
+    "macd": "33.3245",
+    "signal": "15.8928",
+    "hist": "17.4317",
+    "macd_trend": "[金叉趋势]",
+    "bb_upper": "5905.32",
+    "bb_lower": "5631.04",
+    "bb_position": "103.67%",
+    "bb_status": "[超买区域]"
+  },
+  "prediction_results": {
+    "is_predicted_low_point": false,
+    "confidence": 0.0,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "future_max_rise": null,
+    "days_to_rise": null,
+    "predict_price": null
+  },
+  "model_analysis": {
+    "model_file": "model_20250701_003441.pkl",
+    "model_time": "2025-07-01T00:34:41",
+    "model_age_hours": 0.04552923,
+    "model_age_description": "0小时2分钟 (非常新鲜)",
+    "feature_importance": {
+      "dist_ma10": 0.24446471000292316,
+      "dist_ma20": 0.18381485210407336,
+      "price_change_10d": 0.13465183516755241,
+      "price_change_5d": 0.09157646003115402,
+      "rsi": 0.08204633130693052,
+      "dist_ma5": 0.06298072275867478,
+      "hist": 0.05755151368386999,
+      "macd": 0.028392333233290473,
+      "volatility": 0.022667042887804995,
+      "signal": 0.01998040047115511,
+      "bb_lower": 0.011716231073550767,
+      "bb_upper": 0.010589771562062627,
+      "ma60": 0.009862532989305249,
+      "price_change": 0.009431682798612416,
+      "ma5": 0.008074675168904378,
+      "volume_change": 0.007841194190463432,
+      "ma10": 0.00732103654742987,
+      "ma20": 0.0070366740222423145
+    },
+    "model_type": "RandomForestClassifier",
+    "feature_count": 18,
+    "prediction_proba": [
+      1.0,
+      0.0
+    ]
+  }
+}

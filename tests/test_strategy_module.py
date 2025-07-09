@@ -24,7 +24,7 @@ class TestStrategyModule(unittest.TestCase):
         """测试前准备"""
         self.config = {
             'strategy': {
-                'rise_threshold': 0.05,
+                'rise_threshold': 0.04,
                 'max_days': 20
             },
             'optimization': {
@@ -135,7 +135,7 @@ class TestStrategyModule(unittest.TestCase):
         # 检查返回的参数
         self.assertIn('rise_threshold', params)
         self.assertIn('max_days', params)
-        self.assertEqual(params['rise_threshold'], 0.05)
+        self.assertEqual(params['rise_threshold'], 0.04)
         self.assertEqual(params['max_days'], 20)
         
     def test_empty_data_handling(self):

@@ -205,7 +205,7 @@ set_token("your_token_here")
 # 测试API调用
 try:
     data = history(
-        symbol='SHSE.000852',
+        symbol='SHSE.000905',
         frequency='1d',
         start_time='2024-01-01',
         end_time='2024-01-02',

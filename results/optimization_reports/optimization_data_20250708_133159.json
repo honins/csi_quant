@@ -1,0 +1,176 @@
+{
+  "timestamp": "20250708_133159",
+  "generated_at": "2025-07-08T13:31:59.938988",
+  "optimization_result": {
+    "success": true,
+    "method": "genetic_algorithm_high_precision",
+    "total_time": 2450.2945518493652,
+    "iterations": "N/A",
+    "best_score": 0.5097549331959097,
+    "accuracy": 0.16560509554140126,
+    "success_rate": 0.16560509554140126,
+    "avg_rise": 0.03928568795595199,
+    "best_params": {
+      "final_threshold": 0.3935,
+      "rsi_low_threshold": 50,
+      "dynamic_confidence_adjustment": 0.2051,
+      "rsi_oversold_threshold": 28,
+      "trend_strength_weight": 0.0668,
+      "volume_panic_threshold": 1.497,
+      "volume_shrink_threshold": 0.863,
+      "market_sentiment_weight": 0.1148,
+      "volume_surge_threshold": 1.193,
+      "price_momentum_weight": 0.2739,
+      "bb_near_threshold": 1.04014,
+      "volume_weight": 0.2862
+    },
+    "training_time_breakdown": {
+      "feature_engineering": 0.24532747268676758,
+      "label_preparation": 5.0426249504089355,
+      "weight_calculation": 0.006667137145996094,
+      "model_training": 0.24255633354187012,
+      "model_saving": 0.003726959228515625
+    },
+    "overfitting_detection": {
+      "success": true,
+      "best_params": {
+        "final_threshold": 0.3935,
+        "rsi_low_threshold": 50,
+        "dynamic_confidence_adjustment": 0.2051,
+        "rsi_oversold_threshold": 28,
+        "trend_strength_weight": 0.0668,
+        "volume_panic_threshold": 1.497,
+        "volume_shrink_threshold": 0.863,
+        "market_sentiment_weight": 0.1148,
+        "volume_surge_threshold": 1.193,
+        "price_momentum_weight": 0.2739,
+        "bb_near_threshold": 1.04014,
+        "volume_weight": 0.2862
+      },
+      "best_score": 0.5097549331959097,
+      "validation_score": 0.3539372880998918,
+      "validation_success_rate": 0.16560509554140126,
+      "validation_total_points": 157,
+      "validation_avg_rise": 0.02371158010973037,
+      "test_score": 0.7101395429141826,
+      "test_success_rate": 0.5,
+      "test_total_points": 76,
+      "test_avg_rise": 0.08671318097139417,
+      "overfitting_passed": "False",
+      "generalization_passed": "True",
+      "generalization_ratio": 2.0063993447160047,
+      "optimization_method": "genetic_algorithm_high_precision",
+      "optimization_time": 2438.0526492595673,
+      "genetic_algorithm_used": true
+    }
+  },
+  "model_info": {
+    "model_type": "RandomForest",
+    "feature_count": 23,
+    "train_samples": 1453,
+    "positive_ratio": 0.4026152787336545,
+    "n_estimators": 100,
+    "max_depth": 8,
+    "min_samples_split": 15,
+    "min_samples_leaf": 8
+  },
+  "overfitting_detection": {
+    "success": true,
+    "best_params": {
+      "final_threshold": 0.3935,
+      "rsi_low_threshold": 50,
+      "dynamic_confidence_adjustment": 0.2051,
+      "rsi_oversold_threshold": 28,
+      "trend_strength_weight": 0.0668,
+      "volume_panic_threshold": 1.497,
+      "volume_shrink_threshold": 0.863,
+      "market_sentiment_weight": 0.1148,
+      "volume_surge_threshold": 1.193,
+      "price_momentum_weight": 0.2739,
+      "bb_near_threshold": 1.04014,
+      "volume_weight": 0.2862
+    },
+    "best_score": 0.5097549331959097,
+    "validation_score": 0.3539372880998918,
+    "validation_success_rate": 0.16560509554140126,
+    "validation_total_points": 157,
+    "validation_avg_rise": 0.02371158010973037,
+    "test_score": 0.7101395429141826,
+    "test_success_rate": 0.5,
+    "test_total_points": 76,
+    "test_avg_rise": 0.08671318097139417,
+    "overfitting_passed": "False",
+    "generalization_passed": "True",
+    "generalization_ratio": 2.0063993447160047,
+    "optimization_method": "genetic_algorithm_high_precision",
+    "optimization_time": 2438.0526492595673,
+    "genetic_algorithm_used": true
+  },
+  "config_snapshot": {
+    "data_split": {
+      "train_ratio": 0.65,
+      "validation_ratio": 0.2,
+      "test_ratio": 0.15,
+      "walk_forward": {
+        "enabled": true,
+        "window_size": 252,
+        "step_size": 63
+      }
+    },
+    "early_stopping": {
+      "enabled": true,
+      "patience": 50,
+      "min_delta": 0.001
+    },
+    "strategy": {
+      "rise_threshold": 0.04,
+      "max_days": 20,
+      "results_dir": "results",
+      "bb_period": 20,
+      "bb_std": 2,
+      "rsi_period": 14,
+      "macd_fast": 12,
+      "macd_signal": 9,
+      "macd_slow": 26,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "confidence_weights": {
+        "final_threshold": 0.3935,
+        "ma_all_below": 0.3,
+        "ma_partial_below": 0.2,
+        "bb_lower_near": 0.2,
+        "bb_near_threshold": 1.02,
+        "decline_threshold": -0.05,
+        "recent_decline": 0.2,
+        "rsi_low": 0.2,
+        "rsi_low_threshold": 50,
+        "rsi_oversold": 0.3,
+        "rsi_oversold_threshold": 28,
+        "macd_negative": 0.1,
+        "volume_panic_bonus": 0.1,
+        "volume_surge_bonus": 0.05,
+        "volume_shrink_penalty": 0.7,
+        "volume_panic_threshold": 1.4,
+        "volume_surge_threshold": 1.2,
+        "volume_shrink_threshold": 0.8,
+        "price_decline_threshold": -0.02,
+        "dynamic_confidence_adjustment": 0.2051,
+        "market_sentiment_weight": 0.1148,
+        "trend_strength_weight": 0.0668,
+        "volume_weight": 0.25,
+        "price_momentum_weight": 0.2
+      },
+      "scoring": {
+        "success_weight": 0.5,
+        "rise_weight": 0.3,
+        "days_weight": 0.2,
+        "rise_benchmark": 0.1,
+        "days_benchmark": 10.0
+      }
+    }
+  }
+}

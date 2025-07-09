@@ -1,0 +1,213 @@
+ai:
+  advanced_optimization:
+    enabled: true
+    high_precision_mode: true
+    use_hierarchical: true
+    use_scipy: true
+    use_time_series_cv: true
+  bayesian_optimization:
+    acq_func: EI
+    enabled: true
+    kappa: 2.0
+    n_calls: 120
+    n_initial_points: 25
+    n_jobs: 1
+    random_state: 42
+    xi: 0.008
+  confidence_smoothing:
+    debug_mode: true
+    dynamic_adjustment:
+      confidence_factor:
+        enabled: true
+        large_change_threshold: 0.4
+        max_multiplier: 1.4
+      enabled: true
+      max_limit: 0.4
+      min_limit: 0.1
+      price_factor:
+        enabled: true
+        max_multiplier: 1.8
+        sensitivity: 8
+      volatility_factor:
+        enabled: true
+        max_multiplier: 2.0
+        min_multiplier: 0.6
+      volume_factor:
+        enabled: true
+        low_threshold: 0.8
+        max_multiplier: 1.6
+        panic_threshold: 1.4
+    ema_alpha: 0.4
+    enabled: true
+    log_adjustments: true
+    max_daily_change: 0.18
+  data_decay_rate: 0.35
+  early_stopping:
+    enabled: true
+    min_delta: 0.0008
+    patience: 60
+  enable: true
+  genetic_algorithm:
+    crossover_rate: 0.8
+    elite_ratio: 0.1
+    enabled: true
+    generations: 30
+    high_precision_mode: true
+    mutation_rate: 0.15
+    population_size: 50
+  model_save_path: models/ai_model_improved.pkl
+  model_type: machine_learning
+  models_dir: models
+  optimization:
+    enable_history: true
+    enable_incremental: true
+    global_iterations: 600
+    incremental_contraction_factor: 0.45
+    incremental_iterations: 1200
+    max_history_records: 150
+  optimization_interval: 30
+  optimization_ranges:
+    dynamic_confidence_adjustment:
+      max: 0.22
+      min: 0.06
+      step: 0.015
+    market_sentiment_weight:
+      max: 0.28
+      min: 0.1
+      step: 0.018
+    price_momentum_weight:
+      max: 0.32
+      min: 0.15
+      step: 0.018
+    trend_strength_weight:
+      max: 0.22
+      min: 0.08
+      step: 0.016
+    volume_weight:
+      max: 0.38
+      min: 0.18
+      step: 0.02
+  scoring:
+    rise_benchmark: 0.1
+    rise_weight: 0.28
+    risk_benchmark: 0.2
+    risk_weight: 0.08
+    speed_weight: 0.22
+    success_weight: 0.42
+  train_test_split_ratio: 0.8
+  validation:
+    test_ratio: 0.15
+    train_ratio: 0.65
+    validation_ratio: 0.2
+    walk_forward:
+      enabled: true
+      step_size: 63
+      window_size: 252
+backtest:
+  charts_dir: charts
+  default_end_date: '2025-06-30'
+  default_start_date: '2023-01-01'
+  end_date: '2025-06-30'
+  generate_charts: true
+  rolling_step: 63
+  rolling_window: 252
+  start_date: '2022-01-01'
+data:
+  cache_dir: cache
+  cache_enabled: true
+  data_file_path: data/SHSE.000905_1d.csv
+  data_source: akshare
+  frequency: 1d
+  history_days: 1000
+  index_code: SHSE.000905
+logging:
+  backup_count: 5
+  file: logs/system_improved.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_bytes: 10485760
+notification:
+  email:
+    password: your_password
+    recipients:
+    - your_email@example.com
+    sender: quant_system@example.com
+    smtp_port: 587
+    smtp_server: smtp.example.com
+    username: your_username
+  logs_dir: logs
+  methods:
+  - console
+  - email
+results:
+  images_path: results/images
+  save_detailed: true
+  save_path: results
+  tables_path: results/tables
+risk:
+  cooldown_days: 4
+  max_daily_change: 0.08
+  max_daily_signals: 3
+  min_confidence: 0.58
+strategy:
+  bb_near_threshold: 1.02043
+  bb_period: 20
+  bb_std: 2
+  confidence_weights:
+    bb_lower_near: 0.22
+    bb_near_threshold: 1.018
+    decline_threshold: -0.048
+    dynamic_confidence_adjustment: 0.12
+    final_threshold: 0.3007
+    ma_all_below: 0.32
+    ma_partial_below: 0.22
+    macd_negative: 0.12
+    market_sentiment_weight: 0.18
+    price_decline_threshold: -0.018
+    price_momentum_weight: 0.22
+    recent_decline: 0.22
+    rsi_low: 0.22
+    rsi_low_threshold: 49.0
+    rsi_oversold: 0.32
+    rsi_oversold_threshold: 30.0
+    trend_strength_weight: 0.14
+    volume_panic_bonus: 0.12
+    volume_panic_threshold: 1.45
+    volume_shrink_penalty: 0.68
+    volume_shrink_threshold: 0.78
+    volume_surge_bonus: 0.06
+    volume_surge_threshold: 1.25
+    volume_weight: 0.28
+  dynamic_confidence_adjustment: 0.1177
+  final_threshold: 0.4
+  ma_periods:
+  - 5
+  - 10
+  - 20
+  - 60
+  macd_fast: 12
+  macd_signal: 9
+  macd_slow: 26
+  market_sentiment_weight: 0.2133
+  max_days: 20
+  price_momentum_weight: 0.2822
+  results_dir: results
+  rise_threshold: 0.04
+  rsi_low_threshold: 45
+  rsi_oversold_threshold: 29
+  rsi_period: 14
+  scoring:
+    days_benchmark: 10.0
+    days_weight: 0.2
+    rise_benchmark: 0.1
+    rise_weight: 0.28
+    success_weight: 0.52
+  trend_strength_weight: 0.2161
+  volume_panic_threshold: 1.925
+  volume_shrink_threshold: 0.654
+  volume_surge_threshold: 1.271
+  volume_weight: 0.3345
+system:
+  log_file: logs/system_improved.log
+  log_level: INFO
+  mode: backtest
