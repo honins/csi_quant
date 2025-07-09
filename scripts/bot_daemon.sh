@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 增强版交易机器人守护进程启动脚本
+# 指数交易机器人守护进程启动脚本
 
 # 脚本配置
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -110,7 +110,7 @@ is_running() {
 
 # 启动守护进程
 start_daemon() {
-    print_status "启动增强版交易机器人守护进程..."
+    print_status "启动指数交易机器人守护进程..."
     
     if is_running; then
         local pid=$(cat "$PID_FILE")
@@ -154,7 +154,7 @@ start_daemon() {
 
 # 停止守护进程
 stop_daemon() {
-    print_status "停止增强版交易机器人守护进程..."
+    print_status "停止指数交易机器人守护进程..."
     
     if ! is_running; then
         print_warning "守护进程未运行"
@@ -187,7 +187,7 @@ stop_daemon() {
 
 # 重启守护进程
 restart_daemon() {
-    print_status "重启增强版交易机器人守护进程..."
+    print_status "重启指数交易机器人守护进程..."
     stop_daemon
     sleep 2
     start_daemon
@@ -195,7 +195,7 @@ restart_daemon() {
 
 # 检查状态
 check_status() {
-    print_status "检查增强版交易机器人守护进程状态..."
+    print_status "检查指数交易机器人守护进程状态..."
     
     if is_running; then
         local pid=$(cat "$PID_FILE")
@@ -261,7 +261,7 @@ backup_data() {
 
 # 显示帮助
 show_help() {
-    echo "增强版交易机器人守护进程管理脚本"
+    echo "指数交易机器人守护进程管理脚本"
     echo ""
     echo "用法: $0 {start|stop|restart|status|logs|health|backup|help}"
     echo ""

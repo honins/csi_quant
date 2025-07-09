@@ -1,5 +1,5 @@
 @echo off
-:: 增强版交易机器人守护进程启动脚本 (Windows版本)
+:: 指数交易机器人守护进程启动脚本 (Windows版本)
 
 setlocal enabledelayedexpansion
 
@@ -109,7 +109,7 @@ if exist "%PID_FILE%" (
 
 :: 启动守护进程
 :start_daemon
-call :print_status "启动增强版交易机器人守护进程..."
+call :print_status "启动指数交易机器人守护进程..."
 
 call :is_running
 if not errorlevel 1 (
@@ -168,7 +168,7 @@ goto :eof
 
 :: 停止守护进程
 :stop_daemon
-call :print_status "停止增强版交易机器人守护进程..."
+call :print_status "停止指数交易机器人守护进程..."
 
 call :is_running
 if errorlevel 1 (
@@ -206,7 +206,7 @@ goto :eof
 
 :: 重启守护进程
 :restart_daemon
-call :print_status "重启增强版交易机器人守护进程..."
+call :print_status "重启指数交易机器人守护进程..."
 call :stop_daemon
 timeout /t 2 /nobreak >nul
 call :start_daemon
@@ -214,7 +214,7 @@ goto :eof
 
 :: 检查状态
 :check_status
-call :print_status "检查增强版交易机器人守护进程状态..."
+call :print_status "检查指数交易机器人守护进程状态..."
 
 call :is_running
 if not errorlevel 1 (
@@ -273,7 +273,7 @@ goto :eof
 
 :: 显示帮助
 :show_help
-echo 增强版交易机器人守护进程管理脚本 (Windows版本)
+echo 指数交易机器人守护进程管理脚本 (Windows版本)
 echo.
 echo 用法: %~nx0 {start^|stop^|restart^|status^|logs^|health^|backup^|help}
 echo.

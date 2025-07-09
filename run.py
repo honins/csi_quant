@@ -888,9 +888,9 @@ def run_ai_optimization_improved(config):
         return False
 
 def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
-    """运行增强版日常交易机器人"""
+    """运行指数交易机器人"""
     print("="*70)
-    print("🚀 增强版日常交易机器人")
+    print("🚀 指数交易机器人")
     print("="*70)
     
     try:
@@ -907,7 +907,7 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
             
             from bot_core import EnhancedDailyTradingBot
         except ImportError as e:
-            print(f"❌ 无法导入增强版交易机器人模块: {e}")
+            print(f"❌ 无法导入指数交易机器人模块: {e}")
             print("💡 提示: 请检查依赖包是否已安装:")
             print("   pip install psutil GitPython schedule")
             print("   或者: pip install -r requirements.txt")
@@ -921,7 +921,7 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
                 print("❌ 找不到配置文件")
                 return False
         
-        print(f"📋 增强版机器人配置:")
+        print(f"📋 指数交易机器人配置:")
         print(f"   🎯 运行模式: {mode}")
         print(f"   🛡️ 守护进程: {'启用' if daemon or mode == 'daemon' else '禁用'}")
         print(f"   📁 配置文件: {os.path.basename(config_path)}")
@@ -931,11 +931,11 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
         try:
             bot = EnhancedDailyTradingBot(config_path, daemon_mode=daemon or mode == 'daemon')
         except Exception as e:
-            print(f"❌ 机器人初始化失败: {e}")
+            print(f"❌ 指数交易机器人初始化失败: {e}")
             return False
 
         if mode == 'run':
-            print("🚀 开始单次执行增强版流程...")
+            print("🚀 开始单次执行指数交易流程...")
             workflow_result = bot.daily_workflow()
             success = workflow_result['success']
             
@@ -985,10 +985,10 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
             success = True
             
         elif mode == 'status':
-            print("📊 检查增强版机器人状态...")
+            print("📊 检查指数交易机器人状态...")
             status_report = bot.get_status_report()
             
-            print("\n📊 增强版机器人状态报告:")
+            print("\n📊 指数交易机器人状态报告:")
             print("="*70)
             print(f"🤖 机器人状态: {'正常' if status_report['config_loaded'] else '异常'}")
             print(f"📅 运行开始: {status_report['bot_state'].get('start_date', '未知')}")
@@ -1104,18 +1104,18 @@ def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
             return False
         
         if success:
-            print(f"\n✅ 增强版机器人执行完成！")
+            print(f"\n✅ 指数交易机器人执行完成！")
             return True
         else:
-            print(f"\n❌ 增强版机器人执行失败！")
+            print(f"\n❌ 指数交易机器人执行失败！")
             return False
             
     except ImportError as e:
-        print(f"\n❌ 无法导入增强版交易机器人模块: {e}")
+        print(f"\n❌ 无法导入指数交易机器人模块: {e}")
         print("💡 提示: 请检查依赖包是否已安装: pip install psutil GitPython")
         return False
     except Exception as e:
-        print(f"\n❌ 增强版机器人执行过程中发生错误: {e}")
+        print(f"\n❌ 指数交易机器人执行过程中发生错误: {e}")
         import traceback
         print(traceback.format_exc())
         return False
@@ -1148,7 +1148,7 @@ def main():
   python run.py s 2023-12-01         # 单日预测
   python run.py ai -m optimize       # AI优化训练（自动生成报告）
   
-  # 增强版交易机器人
+  # 指数交易机器人
   python run.py bot -m run           # 运行单次交易流程
   python run.py bot -m daemon --daemon  # 启动守护进程模式
   python run.py bot -m status        # 查看机器人状态
@@ -1166,7 +1166,7 @@ def main():
 环境变量配置:
   CSI_CONFIG_PATH=path/to/config.yaml python run.py ai  # 使用自定义配置文件
 
-增强版机器人特性:
+指数交易机器人特性:
   ✅ 每天15:05自动拉取最新数据并提交
   ✅ 守护进程模式常驻运行
   ✅ 系统性能监控和告警
@@ -1177,12 +1177,12 @@ def main():
     )
     
     parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot', 'fetch', 'report'], 
-                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=增强版交易机器人, fetch=数据获取, report=生成汇总报告, all=全部')
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=指数交易机器人, fetch=数据获取, report=生成汇总报告, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')
     parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
     parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
     parser.add_argument('-i', '--iter', type=int, default=10, help='迭代次数 (默认: 10)')
-    parser.add_argument('-m', '--mode', type=str, help='模式: optimize/incremental/full/demo (AI), run/schedule/daemon/status/backup/restore/health (增强版机器人)')
+    parser.add_argument('-m', '--mode', type=str, help='模式: optimize/incremental/full/demo (AI), run/schedule/daemon/status/backup/restore/health (指数交易机器人)')
     parser.add_argument('--daemon', action='store_true', help='启用守护进程模式')
     parser.add_argument('--backup-timestamp', type=str, help='备份时间戳 (用于恢复模式)')
     parser.add_argument('--no-timer', action='store_true', help='禁用性能计时器')
@@ -1220,7 +1220,7 @@ def main():
     elif args.command == 'bot':
         mode = args.mode if args.mode else 'run'
         if mode not in ['run', 'schedule', 'daemon', 'status', 'backup', 'restore', 'health']:
-            print('❌ 增强版机器人模式必须是: run, schedule, daemon, status, backup, restore, 或 health')
+            print('❌ 指数交易机器人模式必须是: run, schedule, daemon, status, backup, restore, 或 health')
             print('   例如: python run.py bot -m run')
             print('   例如: python run.py bot -m daemon --daemon')
             print('   例如: python run.py bot -m backup')
@@ -1258,7 +1258,7 @@ def main():
             print(f"🤖 启动AI训练模式: {mode}...")
             success = run_incremental_training(mode)
     elif args.command == 'bot':
-        # 增强版机器人模式，默认为单次运行
+        # 指数交易机器人模式，默认为单次运行
         mode = args.mode if args.mode else 'run'
         success = run_trading_bot(mode, daemon=args.daemon, backup_timestamp=args.backup_timestamp)
     elif args.command == 'report':

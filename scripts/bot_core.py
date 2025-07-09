@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-增强版日常交易流程自动化机器人
+指数交易机器人
 支持无人值守、常驻运行、自动数据更新、性能监控、数据备份等功能
 """
 
@@ -48,10 +48,10 @@ class SystemMetrics:
     timestamp: datetime
 
 class EnhancedDailyTradingBot:
-    """增强版日常交易流程自动化机器人"""
+    """指数交易机器人"""
     
     def __init__(self, config_path: Optional[str] = None, daemon_mode: bool = False):
-        """初始化增强版交易机器人"""
+        """初始化指数交易机器人"""
         
         # 守护进程模式标志
         self.daemon_mode = daemon_mode
@@ -131,7 +131,7 @@ class EnhancedDailyTradingBot:
         if self.daemon_mode:
             self._setup_signal_handlers()
         
-        self.logger.info("增强版日常交易机器人初始化完成")
+        self.logger.info("指数交易机器人初始化完成")
     
     def _setup_signal_handlers(self):
         """设置信号处理器（跨平台兼容）"""
@@ -161,7 +161,7 @@ class EnhancedDailyTradingBot:
         self.running = False
     
     def setup_logging(self):
-        """设置增强版日志"""
+        """设置指数交易机器人日志"""
         log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
         os.makedirs(log_dir, exist_ok=True)
         
@@ -1433,8 +1433,8 @@ class EnhancedDailyTradingBot:
 
 
 def main():
-    """增强版主函数"""
-    parser = argparse.ArgumentParser(description='增强版日常交易流程自动化机器人')
+    """指数交易机器人主函数"""
+    parser = argparse.ArgumentParser(description='指数交易机器人')
     parser.add_argument('--mode', choices=['run', 'schedule', 'daemon', 'status', 'backup', 'restore', 'health'], 
                        default='run', help='运行模式')
     parser.add_argument('--config', help='配置文件路径')
@@ -1445,12 +1445,12 @@ def main():
     args = parser.parse_args()
     
     try:
-        # 初始化增强版机器人
+        # 初始化指数交易机器人
         bot = EnhancedDailyTradingBot(args.config, daemon_mode=args.daemon or args.mode == 'daemon')
         
         if args.mode == 'run':
             # 单次执行
-            print("🚀 执行单次增强版日常交易流程...")
+            print("🚀 执行单次指数交易流程...")
             result = bot.daily_workflow()
             
             print("\n" + "="*60)
@@ -1517,7 +1517,7 @@ def main():
             # 状态查询
             status = bot.get_status_report()
             print("\n" + "="*60)
-            print("📊 增强版机器人状态报告")
+            print("📊 指数交易机器人状态报告")
             print("="*60)
             
             # 基本状态
@@ -1628,7 +1628,7 @@ def main():
         return 0
         
     except Exception as e:
-        print(f"❌ 增强版机器人执行失败: {e}")
+        print(f"❌ 指数交易机器人执行失败: {e}")
         import traceback
         traceback.print_exc()
         return 1
