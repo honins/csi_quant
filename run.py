@@ -887,238 +887,7 @@ def run_ai_optimization_improved(config):
         traceback.print_exc()
         return False
 
-def run_trading_bot(mode='run', daemon=False, backup_timestamp=None):
-    """运行指数交易机器人"""
-    print("="*70)
-    print("🚀 指数交易机器人")
-    print("="*70)
-    
-    try:
-        # 确保可以导入机器人模块
-        scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-        
-        try:
-            # 添加scripts目录到路径
-            scripts_dir = os.path.join(os.path.dirname(__file__), 'scripts')
-            if scripts_dir not in sys.path:
-                sys.path.insert(0, scripts_dir)
-            
-            from bot_core import EnhancedDailyTradingBot
-        except ImportError as e:
-            print(f"❌ 无法导入指数交易机器人模块: {e}")
-            print("💡 提示: 请检查依赖包是否已安装:")
-            print("   pip install psutil GitPython schedule")
-            print("   或者: pip install -r requirements.txt")
-            return False
-        
-        # 获取配置文件路径
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'config_core.yaml')
-        if not os.path.exists(config_path):
-            config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
-            if not os.path.exists(config_path):
-                print("❌ 找不到配置文件")
-                return False
-        
-        print(f"📋 指数交易机器人配置:")
-        print(f"   🎯 运行模式: {mode}")
-        print(f"   🛡️ 守护进程: {'启用' if daemon or mode == 'daemon' else '禁用'}")
-        print(f"   📁 配置文件: {os.path.basename(config_path)}")
-        print("="*70)
-        
-        # 创建增强版机器人实例
-        try:
-            bot = EnhancedDailyTradingBot(config_path, daemon_mode=daemon or mode == 'daemon')
-        except Exception as e:
-            print(f"❌ 指数交易机器人初始化失败: {e}")
-            return False
 
-        if mode == 'run':
-            print("🚀 开始单次执行指数交易流程...")
-            workflow_result = bot.daily_workflow()
-            success = workflow_result['success']
-            
-            print(f"\n📊 执行结果摘要:")
-            print(f"   状态: {'✅ 成功' if success else '❌ 失败'}")
-            print(f"   日期: {workflow_result['date']}")
-            
-            # 显示各步骤状态
-            steps = workflow_result.get('steps', {})
-            if 'health_check' in steps:
-                health = steps['health_check']
-                print(f"   健康检查: {'✅ 正常' if health['overall_healthy'] else '⚠️ 异常'}")
-            
-            if 'data_fetch' in steps:
-                fetch = steps['data_fetch']
-                print(f"   数据拉取: {'✅ 成功' if fetch['success'] else '❌ 失败'}")
-                if fetch.get('data_updated'):
-                    print(f"      - 📡 数据已更新并提交")
-            
-            if 'prediction' in steps and steps['prediction'].get('success'):
-                pred = steps['prediction']
-                result_text = '📈 相对低点' if pred['is_low_point'] else '📉 非相对低点'
-                print(f"   AI预测: {result_text} (置信度: {pred['final_confidence']:.3f})")
-            
-            if 'signal' in steps and steps['signal'].get('success'):
-                signal = steps['signal']['signal']
-                print(f"   交易信号: {signal['action']} (强度: {signal['strength']}/5)")
-            
-            if 'backup' in steps:
-                backup = steps['backup']
-                if backup['success']:
-                    print(f"   数据备份: ✅ 完成 ({backup['total_size']/1024/1024:.1f}MB)")
-            
-            if workflow_result.get('errors'):
-                print(f"   错误: {len(workflow_result['errors'])}项")
-                for error in workflow_result['errors']:
-                    print(f"      - {error}")
-        
-        elif mode == 'schedule':
-            print("⏰ 开始简单定时执行...")
-            bot.run_scheduled()
-            success = True
-            
-        elif mode == 'daemon':
-            print("🛡️ 开始守护进程模式...")
-            bot.run_daemon_mode()
-            success = True
-            
-        elif mode == 'status':
-            print("📊 检查指数交易机器人状态...")
-            status_report = bot.get_status_report()
-            
-            print("\n📊 指数交易机器人状态报告:")
-            print("="*70)
-            print(f"🤖 机器人状态: {'正常' if status_report['config_loaded'] else '异常'}")
-            print(f"📅 运行开始: {status_report['bot_state'].get('start_date', '未知')}")
-            
-            # 计算运行时长
-            uptime_start = status_report['bot_state'].get('uptime_start')
-            if uptime_start:
-                try:
-                    start_time = datetime.fromisoformat(uptime_start)
-                    uptime = datetime.now() - start_time
-                    days = uptime.days
-                    hours, remainder = divmod(uptime.seconds, 3600)
-                    minutes, _ = divmod(remainder, 60)
-                    print(f"⏱️ 运行时长: {days}天 {hours}小时 {minutes}分钟")
-                except:
-                    print(f"⏱️ 运行时长: {uptime_start}")
-            else:
-                print(f"⏱️ 运行时长: 未知")
-            
-            print(f"\n📊 执行统计:")
-            print(f"   总预测次数: {status_report['bot_state'].get('total_predictions', 0)}")
-            print(f"   成功预测: {status_report['bot_state'].get('successful_predictions', 0)}")
-            print(f"   训练次数: {status_report['bot_state'].get('training_count', 0)}")
-            print(f"   数据拉取次数: {status_report['bot_state'].get('data_fetch_count', 0)}")
-            print(f"   备份次数: {status_report['bot_state'].get('backup_count', 0)}")
-            print(f"   连续错误: {status_report['bot_state'].get('consecutive_errors', 0)}")
-            
-            print(f"\n🕐 最后执行时间:")
-            print(f"   训练: {status_report['bot_state'].get('last_training_date') or '无'}")
-            print(f"   预测: {status_report['bot_state'].get('last_prediction_date') or '无'}")
-            print(f"   数据拉取: {status_report['bot_state'].get('last_data_fetch') or '无'}")
-            print(f"   备份: {status_report['bot_state'].get('last_backup') or '无'}")
-            
-            # 执行健康检查
-            print(f"\n🏥 系统健康检查:")
-            health = bot.check_system_health()
-            print(f"   整体状态: {'✅ 健康' if health['overall_healthy'] else '⚠️ 异常'}")
-            print(f"   CPU使用率: {health['metrics']['cpu_percent']:.1f}%")
-            print(f"   内存使用率: {health['metrics']['memory_percent']:.1f}%")
-            print(f"   磁盘使用率: {health['metrics']['disk_usage']:.1f}%")
-            
-            if health['errors']:
-                print(f"\n❌ 发现 {len(health['errors'])} 个错误:")
-                for error in health['errors']:
-                    print(f"   - {error}")
-            
-            if health['warnings']:
-                print(f"\n⚠️ 发现 {len(health['warnings'])} 个警告:")
-                for warning in health['warnings']:
-                    print(f"   - {warning}")
-            
-            print("="*70)
-            success = True
-            
-        elif mode == 'backup':
-            print("💾 执行手动数据备份...")
-            result = bot.auto_backup_data()
-            
-            if result['success']:
-                print("✅ 备份完成！")
-                print(f"   备份路径: {result['backup_path']}")
-                print(f"   备份大小: {result['total_size']/1024/1024:.1f}MB")
-                print(f"   备份项目: {len(result['backed_up_items'])}个")
-                success = True
-            else:
-                print(f"❌ 备份失败: {result.get('error', '未知错误')}")
-                success = False
-                
-        elif mode == 'restore':
-            if not backup_timestamp:
-                print("❌ 恢复模式需要指定备份时间戳")
-                return False
-            
-            print(f"🔄 从备份恢复数据: {backup_timestamp}")
-            result = bot.restore_from_backup(backup_timestamp)
-            
-            if result['success']:
-                print("✅ 恢复完成！")
-                print(f"   恢复项目: {', '.join(result['restored_items'])}")
-                success = True
-            else:
-                print(f"❌ 恢复失败: {result.get('error', '未知错误')}")
-                success = False
-                
-        elif mode == 'health':
-            print("🏥 执行系统健康检查...")
-            health = bot.check_system_health()
-            
-            print(f"\n系统健康状态: {'✅ 健康' if health['overall_healthy'] else '⚠️ 异常'}")
-            print(f"检查时间: {health['timestamp']}")
-            
-            print(f"\n📊 系统指标:")
-            print(f"   CPU使用率: {health['metrics']['cpu_percent']:.1f}%")
-            print(f"   内存使用率: {health['metrics']['memory_percent']:.1f}%")
-            print(f"   磁盘使用率: {health['metrics']['disk_usage']:.1f}%")
-            
-            if health['errors']:
-                print(f"\n❌ 错误 ({len(health['errors'])}项):")
-                for error in health['errors']:
-                    print(f"   - {error}")
-            
-            if health['warnings']:
-                print(f"\n⚠️ 警告 ({len(health['warnings'])}项):")
-                for warning in health['warnings']:
-                    print(f"   - {warning}")
-            
-            if not health['errors'] and not health['warnings']:
-                print("\n✅ 未发现问题")
-                
-            success = True
-        else:
-            print(f"❌ 未知模式: {mode}")
-            return False
-        
-        if success:
-            print(f"\n✅ 指数交易机器人执行完成！")
-            return True
-        else:
-            print(f"\n❌ 指数交易机器人执行失败！")
-            return False
-            
-    except ImportError as e:
-        print(f"\n❌ 无法导入指数交易机器人模块: {e}")
-        print("💡 提示: 请检查依赖包是否已安装: pip install psutil GitPython")
-        return False
-    except Exception as e:
-        print(f"\n❌ 指数交易机器人执行过程中发生错误: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return False
 
 def main():
     """主函数"""
@@ -1148,17 +917,7 @@ def main():
   python run.py s 2023-12-01         # 单日预测
   python run.py ai -m optimize       # AI优化训练（自动生成报告）
   
-  # 指数交易机器人
-  python run.py bot -m run           # 运行单次交易流程
-  python run.py bot -m daemon --daemon  # 启动守护进程模式
-  python run.py bot -m status        # 查看机器人状态
-  python run.py bot -m backup        # 执行数据备份
-  python run.py bot -m health        # 系统健康检查
-  python run.py bot -m restore --backup-timestamp 20240101_120000  # 恢复数据
-  
-  # 守护进程管理（推荐使用脚本）
-  scripts/bot_daemon.sh start    # Linux/Mac启动守护进程
-  scripts/bot_daemon.bat start   # Windows启动守护进程
+
   
   python run.py report               # 生成最近7天的汇总报告
   python run.py report 14            # 生成最近14天的汇总报告
@@ -1166,25 +925,17 @@ def main():
 环境变量配置:
   CSI_CONFIG_PATH=path/to/config.yaml python run.py ai  # 使用自定义配置文件
 
-指数交易机器人特性:
-  ✅ 每天15:05自动拉取最新数据并提交
-  ✅ 守护进程模式常驻运行
-  ✅ 系统性能监控和告警
-  ✅ 自动数据备份和恢复
-  ✅ 健康检查和故障恢复
-  ✅ 完整的日志记录系统
+
         """
     )
     
-    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'bot', 'fetch', 'report'], 
-                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, bot=指数交易机器人, fetch=数据获取, report=生成汇总报告, all=全部')
+    parser.add_argument('command', choices=['b', 'a', 't', 'all', 'r', 's', 'opt', 'ai', 'fetch', 'report'], 
+                       help='命令: b=基础测试, a=AI测试, t=单元测试, r=回测, s=单日预测, opt=策略优化, ai=AI优化/训练, fetch=数据获取, report=生成汇总报告, all=全部')
     parser.add_argument('-v', action='store_true', help='详细输出')
     parser.add_argument('start', nargs='?', help='开始日期 (YYYY-MM-DD)')
     parser.add_argument('end', nargs='?', help='结束日期 (YYYY-MM-DD)')
     parser.add_argument('-i', '--iter', type=int, default=10, help='迭代次数 (默认: 10)')
-    parser.add_argument('-m', '--mode', type=str, help='模式: optimize/incremental/full/demo (AI), run/schedule/daemon/status/backup/restore/health (指数交易机器人)')
-    parser.add_argument('--daemon', action='store_true', help='启用守护进程模式')
-    parser.add_argument('--backup-timestamp', type=str, help='备份时间戳 (用于恢复模式)')
+    parser.add_argument('-m', '--mode', type=str, help='模式: optimize/incremental/full/demo (AI)')
     parser.add_argument('--no-timer', action='store_true', help='禁用性能计时器')
     
     args = parser.parse_args()
@@ -1217,15 +968,7 @@ def main():
             print('❌ AI模式必须是: optimize, incremental, full, 或 demo')
             print('   例如: python run.py ai -m incremental')
             return 1
-    elif args.command == 'bot':
-        mode = args.mode if args.mode else 'run'
-        if mode not in ['run', 'schedule', 'daemon', 'status', 'backup', 'restore', 'health']:
-            print('❌ 指数交易机器人模式必须是: run, schedule, daemon, status, backup, restore, 或 health')
-            print('   例如: python run.py bot -m run')
-            print('   例如: python run.py bot -m daemon --daemon')
-            print('   例如: python run.py bot -m backup')
-            print('   例如: python run.py bot -m restore --backup-timestamp 20240101_120000')
-            return 1
+
     
     # 执行命令
     if args.command == 'fetch':
@@ -1257,10 +1000,7 @@ def main():
         else:
             print(f"🤖 启动AI训练模式: {mode}...")
             success = run_incremental_training(mode)
-    elif args.command == 'bot':
-        # 指数交易机器人模式，默认为单次运行
-        mode = args.mode if args.mode else 'run'
-        success = run_trading_bot(mode, daemon=args.daemon, backup_timestamp=args.backup_timestamp)
+
     elif args.command == 'report':
         # 生成汇总报告
         print("📊 生成AI优化汇总报告...")

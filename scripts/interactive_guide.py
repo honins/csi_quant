@@ -79,7 +79,7 @@ def get_user_goal():
     print("  3. 📊 回测历史策略表现")
     print("  4. 🤖 训练AI模型")
     print("  5. ⚙️ 优化策略参数")
-    print("  6. 🤖 设置自动化交易机器人")
+
     print("  7. 🔧 系统故障排除")
     print()
     
@@ -167,16 +167,7 @@ def generate_goal_specific_guide(goal):
             "time": "约10-30分钟",
             "note": "优化后的参数会自动保存到配置文件"
         },
-        6: {  # 交易机器人
-            "title": "🤖 设置自动化交易机器人",
-            "commands": [
-                ("测试运行", "python run.py bot -m run"),
-                ("查看状态", "python run.py bot -m status"),
-                ("定时执行", "python run.py bot -m schedule")
-            ],
-            "time": "约2-5分钟",
-            "note": "机器人可以定时执行预测和发送通知"
-        },
+
         7: {  # 故障排除
             "title": "🔧 系统故障排除",
             "commands": [
@@ -226,7 +217,7 @@ def generate_command_script(experience, goal):
             3: ["python run.py r 2023-01-01 2023-12-31"],
             4: ["python run.py ai -m full"],
             5: ["python run.py opt", "python run.py ai -m optimize"],
-            6: ["python run.py bot -m run"],
+
             7: ["python run.py b -v", "tail -n 50 logs/system.log"]
         }
         commands = goal_commands.get(goal, ["python run.py b"])

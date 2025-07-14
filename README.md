@@ -28,7 +28,7 @@ pip install -r requirements.txt
 2. **机器学习**: `scikit-learn`, `xgboost` - AI模型训练
 3. **金融数据**: `akshare`, `yfinance` - 数据获取
 4. **优化算法**: `scipy`, `scikit-optimize` - 参数优化
-5. **系统工具**: `pyyaml`, `schedule` - 配置和定时任务
+5. **系统工具**: `pyyaml` - 配置文件解析
 
 **❌ 常见问题及解决方案:**
 - **ImportError**: 激活虚拟环境并运行 `pip install -r requirements.txt`
@@ -89,7 +89,7 @@ python run.py ai --no-timer
 - ⚡ **简化命令界面**：提供简洁的命令行界面，快速运行各种功能
 - 📈 **自动数据获取**：自动获取000852和000905的最新数据
 - 💾 **参数持久化**：优化结果自动保存，全局生效
-- 🤖 **增强版交易机器人**：无人值守运行、自动数据更新、性能监控、数据备份
+
 
 ## 🧠 核心算法概览
 
@@ -133,11 +133,11 @@ python run.py ai --no-timer
 - 🎯 **典型使用场景**
 - 🔧 **故障排除指南**
 - 🚀 **高级用法和性能优化**
-- 🤖 **增强版交易机器人详细指南**
+
 
 本 README 提供技术概述，**USER_GUIDE.md** 提供实用的操作指南。
 
-**🤖 增强版交易机器人**：查看 [**增强版机器人指南 (ENHANCED_BOT_GUIDE.md)**](ENHANCED_BOT_GUIDE.md) 获取无人值守运行、自动数据更新、性能监控等高级功能的使用说明。
+
 
 ---
 
@@ -179,9 +179,7 @@ python run.py s 2024-12-01
 # 5. 策略回测
 python run.py r 2023-01-01 2023-12-31
 
-# 6. 增强版交易机器人（可选）
-python run.py bot -m run          # 单次运行
-python run.py bot -m daemon --daemon  # 守护进程模式
+
 ```
 
 ### 完整安装步骤
@@ -254,7 +252,7 @@ python run.py <command> [参数]
 | `s` | 单日预测 | `python run.py s 2023-12-01` | ✅ 支持 |
 | `opt` | 策略参数优化 | `python run.py opt -i 20` | ✅ 支持 |
 | `ai` | AI优化训练 | `python run.py ai -m incremental` | ✅ 支持 |
-| `bot` | 交易机器人 | `python run.py bot -m run` | ✅ 支持 |
+
 | `all` | 全部测试 | `python run.py all` | ✅ 支持 |
 
 ### 常用执行命令示例
@@ -292,17 +290,7 @@ python run.py s 2024-01-15
 python run.py r 2023-01-01 2023-12-31
 ```
 
-#### 4. 交易机器人
-```bash
-# 单次运行
-python run.py bot -m run
 
-# 定时执行
-python run.py bot -m schedule
-
-# 查看状态
-python run.py bot -m status
-```
 
 ### 重要参数说明
 
@@ -324,15 +312,7 @@ AI命令支持多种模式，通过 `-m` 参数指定：
 | `full` | 完全重训练 | `python run.py ai -m full` |
 | `demo` | 演示预测 | `python run.py ai -m demo` |
 
-### 机器人模式详细说明
 
-交易机器人支持多种运行模式：
-
-| 模式 | 说明 | 示例 |
-|------|------|------|
-| `run` | 单次运行（默认） | `python run.py bot` 或 `python run.py bot -m run` |
-| `schedule` | 定时执行 | `python run.py bot -m schedule` |
-| `status` | 查看状态 | `python run.py bot -m status` |
 
 ### 环境变量配置
 
@@ -361,8 +341,7 @@ python run.py b
 # 3. 进行单日预测
 python run.py s 2024-01-15
 
-# 4. 查看机器人状态
-python run.py bot -m status
+
 ```
 
 #### 模型训练流程

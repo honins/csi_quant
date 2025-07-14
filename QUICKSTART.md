@@ -49,24 +49,7 @@ pip install -r requirements.txt
 python run.py all
 ```
 
-### 5. 增强版交易机器人（新功能）
 
-```bash
-# 安装依赖包
-pip install psutil GitPython schedule
-
-# 运行单次交易流程
-python run.py bot -m run
-
-# 启动守护进程模式（推荐生产环境）
-python run.py bot -m daemon --daemon
-
-# 查看机器人状态
-python run.py bot -m status
-
-# 系统健康检查
-python run.py bot -m health
-```
 
 ## 📁 项目结构
 
@@ -95,9 +78,7 @@ csi500_quant/
 ├── predict_single_day.py  # 单日预测脚本
 ├── llm_strategy_optimizer.py # LLM驱动策略优化脚本
 └── scripts/               # 脚本目录
-    ├── bot_core.py              # 增强版机器人核心
-    ├── bot_daemon.sh      # Linux/Mac守护进程管理
-    └── bot_daemon.bat     # Windows守护进程管理
+    
 ```
 
 ## 🔧 VS Code 使用
@@ -146,14 +127,12 @@ csi500_quant/
 - **邮件通知**: 发送邮件提醒（需配置）
 - **通知历史**: 查看历史通知记录
 
-### 增强版机器人功能
 
-- **无人值守运行**: 守护进程模式24/7运行
-- **自动数据更新**: 每天15:05自动拉取最新数据
-- **系统性能监控**: 实时监控CPU、内存、磁盘使用情况
-- **自动数据备份**: 定期备份重要数据
-- **健康检查和告警**: 自动检测问题并发送告警
-- **Git集成**: 自动提交数据更新到Git仓库
+
+
+
+
+
 
 ## ⚙️ 配置说明
 

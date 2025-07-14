@@ -11,10 +11,7 @@ PyYAML>=5.4.0
 requests>=2.25.0
 akshare>=1.10.0
 
-# 增强版机器人依赖
-psutil>=5.8.0
-GitPython>=3.1.0
-schedule>=1.1.0
+
 
 # 机器学习
 xgboost>=1.4.0

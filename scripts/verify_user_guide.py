@@ -61,7 +61,7 @@ def check_command_examples(content):
         'python run.py s',
         'python run.py r',
         'python run.py opt',
-        'python run.py bot'
+
     ]
     
     for cmd in basic_commands:

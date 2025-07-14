@@ -272,70 +272,7 @@ python run.py opt -i 100 -v
 - 自动保存优化结果到配置文件
 - 显示优化前后的性能对比
 
-## 机器人命令
 
-### 9. 指数交易机器人 (`bot`)
-
-#### 功能说明
-运行指数交易机器人，支持多种运行模式。
-
-#### 基本使用
-```bash
-python run.py bot
-```
-
-#### 模式参数 (`-m`, `--mode`)
-
-##### 单次运行模式（默认）
-```bash
-python run.py bot
-python run.py bot -m run
-```
-- 执行一次完整的交易流程
-- 包括数据更新、预测、信号生成
-- 生成交易报告和通知
-
-##### 定时执行模式
-```bash
-python run.py bot -m schedule
-```
-- 启动定时任务调度器
-- 自动在交易时间执行任务
-- 支持多种定时策略
-
-##### 状态查询模式
-```bash
-python run.py bot -m status
-```
-- 查看机器人运行状态
-- 显示历史执行记录
-- 系统性能监控信息
-
-##### 守护进程模式
-```bash
-python run.py bot -m daemon --daemon
-```
-- 后台运行模式
-- 无人值守连续运行
-- 自动故障恢复
-
-#### 备份功能
-```bash
-python run.py bot -m run --backup <时间戳>
-```
-- 指定备份时间戳进行数据恢复
-- 用于系统数据恢复
-
-#### 输出内容
-- 实时执行状态
-- 交易信号和建议
-- 系统性能监控
-- 错误日志和警告
-
-#### 输出文件
-- `results/daily_trading/bot_state.json`：机器人状态
-- `results/daily_trading/trading_history.json`：交易历史
-- `results/daily_trading/daily_report_<日期>.md`：日报告
 
 ## 综合命令
 
@@ -426,8 +363,7 @@ python run.py b
 # 4. 进行当日预测
 python run.py s 2024-12-08
 
-# 5. 查看机器人状态
-python run.py bot -m status
+
 ```
 
 ### 模型训练流程
@@ -510,14 +446,13 @@ python run.py ai -m full
 call venv\Scripts\activate
 python run.py d
 python run.py s %date:~0,10%
-python run.py bot -m run
 ```
 
 ### 定时任务设置
 使用系统定时任务（Windows任务计划程序或Linux crontab）设置自动执行：
 ```bash
 # 每日9:30执行
-30 9 * * * cd /path/to/project && source venv/bin/activate && python run.py bot -m run
+30 9 * * * cd /path/to/project && source venv/bin/activate && python run.py s
 ```
 
 ### 结果分析脚本
