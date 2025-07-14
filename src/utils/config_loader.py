@@ -2,269 +2,267 @@
 # -*- coding: utf-8 -*-
 
 """
-多配置文件加载器
-支持加载和合并多个YAML配置文件，实现配置文件的模块化管理
+配置加载器模块
+负责加载和合并多个配置文件
+
+功能：
+- 多配置文件加载
+- 配置合并和覆盖
+- 环境变量支持
+- 配置验证
 """
 
 import os
 import yaml
 import logging
-from typing import Dict, List, Any, Optional
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-logger = logging.getLogger(__name__)
+from .common import get_project_root, ensure_directory
+
+
+def load_config(config_paths: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    加载配置文件
+    
+    参数:
+        config_paths: 配置文件路径列表，如果为None则使用默认路径
+    
+    返回:
+        Dict[str, Any]: 合并后的配置字典
+    """
+    project_root = get_project_root()
+    
+    # 默认配置文件路径
+    if config_paths is None:
+        config_paths = [
+            str(project_root / 'config' / 'config_core.yaml'),
+            str(project_root / 'config' / 'optimization.yaml'),
+            str(project_root / 'config' / 'config.yaml')
+        ]
+    
+    # 添加环境变量指定的配置文件
+    env_config = os.getenv('CSI_CONFIG_PATH')
+    if env_config:
+        config_paths.append(env_config)
+    
+    merged_config = {}
+    
+    for config_path in config_paths:
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_data = yaml.safe_load(f) or {}
+                
+                # 深度合并配置
+                merged_config = deep_merge_dict(merged_config, config_data)
+                logging.debug(f"加载配置文件: {config_path}")
+            else:
+                logging.debug(f"配置文件不存在，跳过: {config_path}")
+                
+        except Exception as e:
+            logging.warning(f"加载配置文件失败 {config_path}: {e}")
+            continue
+    
+    # 如果没有加载到任何配置，返回默认配置
+    if not merged_config:
+        logging.warning("未能加载任何配置文件，使用默认配置")
+        merged_config = get_default_config()
+    
+    return merged_config
+
+
+def deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    深度合并字典
+    
+    参数:
+        base: 基础字典
+        override: 覆盖字典
+    
+    返回:
+        Dict[str, Any]: 合并后的字典
+    """
+    result = base.copy()
+    
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # 递归合并嵌套字典
+            result[key] = deep_merge_dict(result[key], value)
+        else:
+            # 直接覆盖
+            result[key] = value
+    
+    return result
+
+
+def get_default_config() -> Dict[str, Any]:
+    """
+    获取默认配置
+    
+    返回:
+        Dict[str, Any]: 默认配置字典
+    """
+    return {
+        'data': {
+            'data_file_path': 'data/',
+            'index_code': '000905',
+            'frequency': '1d'
+        },
+        'strategy': {
+            'rise_threshold': 0.04,
+            'max_days': 20,
+            'rsi_oversold_threshold': 30,
+            'rsi_low_threshold': 40
+        },
+        'ai': {
+            'model_type': 'RandomForest',
+            'models_dir': 'models',
+            'enable': True
+        },
+        'logging': {
+            'level': 'INFO',
+            'file_path': 'logs/system.log'
+        },
+        'results': {
+            'output_dir': 'results'
+        },
+        'backtest': {
+            'start_date': '2020-01-01',
+            'end_date': '2024-12-31'
+        }
+    }
+
+
+def save_config(config: Dict[str, Any], config_path: str) -> bool:
+    """
+    保存配置到文件
+    
+    参数:
+        config: 配置字典
+        config_path: 保存路径
+    
+    返回:
+        bool: 是否保存成功
+    """
+    try:
+        config_file = Path(config_path)
+        ensure_directory(config_file.parent)
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        logging.info(f"配置已保存到: {config_path}")
+        return True
+        
+    except Exception as e:
+        logging.error(f"保存配置失败 {config_path}: {e}")
+        return False
+
 
 class ConfigLoader:
     """
-    多配置文件加载器
-    
-    支持功能：
-    1. 加载多个配置文件并合并
-    2. 配置文件优先级管理
-    3. 环境变量路径支持
-    4. 配置验证和错误处理
+    配置加载器类
+    提供面向对象的配置管理接口
     """
     
-    def __init__(self, base_dir: str = None):
+    def __init__(self, config_paths: Optional[List[str]] = None):
         """
         初始化配置加载器
         
         参数:
-        base_dir: 配置文件基础目录，默认为项目根目录的config文件夹
+            config_paths: 配置文件路径列表
         """
-        if base_dir is None:
-            # 获取项目根目录
-            current_file = Path(__file__).resolve()
-            project_root = current_file.parent.parent.parent
-            base_dir = project_root / 'config'
-        
-        self.base_dir = Path(base_dir)
-        self.merged_config = {}
-        
-    def load_config(self, 
-                   config_files: List[str] = None, 
-                   custom_path: str = None) -> Dict[str, Any]:
+        self.config_paths = config_paths
+        self._config = None
+        self._loaded = False
+    
+    def load(self) -> Dict[str, Any]:
         """
-        加载配置文件
-        
-        参数:
-        config_files: 配置文件列表，按优先级排序（后面的会覆盖前面的）
-        custom_path: 自定义配置文件路径（通过环境变量CSI_CONFIG_PATH指定）
+        加载配置
         
         返回:
-        dict: 合并后的配置字典
+            Dict[str, Any]: 配置字典
         """
-        if config_files is None:
-            config_files = [
-                'config_core.yaml',      # 核心系统配置
-                'optimization.yaml',     # 优化配置
-                'config.yaml'            # 兼容性配置（如果存在）
-            ]
-        
-        # 检查环境变量配置
-        env_config_path = custom_path or os.environ.get('CSI_CONFIG_PATH')
-        if env_config_path:
-            config_files.append(env_config_path)
-        
-        logger.info("开始加载配置文件...")
-        
-        merged_config = {}
-        loaded_files = []
-        
-        for config_file in config_files:
-            try:
-                # 处理绝对路径和相对路径
-                if os.path.isabs(config_file):
-                    config_path = Path(config_file)
-                else:
-                    config_path = self.base_dir / config_file
-                
-                if config_path.exists():
-                    config_data = self._load_single_config(config_path)
-                    if config_data:
-                        merged_config = self._deep_merge(merged_config, config_data)
-                        loaded_files.append(str(config_path))
-                        logger.info(f"✅ 已加载配置文件: {config_path.name}")
-                else:
-                    logger.debug(f"⚠️ 配置文件不存在，跳过: {config_path}")
-                    
-            except Exception as e:
-                logger.error(f"❌ 加载配置文件失败 {config_file}: {e}")
-                continue
-        
-        if not loaded_files:
-            logger.error("❌ 没有成功加载任何配置文件")
-            raise FileNotFoundError("无法加载任何配置文件")
-        
-        logger.info(f"📁 配置加载完成，共加载 {len(loaded_files)} 个文件")
-        for file_path in loaded_files:
-            logger.info(f"   - {os.path.basename(file_path)}")
-        
-        self.merged_config = merged_config
-        return merged_config
+        if not self._loaded:
+            self._config = load_config(self.config_paths)
+            self._loaded = True
+        return self._config
     
-    def _load_single_config(self, config_path: Path) -> Optional[Dict[str, Any]]:
+    def get_config(self) -> Dict[str, Any]:
         """
-        加载单个配置文件
-        
-        参数:
-        config_path: 配置文件路径
+        获取配置（如果未加载则先加载）
         
         返回:
-        dict: 配置字典，如果加载失败返回None
+            Dict[str, Any]: 配置字典
         """
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config_data = yaml.safe_load(f)
-                
-            if config_data is None:
-                logger.warning(f"配置文件为空: {config_path}")
-                return {}
-            
-            return config_data
-            
-        except yaml.YAMLError as e:
-            logger.error(f"YAML格式错误 {config_path}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"读取配置文件失败 {config_path}: {e}")
-            return None
+        if not self._loaded:
+            self.load()
+        return self._config or {}
     
-    def _deep_merge(self, base_dict: Dict[str, Any], update_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def get_section(self, section: str, default: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        深度合并两个字典
+        获取配置段
         
         参数:
-        base_dict: 基础字典
-        update_dict: 更新字典
+            section: 配置段名称
+            default: 默认值
         
         返回:
-        dict: 合并后的字典
+            Dict[str, Any]: 配置段内容
         """
-        result = base_dict.copy()
-        
-        for key, value in update_dict.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._deep_merge(result[key], value)
-            else:
-                result[key] = value
-        
-        return result
+        config = self.get_config()
+        return config.get(section, default or {})
     
-    def get_config_section(self, section: str) -> Dict[str, Any]:
+    def update_section(self, section: str, updates: Dict[str, Any]):
         """
-        获取特定的配置部分
+        更新配置段
         
         参数:
-        section: 配置部分名称
-        
-        返回:
-        dict: 指定部分的配置
+            section: 配置段名称
+            updates: 更新内容
         """
-        return self.merged_config.get(section, {})
+        config = self.get_config()
+        if section not in config:
+            config[section] = {}
+        config[section].update(updates)
     
-    def save_config_section(self, section: str, data: Dict[str, Any], target_file: str = None):
+    def save(self, config_path: str) -> bool:
         """
-        保存配置部分到指定文件
+        保存配置到文件
         
         参数:
-        section: 配置部分名称
-        data: 要保存的数据
-        target_file: 目标文件名，默认根据section确定
-        """
-        if target_file is None:
-            if section in ['optimization', 'validation', 'bayesian_optimization', 'genetic_algorithm']:
-                target_file = 'optimization.yaml'
-            else:
-                target_file = 'config_core.yaml'
-        
-        target_path = self.base_dir / target_file
-        
-        try:
-            # 加载现有配置
-            if target_path.exists():
-                existing_config = self._load_single_config(target_path)
-            else:
-                existing_config = {}
-            
-            # 更新指定部分
-            existing_config[section] = data
-            
-            # 保存回文件
-            with open(target_path, 'w', encoding='utf-8') as f:
-                yaml.dump(existing_config, f, default_flow_style=False, allow_unicode=True)
-            
-            logger.info(f"✅ 配置部分 '{section}' 已保存到: {target_file}")
-            
-        except Exception as e:
-            logger.error(f"❌ 保存配置失败: {e}")
-            raise
-    
-    def validate_config(self) -> List[str]:
-        """
-        验证配置完整性
+            config_path: 保存路径
         
         返回:
-        list: 验证错误列表，空列表表示验证通过
+            bool: 是否保存成功
         """
-        errors = []
-        required_sections = ['ai', 'data', 'strategy', 'backtest', 'logging']
-        
-        for section in required_sections:
-            if section not in self.merged_config:
-                errors.append(f"缺少必需的配置部分: {section}")
-        
-        # 验证AI配置
-        ai_config = self.merged_config.get('ai', {})
-        if not ai_config.get('models_dir'):
-            errors.append("AI配置缺少models_dir")
-        
-        # 验证数据配置
-        data_config = self.merged_config.get('data', {})
-        if not data_config.get('data_file_path'):
-            errors.append("数据配置缺少data_file_path")
-        
-        return errors
+        if self._config:
+            return save_config(self._config, config_path)
+        return False
     
-    def print_config_summary(self):
-        """打印配置摘要"""
-        print("\n" + "="*60)
-        print("📋 配置文件摘要")
-        print("="*60)
+    def reload(self) -> Dict[str, Any]:
+        """
+        重新加载配置
         
-        for section, config in self.merged_config.items():
-            if isinstance(config, dict):
-                print(f"\n📁 {section.upper()}:")
-                for key, value in config.items():
-                    if isinstance(value, dict):
-                        print(f"   📂 {key}: {len(value)} 个子项")
-                    elif isinstance(value, list):
-                        print(f"   📋 {key}: {len(value)} 个项目")
-                    else:
-                        print(f"   📄 {key}: {value}")
+        返回:
+            Dict[str, Any]: 配置字典
+        """
+        self._loaded = False
+        return self.load()
+    
+    @classmethod
+    def load_default(cls) -> 'ConfigLoader':
+        """
+        使用默认路径创建配置加载器
         
-        print("="*60)
+        返回:
+            ConfigLoader: 配置加载器实例
+        """
+        loader = cls()
+        loader.load()
+        return loader
 
-# 全局配置加载器实例
-_global_loader = None
 
-def get_config_loader() -> ConfigLoader:
-    """获取全局配置加载器实例"""
-    global _global_loader
-    if _global_loader is None:
-        _global_loader = ConfigLoader()
-    return _global_loader
-
-def load_config(config_files: List[str] = None, custom_path: str = None) -> Dict[str, Any]:
-    """
-    便捷函数：加载配置
-    
-    参数:
-    config_files: 配置文件列表
-    custom_path: 自定义配置路径
-    
-    返回:
-    dict: 合并后的配置
-    """
-    loader = get_config_loader()
-    return loader.load_config(config_files, custom_path) 
+# 模块导出
+__all__ = ['load_config', 'save_config', 'get_default_config', 'deep_merge_dict', 'ConfigLoader'] 
