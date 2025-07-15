@@ -305,8 +305,9 @@ class StrategyModule:
                 backtest_data.loc[i, 'max_rise_date'] = max_rise_date
 
                 # 使用策略识别相对低点（基于技术指标，而不是未来结果）
-                current_data = backtest_data.iloc[i:i+1].copy()
-                identification_result = self.identify_relative_low(current_data)
+                # 传递从开始到当前位置的所有历史数据，让算法基于历史数据判断当前时点
+                historical_data = backtest_data.iloc[:i+1].copy()
+                identification_result = self.identify_relative_low(historical_data)
                 backtest_data.loc[i, 'is_low_point'] = identification_result['is_low_point']
                 
             self.logger.info("回测完成")

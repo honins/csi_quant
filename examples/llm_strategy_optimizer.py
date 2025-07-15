@@ -140,7 +140,7 @@ if __name__ == "__main__":
     logger = logging.getLogger("Main")
 
     try:
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_core.yaml')
         config = load_config(config_path=config_path)
         
         optimizer = LLMStrategyOptimizer(config)

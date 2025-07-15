@@ -291,7 +291,7 @@ def predict_single_day(predict_date_str: str, use_trained_model: bool = True):
     logger = logging.getLogger("SingleDayPredictor")
 
     try:
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_core.yaml')
         config = load_config(config_path=config_path)
         
         # 初始化模块

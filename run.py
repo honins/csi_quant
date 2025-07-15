@@ -238,6 +238,11 @@ class QuantSystemCommands:
             if data is None or data.empty:
                 return "❌ 无法获取数据，请检查数据配置"
             
+            # 🔧 关键修复：对数据进行预处理，计算技术指标
+            self.logger.info("对数据进行预处理，计算技术指标...")
+            data = data_module.preprocess_data(data)
+            self.logger.info(f"预处理完成，数据列: {list(data.columns)}")
+            
             # 初始化策略模块
             strategy_module = StrategyModule(config)
             
@@ -277,17 +282,14 @@ class QuantSystemCommands:
         
         try:
             # 尝试调用真实的预测模块
-            from examples.predict_single_day import predict_for_date
+            from examples.predict_single_day import predict_single_day
             
-            result = predict_for_date(predict_date, config)
+            result = predict_single_day(predict_date)
             
-            if result.get('success'):
-                prediction = result.get('prediction', 'N/A')
-                confidence = result.get('confidence', 0)
-                return f"✅ {predict_date} 预测完成: {prediction} (置信度: {confidence:.2f})"
+            if result:
+                return f"✅ {predict_date} 预测完成"
             else:
-                error_msg = result.get('error', '预测失败')
-                return f"❌ {predict_date} 预测失败: {error_msg}"
+                return f"❌ {predict_date} 预测失败"
             
         except ImportError as e:
             self.logger.warning(f"预测模块不可用: {e}")
@@ -341,9 +343,10 @@ class QuantSystemCommands:
             from src.data.fetch_latest_data import DataFetcher
             
             fetcher = DataFetcher()
-            success = fetcher.fetch_all_data()
+            results = fetcher.fetch_and_save_latest_data()
             
-            if success:
+            # 检查结果
+            if results and all(info.get('success', False) for info in results.values()):
                 return "✅ 数据获取完成"
             else:
                 return "❌ 数据获取失败"

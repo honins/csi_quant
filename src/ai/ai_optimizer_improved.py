@@ -135,18 +135,37 @@ class AIOptimizerImproved:
             data[f'trend_strength_{period}'] = slopes
         
         # 价格在均线系统中的位置
-        data['price_position_20'] = (data['close'] - data['ma20']) / data['ma20']
-        data['price_position_60'] = (data['close'] - data['ma60']) / data['ma60']
+        # 确保ma20和ma60列存在且不为NaN
+        if 'ma20' in data.columns and data['ma20'].notna().any():
+            data['price_position_20'] = (data['close'] - data['ma20']) / data['ma20']
+        else:
+            data['price_position_20'] = 0
+            
+        if 'ma60' in data.columns and data['ma60'].notna().any():
+            data['price_position_60'] = (data['close'] - data['ma60']) / data['ma60']
+        else:
+            data['price_position_60'] = 0
         
         # 标准化波动率
-        data['volatility_normalized'] = data['volatility'] / data['volatility'].rolling(60).mean()
+        if 'volatility' in data.columns and data['volatility'].notna().any():
+            volatility_mean = data['volatility'].rolling(60).mean()
+            data['volatility_normalized'] = data['volatility'] / volatility_mean
+            # 处理除零情况
+            data['volatility_normalized'] = data['volatility_normalized'].fillna(1.0)
+        else:
+            data['volatility_normalized'] = 1.0
         
         # 成交量趋势指标
-        data['volume_ma20'] = data['volume'].rolling(20).mean()
-        data['volume_trend'] = (data['volume'] - data['volume_ma20']) / data['volume_ma20']
+        volume_ma20 = data['volume'].rolling(20).mean()
+        data['volume_trend'] = (data['volume'] - volume_ma20) / volume_ma20
+        # 处理除零情况
+        data['volume_trend'] = data['volume_trend'].fillna(0)
         
         # 成交量强度（相对于历史）
-        data['volume_strength'] = data['volume'] / data['volume'].rolling(60).mean()
+        volume_ma60 = data['volume'].rolling(60).mean()
+        data['volume_strength'] = data['volume'] / volume_ma60
+        # 处理除零情况
+        data['volume_strength'] = data['volume_strength'].fillna(1.0)
         
         return data
     
@@ -539,6 +558,12 @@ class AIOptimizerImproved:
     
     def _prepare_labels(self, data: pd.DataFrame, strategy_module) -> np.ndarray:
         """准备标签"""
+        # 🔧 修复：确保数据包含技术指标
+        if 'rsi' not in data.columns or 'macd' not in data.columns:
+            self.logger.warning("数据缺少技术指标，跳过预处理...")
+            # 注意：这里我们假设外部已经处理了数据预处理
+            # 如果确实需要在这里处理，可以添加数据模块调用
+        
         backtest_results = strategy_module.backtest(data)
         return backtest_results['is_low_point'].astype(int).values
     

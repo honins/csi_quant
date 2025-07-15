@@ -271,23 +271,23 @@ strategy_ranges:
   
   # RSI超卖阈值
   rsi_oversold_threshold:
-    min: 25                         # 最小值：25
-    max: 35                         # 最大值：35
+    min: 28                         # 最小值：28
+    max: 38                         # 最大值：38
     step: 1                         # 步长：1
                                     # 用途：定义超卖区域
   
   # RSI低位阈值
   rsi_low_threshold:
-    min: 35                         # 最小值：35
-    max: 45                         # 最大值：45
+    min: 38                         # 最小值：38
+    max: 48                         # 最大值：48
     step: 1                         # 步长：1
                                     # 用途：定义低位区域
   
   # 最终置信度阈值
   final_threshold:
-    min: 0.3                        # 最小值：30%
-    max: 0.8                        # 最大值：80%
-    step: 0.05                      # 步长：5%
+    min: 0.25                       # 最小值：25%
+    max: 0.6                        # 最大值：60%
+    step: 0.02                      # 步长：2%
                                     # 调整建议：准确率低时可降低阈值
 
 # =============================================================================
@@ -296,8 +296,8 @@ strategy_ranges:
 
 confidence_weights:
   # 核心决策阈值
-  final_threshold: 0.5              # 最终置信度阈值（50%）
-                                    # 调整建议：准确率不高时降至0.4-0.45
+  final_threshold: 0.35             # 最终置信度阈值（35%）
+                                    # 调整建议：准确率不高时降至0.3-0.4
   
   # 移动平均线相关权重
   ma_all_below: 0.3                 # 价格低于所有均线权重（30%）
@@ -325,9 +325,9 @@ confidence_weights:
   
   # RSI指标相关权重
   rsi_low: 0.2                      # RSI低位权重（20%）
-  rsi_low_threshold: 40             # RSI低位阈值（40）
+  rsi_low_threshold: 45             # RSI低位阈值（45）
   rsi_oversold: 0.3                 # RSI超卖权重（30%）
-  rsi_oversold_threshold: 30        # RSI超卖阈值（30）
+  rsi_oversold_threshold: 35        # RSI超卖阈值（35）
                                     # 调整建议：熊市中可降低阈值
   
   # MACD指标权重
