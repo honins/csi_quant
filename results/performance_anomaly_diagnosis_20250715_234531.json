@@ -1,0 +1,113 @@
+{
+  "timestamp": "20250715_234531",
+  "summary": {
+    "total_issues_found": 1,
+    "total_explanations": 1,
+    "total_recommendations": 1
+  },
+  "identified_issues": [
+    "验证集与训练集存在显著分布差异 (13.6%)"
+  ],
+  "potential_explanations": [
+    "测试期存在显著趋势，可能导致策略表现异常"
+  ],
+  "recommendations": [
+    "测试集性能异常优秀，建议检查数据分割和时间序列连续性"
+  ],
+  "detailed_analysis": [
+    {
+      "distribution_analysis": {
+        "training": {
+          "mean": 5774.643999999999,
+          "std": 431.69645651609136,
+          "min": 4460.264,
+          "max": 6464.466,
+          "skewness": -0.34303430282716896,
+          "kurtosis": -0.6489230098264311
+        },
+        "validation": {
+          "mean": 4992.046340206186,
+          "std": 329.31232107206773,
+          "min": 4495.286,
+          "max": 5556.771,
+          "skewness": 0.19140560180225663,
+          "kurtosis": -1.3230862177445482
+        },
+        "test": {
+          "mean": 5690.457753424658,
+          "std": 489.38771200120226,
+          "min": 4450.958,
+          "max": 6330.615,
+          "skewness": -1.5629656368607974,
+          "kurtosis": 1.4950707645248942
+        }
+      },
+      "potential_issues": [
+        "验证集与训练集存在显著分布差异 (13.6%)"
+      ]
+    },
+    {
+      "market_analysis": {
+        "training": {
+          "volatility": 0.18364746506669005,
+          "total_return": -11.556882195914397,
+          "positive_days_pct": 47.6038338658147,
+          "max_drawdown": -31.003365165815712
+        },
+        "validation": {
+          "volatility": 0.18090803780068326,
+          "total_return": -13.450970581215916,
+          "positive_days_pct": 40.625,
+          "max_drawdown": -19.102550743948232
+        },
+        "test": {
+          "volatility": 0.3848294041540048,
+          "total_return": 26.818129063752227,
+          "positive_days_pct": 52.77777777777778,
+          "max_drawdown": -11.966277112383528
+        }
+      },
+      "potential_explanations": [
+        "测试期存在显著趋势，可能导致策略表现异常"
+      ]
+    },
+    {
+      "leakage_indicators": {},
+      "warnings": []
+    },
+    {
+      "weight_analysis": {
+        "min_weight": 0.4503148747788612,
+        "max_weight": 1.0,
+        "mean_weight": 0.6900408632195748,
+        "weight_bias_ratio": 1.7050502344472136
+      },
+      "insights": []
+    },
+    {
+      "complexity_analysis": {
+        "training": {
+          "score": 0.3432711403040956,
+          "success_rate": 0.13986013986013987,
+          "total_points": 143,
+          "avg_rise": 0.024447023458008553
+        },
+        "validation": {
+          "score": 0.29429190229870633,
+          "success_rate": 0.10638297872340426,
+          "total_points": 47,
+          "avg_rise": 0.013700137645668067
+        },
+        "test": {
+          "score": 0.9583333333333333,
+          "success_rate": 0.9166666666666666,
+          "total_points": 12,
+          "avg_rise": 0.23868346830296053
+        }
+      },
+      "recommendations": [
+        "测试集性能异常优秀，建议检查数据分割和时间序列连续性"
+      ]
+    }
+  ]
+}

@@ -310,8 +310,11 @@ def predict_single_day(predict_date_str: str, use_trained_model: bool = True):
             logger.info("使用已训练好的AI模型进行预测...")
             # 尝试加载已训练的模型
             if not ai_optimizer._load_model():
-                logger.warning("未找到已训练的模型，将重新训练模型...")
-                use_trained_model = False
+                logger.error("❌ 未找到已训练的模型！")
+                logger.error("💡 请先运行以下命令训练模型：")
+                logger.error("   python run.py ai -m optimize  # AI优化+训练")
+                logger.error("   python run.py ai -m full      # 完整重训练")
+                return False
 
         if use_trained_model:
             # 使用已训练模型进行预测
@@ -389,15 +392,14 @@ def predict_with_trained_model(
         detailed_analysis = {}
         
         # 1. 检查并输出模型版本信息
-        latest_model_path = os.path.join(ai_optimizer.models_dir, 'latest_model.txt')
+        latest_model_path = os.path.join(ai_optimizer.models_dir, 'latest_improved_model.txt')
         if os.path.exists(latest_model_path):
             with open(latest_model_path, 'r') as f:
-                model_files = f.read().strip().split('\n')
-                if len(model_files) >= 1:
-                    model_file = os.path.basename(model_files[0])
-                    model_analysis['model_file'] = model_file
-                    # 从文件名提取时间戳
-                    if 'model_' in model_file:
+                model_path = f.read().strip()
+                model_file = os.path.basename(model_path)
+                model_analysis['model_file'] = model_file
+                # 从文件名提取时间戳
+                if 'model_' in model_file:
                         timestamp_str = model_file.replace('model_', '').replace('.pkl', '')
                         try:
                             from datetime import datetime
@@ -535,6 +537,12 @@ def predict_with_trained_model(
         # 2. 使用已训练模型进行预测
         logger.info(f"\n🔮 AI模型预测分析:")
         prediction_result = ai_optimizer.predict_low_point(predict_day_data)
+        
+        # 检查预测结果是否包含错误
+        if prediction_result is None or prediction_result.get("error"):
+            error_msg = prediction_result.get("error", "预测失败") if prediction_result else "预测返回None"
+            logger.error(f"❌ AI模型预测失败: {error_msg}")
+            return None
         
         is_predicted_low_point = prediction_result.get("is_low_point")
         confidence = prediction_result.get("confidence")

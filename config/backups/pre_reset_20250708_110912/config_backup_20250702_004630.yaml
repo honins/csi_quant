@@ -83,8 +83,6 @@ ai:
 backtest:
   start_date: '2022-01-01'
   end_date: '2025-06-21'
-  default_start_date: '2023-01-01'
-  default_end_date: '2025-06-21'
   rolling_window: 252
   rolling_step: 63
   generate_charts: true

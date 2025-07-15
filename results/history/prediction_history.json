@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2025-07-15",
+    "timestamp": "20250716_013010",
+    "prediction_time": "2025-07-16T01:30:10.447397",
+    "predicted_low_point": false,
+    "confidence": 0.018969166922181854,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "model_file": "improved_model_20250716_012559.pkl"
+  }
+]

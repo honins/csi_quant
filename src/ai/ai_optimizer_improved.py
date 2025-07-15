@@ -827,6 +827,9 @@ class AIOptimizerImproved:
                 # 更新策略模块参数
                 strategy_module.update_params(strategy_result['best_params'])
                 
+                # 🔧 新增：保存最优参数到配置文件
+                self._save_optimized_parameters(strategy_result['best_params'])
+                
                 current_time = datetime.now().strftime("%H:%M:%S")
                 print(f"✅ 步骤A完成 (耗时: {step_a_time:.2f}s) [{current_time}]")
                 print(f"   🎯 优化方法: {strategy_result.get('optimization_method', 'unknown')}")
@@ -1061,9 +1064,9 @@ class AIOptimizerImproved:
             
             # 从配置文件获取三层数据分割比例
             validation_config = self.config.get('ai', {}).get('validation', {})
-            train_ratio = validation_config.get('train_ratio', 0.65)
-            val_ratio = validation_config.get('validation_ratio', 0.2) 
-            test_ratio = validation_config.get('test_ratio', 0.15)
+            train_ratio = validation_config.get('train_ratio', 0.70)
+            val_ratio = validation_config.get('validation_ratio', 0.20) 
+            test_ratio = validation_config.get('test_ratio', 0.10)
             
             # 验证比例总和
             total_ratio = train_ratio + val_ratio + test_ratio
@@ -1652,6 +1655,11 @@ class AIOptimizerImproved:
             print(f"        🚀 开始进化过程 (总计 {population_size * generations} 次评估)")
             total_evaluations = population_size * generations
             
+            # 收敛检测相关变量
+            convergence_history = []  # 记录最近几代的收敛信息
+            convergence_threshold = 0.001  # 收敛阈值
+            convergence_generations = 3  # 连续收敛代数要求
+            
             # 进化主循环
             for generation in range(generations):
                 generation_start_time = time.time()
@@ -1753,6 +1761,35 @@ class AIOptimizerImproved:
                 # 每5代分析一次收敛趋势
                 if (generation + 1) % 5 == 0 and len(recent_generations) >= 5:
                     self._log_genetic_statistics(recent_generations[-5:])
+                
+                # 🔧 新增：连续3代收敛检测
+                if len(recent_generations) >= 2:
+                    # 记录当前代的收敛信息
+                    current_convergence = {
+                        'generation': generation + 1,
+                        'best_score': best_score,
+                        'max_score': max_score,
+                        'std_score': std_score
+                    }
+                    convergence_history.append(current_convergence)
+                    
+                    # 保持最近的convergence_generations代记录
+                    if len(convergence_history) > convergence_generations:
+                        convergence_history = convergence_history[-convergence_generations:]
+                    
+                    # 检测是否连续收敛
+                    if len(convergence_history) >= convergence_generations:
+                        is_converged = self._check_convergence(convergence_history, convergence_threshold)
+                        
+                        if is_converged:
+                            print(f"        🎯 检测到连续{convergence_generations}代收敛，提前停止优化")
+                            print(f"        📊 收敛阈值: {convergence_threshold:.6f}")
+                            print(f"        🏆 最终得分: {best_score:.6f}")
+                            
+                            self.logger.info(f"🎯 检测到连续{convergence_generations}代收敛，提前停止优化")
+                            self.logger.info(f"📊 收敛阈值: {convergence_threshold:.6f}")
+                            self.logger.info(f"🏆 最终得分: {best_score:.6f}")
+                            break
                 
                 # 如果不是最后一代，进行进化操作
                 if generation < generations - 1:
@@ -2238,3 +2275,112 @@ class AIOptimizerImproved:
             
         except Exception as e:
             self.logger.warning(f"统计信息生成失败: {e}")
+    
+    def _check_convergence(self, convergence_history: List[Dict], threshold: float) -> bool:
+        """
+        检测遗传算法是否收敛
+        
+        参数:
+        convergence_history: 最近几代的收敛信息
+        threshold: 收敛阈值
+        
+        返回:
+        bool: 是否收敛
+        """
+        try:
+            if len(convergence_history) < 3:
+                return False
+            
+            # 提取最近3代的得分
+            scores = [gen['best_score'] for gen in convergence_history[-3:]]
+            std_scores = [gen['std_score'] for gen in convergence_history[-3:]]
+            
+            # 条件1：最佳得分变化小于阈值
+            score_changes = [abs(scores[i] - scores[i-1]) for i in range(1, len(scores))]
+            score_stable = all(change < threshold for change in score_changes)
+            
+            # 条件2：种群标准差都很小（表示种群收敛）
+            std_threshold = 0.01  # 标准差阈值
+            std_stable = all(std < std_threshold for std in std_scores)
+            
+            # 条件3：连续改善幅度很小
+            improvements = [scores[i] - scores[i-1] for i in range(1, len(scores))]
+            improvement_stable = all(abs(imp) < threshold for imp in improvements)
+            
+            # 收敛判断：得分稳定且种群收敛，或者改善幅度很小
+            is_converged = (score_stable and std_stable) or improvement_stable
+            
+            if is_converged:
+                self.logger.info(f"收敛检测详情:")
+                self.logger.info(f"  得分变化: {score_changes}")
+                self.logger.info(f"  标准差: {std_scores}")
+                self.logger.info(f"  改善幅度: {improvements}")
+                self.logger.info(f"  得分稳定: {score_stable}, 种群收敛: {std_stable}, 改善微小: {improvement_stable}")
+            
+            return is_converged
+            
+        except Exception as e:
+            self.logger.warning(f"收敛检测失败: {e}")
+            return False
+    
+    def _save_optimized_parameters(self, best_params: Dict[str, Any]) -> bool:
+        """
+        保存优化后的参数到配置文件
+        
+        参数:
+        best_params: 最优参数字典
+        
+        返回:
+        bool: 是否保存成功
+        """
+        try:
+            from src.utils.config_saver import save_strategy_config
+            
+            # 构建策略参数字典
+            strategy_params = {}
+            
+            # 基础参数
+            if 'rise_threshold' in best_params:
+                strategy_params['rise_threshold'] = best_params['rise_threshold']
+            if 'max_days' in best_params:
+                strategy_params['max_days'] = best_params['max_days']
+            
+            # 置信度权重参数
+            confidence_weights = {}
+            confidence_weight_keys = [
+                'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
+                'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight'
+            ]
+            
+            for key in confidence_weight_keys:
+                if key in best_params:
+                    confidence_weights[key] = best_params[key]
+            
+            if confidence_weights:
+                strategy_params['confidence_weights'] = confidence_weights
+            
+            # 保存到配置文件
+            if strategy_params:
+                success = save_strategy_config(strategy_params)
+                
+                if success:
+                    print(f"   💾 最优参数已保存到配置文件")
+                    self.logger.info("💾 最优参数已保存到配置文件")
+                    self.logger.info(f"   保存的参数: {strategy_params}")
+                    return True
+                else:
+                    print(f"   ⚠️ 参数保存失败，但优化结果仍然有效")
+                    self.logger.warning("参数保存失败，但优化结果仍然有效")
+                    return False
+            else:
+                self.logger.info("没有需要保存的策略参数")
+                return True
+                
+        except ImportError as e:
+            self.logger.warning(f"配置保存模块不可用: {e}")
+            print(f"   ⚠️ 配置保存模块不可用，参数未持久化")
+            return False
+        except Exception as e:
+            self.logger.error(f"保存优化参数失败: {e}")
+            print(f"   ❌ 参数保存失败: {e}")
+            return False

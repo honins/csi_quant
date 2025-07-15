@@ -265,14 +265,13 @@ def run_single_day_test(predict_date):
     
     # 检查最新模型信息
     models_dir = os.path.join(os.path.dirname(__file__), 'models')
-    latest_model_path = os.path.join(models_dir, 'latest_model.txt')
+    latest_model_path = os.path.join(models_dir, 'latest_improved_model.txt')
     
     if os.path.exists(latest_model_path):
         with open(latest_model_path, 'r') as f:
-            model_files = f.read().strip().split('\n')
-            if len(model_files) >= 1:
-                model_file = os.path.basename(model_files[0])
-                if 'model_' in model_file:
+            model_path = f.read().strip()
+            model_file = os.path.basename(model_path)
+                            if 'model_' in model_file:
                     timestamp_str = model_file.replace('model_', '').replace('.pkl', '')
                     try:
                         from datetime import datetime

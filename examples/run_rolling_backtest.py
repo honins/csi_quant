@@ -50,6 +50,17 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         from src.ai.ai_optimizer_improved import AIOptimizerImproved
         ai_optimizer = AIOptimizerImproved(config)
 
+        # 🔒 禁止回测过程中自动训练模型，只允许使用已训练模型
+        if not ai_optimizer._load_model():
+            logger.error("❌ 未找到已训练的模型！")
+            logger.error("💡 请先运行以下命令训练模型：")
+            logger.error("   python run.py ai -m optimize  # AI优化+训练")
+            logger.error("   python run.py ai -m full      # 完整重训练")
+            return {
+                'success': False,
+                'error': '未找到已训练模型，请先训练！'
+            }
+
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
@@ -66,10 +77,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         logger.info(f"🚀 滚动回测配置")
         logger.info(f"{'='*60}")
         logger.info(f"📅 回测期间: {start_date_str} 至 {end_date_str}")
-        logger.info(f"🤖 模型复用: {'启用' if reuse_model else '禁用'}")
-        if reuse_model:
-            interval = config.get('ai', {}).get('retrain_interval_days', 30)
-            logger.info(f"🔄 重训练间隔: {interval} 天")
+        logger.info(f"🤖 只使用已训练模型: 启用")
         logger.info(f"📊 可用交易日: {len(available_dates)} 天")
         logger.info(f"{'='*60}")
 
@@ -84,7 +92,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
             logger.info(f"\n--- 滚动回测日期: {current_date.strftime('%Y-%m-%d')} ---")
 
-            # 使用公共模块进行预测和验证，但支持模型复用
+            # 只用已训练模型进行预测和验证
             result = predict_and_validate(
                 predict_date=current_date,
                 data_module=data_module,
@@ -92,10 +100,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 ai_optimizer=ai_optimizer,
                 config=config,
                 logger=logger,
-                force_retrain=not reuse_model  # 如果禁用复用，则强制重训练
+                force_retrain=False,  # 禁止自动训练
+                only_use_trained_model=True  # 禁止任何训练和保存
             )
-            
-            # 统计训练次数
+            # 统计训练次数（理论上应为0）
             if hasattr(ai_optimizer, '_last_training_date') and ai_optimizer._last_training_date == current_date:
                 training_count += 1
 
@@ -288,14 +296,26 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             chart_path2 = os.path.join(backtest_dir, f'prediction_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
             plt.savefig(chart_path2, bbox_inches='tight')
             logger.info(f"Prediction details chart saved to: {os.path.relpath(chart_path2)}")
-            return True
+            return {
+                'success': True,
+                'success_rate': success_rate,
+                'total_signals': total_predictions,
+                'correct_predictions': correct_predictions,
+                'training_efficiency': f"{((len(results) - training_count) / len(results) * 100):.1f}%"
+            }
         else:
             logger.warning("没有可验证的预测结果来生成统计图。")
-            return False
+            return {
+                'success': False,
+                'error': '没有可验证的预测结果'
+            }
 
     except Exception as e:
         logger.error(f"滚动回测脚本运行失败: {e}")
-        return False
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

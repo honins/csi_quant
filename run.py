@@ -170,9 +170,10 @@ class QuantSystemCommands:
             data_module = DataModule(config)
             
             # 获取数据配置
-            backtest_config = config.get('backtest', {})
-            start_date = backtest_config.get('start_date', '2022-01-01')
-            end_date = backtest_config.get('end_date', '2024-12-31')
+            data_config = config.get('data', {})
+            time_range = data_config.get('time_range', {})
+            start_date = time_range.get('start_date', '2019-01-01')
+            end_date = time_range.get('end_date', '2025-07-15')
             
             data = data_module.get_history_data(start_date, end_date)
             strategy_module = StrategyModule(config)
@@ -229,9 +230,9 @@ class QuantSystemCommands:
             
             # 获取数据配置
             data_config = config.get('data', {})
-            backtest_config = config.get('backtest', {})
-            start_date = backtest_config.get('start_date', '2022-01-01')
-            end_date = backtest_config.get('end_date', '2024-12-31')
+            time_range = data_config.get('time_range', {})
+            start_date = time_range.get('start_date', '2019-01-01')
+            end_date = time_range.get('end_date', '2025-07-15')
             
             data = data_module.get_history_data(start_date, end_date)
             
@@ -246,10 +247,10 @@ class QuantSystemCommands:
             # 初始化策略模块
             strategy_module = StrategyModule(config)
             
-            # 运行AI优化
+            # 运行完整的AI优化（包含策略优化 + 模型训练）
             ai_optimizer = AIOptimizerImproved(config)
-            optimization_result = ai_optimizer.optimize_strategy_parameters_improved(
-                strategy_module, data
+            optimization_result = ai_optimizer.run_complete_optimization(
+                data, strategy_module
             )
             
             if optimization_result.get('success'):
@@ -281,15 +282,16 @@ class QuantSystemCommands:
         self.logger.info(f"开始单日预测: {predict_date}")
         
         try:
-            # 尝试调用真实的预测模块
+            # 尝试调用真实的预测模块 - 只使用已训练模型，不重新训练
             from examples.predict_single_day import predict_single_day
             
-            result = predict_single_day(predict_date)
+            # 🔧 修改：强制只使用已训练模型，不允许重新训练
+            result = predict_single_day(predict_date, use_trained_model=True)
             
             if result:
-                return f"✅ {predict_date} 预测完成"
+                return f"✅ {predict_date} 预测完成（仅使用已训练模型）"
             else:
-                return f"❌ {predict_date} 预测失败"
+                return f"❌ {predict_date} 预测失败（请先运行 'python run.py ai' 训练模型）"
             
         except ImportError as e:
             self.logger.warning(f"预测模块不可用: {e}")
@@ -316,9 +318,9 @@ class QuantSystemCommands:
         
         try:
             # 尝试调用真实的回测模块
-            from examples.run_rolling_backtest import run_backtest
+            from examples.run_rolling_backtest import run_rolling_backtest
             
-            result = run_backtest(start_date, end_date, config)
+            result = run_rolling_backtest(start_date, end_date)
             
             if result.get('success'):
                 success_rate = result.get('success_rate', 0)

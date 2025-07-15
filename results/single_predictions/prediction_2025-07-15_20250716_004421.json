@@ -1,0 +1,71 @@
+{
+  "timestamp": "20250716_004421",
+  "prediction_date": "2025-07-15",
+  "prediction_time": "2025-07-16T00:44:21.880526",
+  "model_info": {
+    "model_file": "",
+    "model_age_hours": 0,
+    "feature_count": 23,
+    "model_type": "RandomForestClassifier"
+  },
+  "market_data": {
+    "close_price": "6018.76",
+    "price_change": "-0.03%",
+    "volume_change": "0.24%",
+    "volatility": "0.0202"
+  },
+  "technical_indicators": {
+    "rsi": "69.63",
+    "rsi_status": "[偏强]",
+    "macd": "70.1278",
+    "signal": "57.9560",
+    "hist": "12.1718",
+    "macd_trend": "[金叉趋势]",
+    "bb_upper": "6114.00",
+    "bb_lower": "5638.52",
+    "bb_position": "79.97%",
+    "bb_status": "[偏强区域]"
+  },
+  "prediction_results": {
+    "is_predicted_low_point": false,
+    "confidence": 0.01268682369569449,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "future_max_rise": null,
+    "days_to_rise": null,
+    "predict_price": 6018.758
+  },
+  "model_analysis": {
+    "feature_importance": {
+      "dist_ma10": 0.18864901946625579,
+      "dist_ma20": 0.11868608016125226,
+      "price_position_20": 0.103649785758146,
+      "price_change_10d": 0.09029544634961426,
+      "dist_ma5": 0.0801661497503185,
+      "price_change_5d": 0.06365050604341703,
+      "bb_lower": 0.04223222439631653,
+      "rsi": 0.03781543686677019,
+      "ma20": 0.0355435411441125,
+      "trend_strength_20": 0.030930526542793303,
+      "hist": 0.02891921822350705,
+      "ma10": 0.02812477573662343,
+      "ma5": 0.022054052955201135,
+      "bb_upper": 0.020877487061209572,
+      "price_position_60": 0.01766530198124345,
+      "ma60": 0.014888146054916096,
+      "volatility": 0.01438525331739983,
+      "macd": 0.01394763088808141,
+      "trend_strength_60": 0.012558847289480736,
+      "signal": 0.012324184757395138,
+      "volume_trend": 0.008402572984277228,
+      "volume_strength": 0.00826620966646879,
+      "volatility_normalized": 0.005967602605199744
+    },
+    "model_type": "RandomForestClassifier",
+    "feature_count": 23,
+    "prediction_proba": [
+      0.9873131763043055,
+      0.01268682369569449
+    ]
+  }
+}
