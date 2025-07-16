@@ -13,7 +13,7 @@
 - 测试文件中硬编码：`'2023-01-01'` ~ `'2024-12-31'`
 
 **修改后**：配置文件管理
-- 新增 `config/config_core.yaml` 中的 `data.time_range` 配置
+- 新增 `config/system.yaml` 中的 `data.time_range` 配置
 - 统一时间范围：`2019-01-01` ~ `2025-07-15`（6.5年完整数据）
 
 ### 2. 数据分割比例调整
@@ -30,7 +30,7 @@
 
 ## 📊 配置文件变更
 
-### config/config_core.yaml 新增配置
+### config/system.yaml 新增配置
 
 ```yaml
 data:

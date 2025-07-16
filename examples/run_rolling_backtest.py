@@ -34,9 +34,9 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
     logger = logging.getLogger("RollingBacktest")
 
     try:
-        # 使用改进版配置文件以启用置信度平滑
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
-        config = load_config(config_path=config_path)
+        # 使用标准配置加载器（自动合并所有配置文件）
+        from src.utils.config_loader import load_config as load_config_improved
+        config = load_config_improved()
         
         # 应用训练策略配置
         if retrain_interval_days is not None:

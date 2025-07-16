@@ -8,6 +8,7 @@
 
 import os
 import logging
+import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
 from ruamel.yaml import YAML
@@ -60,9 +61,12 @@ class CommentPreservingConfigSaver:
         bool: 是否保存成功
         """
         try:
+            # 转换numpy类型为Python原生类型
+            converted_params = self._convert_numpy_types(optimized_params)
+            
             # 自动选择目标文件
             if target_file is None:
-                target_file = self._determine_target_file(optimized_params)
+                target_file = self._determine_target_file(converted_params)
             
             target_path = self.config_dir / target_file
             
@@ -78,7 +82,7 @@ class CommentPreservingConfigSaver:
                 config_data = {}
             
             # 更新配置参数
-            self._update_config_recursively(config_data, optimized_params)
+            self._update_config_recursively(config_data, converted_params)
             
             # 备份原文件
             backup_path = target_path.with_suffix(f'.backup_{self._get_timestamp()}')
@@ -107,12 +111,13 @@ class CommentPreservingConfigSaver:
         str: 目标文件名
         """
         # 检查参数类型，决定保存到哪个文件
-        if any(key in params for key in ['optimization', 'bayesian_optimization', 'genetic_algorithm']):
-            return 'optimization.yaml'
-        elif any(key in params for key in ['confidence_smoothing', 'advanced_optimization']):
-            return 'config_improved.yaml'
+        # 所有AI优化相关参数都保存到strategy.yaml
+        if any(key in params for key in ['optimization', 'bayesian_optimization', 'genetic_algorithm', 
+                                        'confidence_smoothing', 'advanced_optimization', 'strategy',
+                                        'confidence_weights', 'ai_scoring']):
+            return 'strategy.yaml'
         else:
-            return 'config_core.yaml'
+            return 'system.yaml'
     
     def _update_config_recursively(self, base_config: Dict[str, Any], updates: Dict[str, Any]):
         """
@@ -138,6 +143,31 @@ class CommentPreservingConfigSaver:
         """获取时间戳字符串"""
         from datetime import datetime
         return datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    def _convert_numpy_types(self, obj):
+        """
+        递归转换numpy类型为Python原生类型
+        
+        参数:
+        obj: 要转换的对象
+        
+        返回:
+        转换后的对象
+        """
+        if isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self._convert_numpy_types(item) for item in obj)
+        else:
+            return obj
     
     def save_strategy_parameters(self, strategy_params: Dict[str, Any]) -> bool:
         """

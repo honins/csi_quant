@@ -110,12 +110,14 @@ def test_load_previous_params_function():
     print("测试改进版参数加载功能")
     print("="*60)
     
-    # 加载配置文件来检查是否有优化后的参数
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
-    if not os.path.exists(config_path):
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
-    
-    config = load_config(config_path)
+    # 使用标准配置加载器来加载配置（自动合并所有配置文件）
+    try:
+        from src.utils.config_loader import load_config as load_config_improved
+        config = load_config_improved()
+    except ImportError:
+        # 回退到简单的配置加载
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
+        config = load_config(config_path)
     
     if not config:
         print("❌ 配置文件加载失败")
@@ -147,8 +149,8 @@ def main():
         print("✅ 所有测试通过")
         print("\n📝 说明:")
         print("1. 优化参数连续性功能已实现")
-        print("2. 改进版AI优化会自动保存参数到config_improved.yaml")
-        print("3. 系统会优先使用config_improved.yaml中的优化参数")
+        print("2. 改进版AI优化会自动保存参数到strategy.yaml")
+        print("3. 系统会使用合并后的配置中的优化参数")
         print("4. 参数历史记录已保存到results/history/optimization/optimization_history.json")
         print("5. 传统AI优化已被改进版替代")
         return True

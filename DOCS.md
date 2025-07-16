@@ -1,143 +1,177 @@
-# 📚 项目文档总览
+# 📚 中证500指数相对低点识别系统 - 项目文档总览
 
-欢迎使用CSI1000量化投资项目！本页面提供了所有文档的快速访问入口。
+欢迎使用中证500指数相对低点识别量化交易系统！本页面提供了所有文档的快速访问入口和阅读指南。
 
 ## 🚀 快速导航
 
-### ⚡ 立即开始 (推荐新用户)
+### ⚡ 立即开始（推荐新用户）
 - **[📋 项目主页](README.md)** - 项目介绍、功能特点、核心算法概览
-- **[📖 完整使用指南](USER_GUIDE.md)** - ⭐ **最全面的使用手册** (新!)
+- **[📖 完整使用指南](USER_GUIDE.md)** - ⭐ **最全面的使用手册**（新！）
+- **[⚡ 快速启动](QUICKSTART.md)** - 5分钟快速上手
+- **[📚 文档总览](DOCS.md)** - 本页面，完整文档导航
 
-- **[⚡ 快速启动](QUICKSTART.md)** - 5分钟部署指南
-- **[📖 文档总览](DOCS.md)** - 完整文档导航和阅读路径
+### 🎯 核心文档（按重要程度排序）
 
-### 🎯 核心文档 (按重要程度排序)
-1. **[🧠 算法概览](docs/algorithms_overview.md)** ⭐⭐⭐⭐⭐
-   - 项目核心技术文档，详解所有算法原理和实现
-   - 包含：数据处理、策略识别、AI优化、回测评估、风险控制
-   
-2. **[⚙️ 项目配置指南](docs/setup_guide.md)** ⭐⭐⭐⭐
-   - 环境搭建、依赖安装、配置说明
-   
-3. **[📋 使用指南](docs/usage_guide.md)** ⭐⭐⭐⭐
-   - 基本操作、命令说明、功能使用
+#### 🥇 必读文档
+1. **[📋 README.md](README.md)** ⭐⭐⭐⭐⭐
+   - 项目核心说明，技术架构，配置系统
+   - 包含：功能特点、算法概览、配置架构、快速开始
 
-4. **[🤖 AI优化参数](docs/ai_optimization_params.md)** ⭐⭐⭐
-   - AI模块详细配置和参数调优
+2. **[📖 完整使用指南](USER_GUIDE.md)** ⭐⭐⭐⭐⭐
+   - 最详细的操作手册，从安装到高级用法
+   - 包含：详细安装、命令参考、故障排除、性能优化
+
+3. **[⚡ 快速开始](QUICKSTART.md)** ⭐⭐⭐⭐
+   - 5分钟快速上手指南
+   - 包含：环境设置、核心命令、常见问题
+
+#### 🥈 重要文档
+4. **[🏗️ 项目介绍](docs/项目介绍.md)** ⭐⭐⭐⭐
+   - 项目背景、核心价值、技术架构详解
+   - 包含：功能说明、适用场景、系统优势
+
+5. **[💻 run.py使用介绍](docs/run.py使用介绍.md)** ⭐⭐⭐⭐
+   - 命令行工具详细说明
+   - 包含：所有命令、参数详解、使用场景
+
+#### 🥉 专业文档
+6. **[🧠 算法介绍和作用](docs/算法介绍和作用.md)** ⭐⭐⭐
+   - 核心算法原理和实现详解
+   - 包含：技术指标、机器学习、优化算法
+
+7. **[⚙️ 策略参数介绍](docs/策略参数介绍.md)** ⭐⭐⭐
+   - 详细的参数配置和调优指南
+   - 包含：配置文件、参数说明、调优技巧
 
 ## 📁 文档分类浏览
 
-### 🎯 算法技术
-- [算法概览](docs/algorithms_overview.md) - 全部算法详解
-- **[模型选择分析](docs/model_selection_analysis.md)** - ⭐ **为什么选择RandomForest而非深度学习** (新!)
-- [AI优化参数](docs/ai_optimization_params.md) - AI技术详解
-- [严格数据分割](docs/strict_data_split_usage.md) - 数据处理技术
-- [优化最佳实践](docs/optimization_best_practices.md) - 优化经验总结
+### 🎯 基础入门
+- **[README.md](README.md)** - 项目主页和技术概览
+- **[QUICKSTART.md](QUICKSTART.md)** - 5分钟快速开始
+- **[USER_GUIDE.md](USER_GUIDE.md)** - 完整使用指南
+- **[项目介绍](docs/项目介绍.md)** - 项目背景和价值
 
-### 📖 使用指导
-- **[完整使用指南](USER_GUIDE.md)** - 最全面的使用手册 ⭐ 推荐
+### 💻 使用指导
+- **[run.py使用介绍](docs/run.py使用介绍.md)** - 命令行工具详解
+- **[策略参数介绍](docs/策略参数介绍.md)** - 配置文件和参数调优
+- **[策略优化流程介绍](docs/策略优化流程介绍.md)** - 优化流程详解
+- **[相对低点计算流程介绍](docs/相对低点计算流程介绍.md)** - 核心算法流程
 
-- [项目配置指南](docs/setup_guide.md) - 安装配置
-- [使用指南](docs/usage_guide.md) - 操作说明
-- [Token配置指南](docs/token_config_guide.md) - API配置
+### 🔬 技术深入
+- **[算法介绍和作用](docs/算法介绍和作用.md)** - 核心算法原理
+- **[代码重构总结](docs/代码重构总结.md)** - 技术架构演进
+- **[时间范围配置更新](docs/time_range_configuration_update.md)** - 配置架构升级
 
-### 🔬 技术分析
-- **[置信度处理机制说明](docs/confidence_smoothing_explanation.md)** - ⭐ **为什么废弃平滑功能** (重要!)
-- [置信度阈值机制分析](docs/confidence_threshold_analysis.md) - 置信度工作机制与AI优化  
-- [参数重要性分析](docs/parameter_importance_analysis.md) - 参数影响分析
-- [测试集大小分析](docs/test_set_size_analysis.md) - 数据划分分析
-- [功能测试报告](docs/functionality_test_report.md) - 测试结果
-- [代码审查报告](docs/parameter_optimization_code_review.md) - 代码质量
+### 📊 版本更新
+- **[CHANGELOG.md](CHANGELOG.md)** - 版本更新记录（如果存在）
+- **[更新日志](docs/time_range_configuration_update.md)** - 最新功能更新
 
-### 📝 项目历史
-- **[🚨 系统重大更新摘要](docs/system_update_summary.md)** - ⭐ **v2.0重大更新：废弃置信度平滑** (新!)
-- [重构总结](docs/refactoring_summary.md) - 项目演进历程
-- [更新摘要](UPDATE_SUMMARY.md) - 功能改进记录
-- [更新日志](CHANGELOG.md) - 版本变更记录
+## 📖 阅读路径建议
 
-## 💡 示例代码库
+### 🔰 新手用户
+1. **[README.md](README.md)** - 了解项目概况
+2. **[QUICKSTART.md](QUICKSTART.md)** - 快速上手
+3. **[USER_GUIDE.md](USER_GUIDE.md)** - 深入学习
+4. **[项目介绍](docs/项目介绍.md)** - 理解项目价值
 
-### 🏆 高级示例 (推荐)
-- **`examples/advanced_optimization_demo.py`** - 高级优化演示
-- **`src/ai/ai_optimizer_improved.py`** - 改进版AI策略优化模块
-- **`examples/run_rolling_backtest.py`** - 滚动回测实现
+### 🔧 开发用户
+1. **[README.md](README.md)** - 技术架构概览
+2. **[run.py使用介绍](docs/run.py使用介绍.md)** - 命令行工具
+3. **[算法介绍和作用](docs/算法介绍和作用.md)** - 算法原理
+4. **[策略参数介绍](docs/策略参数介绍.md)** - 参数调优
+5. **[代码重构总结](docs/代码重构总结.md)** - 架构理解
 
-### 📚 学习示例
-- **`examples/basic_test.py`** - 基础功能验证
-- **`examples/predict_single_day.py`** - 单日预测示例
-- **`examples/simple_rolling_backtest.py`** - 简化回测
+### 🎯 投资用户
+1. **[项目介绍](docs/项目介绍.md)** - 投资价值分析
+2. **[QUICKSTART.md](QUICKSTART.md)** - 快速开始使用
+3. **[相对低点计算流程介绍](docs/相对低点计算流程介绍.md)** - 理解核心逻辑
+4. **[策略优化流程介绍](docs/策略优化流程介绍.md)** - 优化策略
 
-### 🧪 专项示例
-- **`examples/llm_strategy_optimizer.py`** - LLM驱动优化
-- **`examples/strict_data_split_demo.py`** - 数据分割演示
-- **`examples/optimization_examples/`** - 优化专项示例
-
-## 🎯 按用户类型推荐
-
-### 👶 新手用户 (30分钟入门)
-```
-README.md → USER_GUIDE.md → QUICKSTART.md → examples/basic_test.py
-```
-
-### 🤖 运维人员 (生产部署)
-```
-USER_GUIDE.md → docs/setup_guide.md → scripts/
-```
-
-### 🧠 算法研究者 (深度学习)
-```
-docs/model_selection_analysis.md → docs/algorithms_overview.md → docs/ai_optimization_params.md → examples/advanced_optimization_demo.py
-```
-
-### 👨‍💻 开发者 (代码研究)
-```
-docs/parameter_optimization_code_review.md → docs/algorithms_overview.md → tests/
-```
-
-### 🏢 运维人员 (部署维护)
-```
-docs/setup_guide.md → docs/token_config_guide.md → docs/usage_guide.md
-```
+### 🏗️ 研究用户
+1. **[算法介绍和作用](docs/算法介绍和作用.md)** - 算法研究
+2. **[策略参数介绍](docs/策略参数介绍.md)** - 参数分析
+3. **[代码重构总结](docs/代码重构总结.md)** - 架构研究
+4. **[时间范围配置更新](docs/time_range_configuration_update.md)** - 最新技术
 
 ## 🔍 快速查找
 
-### 按关键词搜索
-- **算法**: [algorithms_overview.md](docs/algorithms_overview.md)
-- **模型选择**: [model_selection_analysis.md](docs/model_selection_analysis.md) - RandomForest vs 深度学习
-- **配置**: [setup_guide.md](docs/setup_guide.md), [token_config_guide.md](docs/token_config_guide.md)
-- **使用**: [usage_guide.md](docs/usage_guide.md), [QUICKSTART.md](QUICKSTART.md)
-- **优化**: [optimization_best_practices.md](docs/optimization_best_practices.md)
-- **置信度**: [confidence_smoothing_explanation.md](docs/confidence_smoothing_explanation.md), [confidence_threshold_analysis.md](docs/confidence_threshold_analysis.md)
-- **系统更新**: [system_update_summary.md](docs/system_update_summary.md) - v2.0重大更新
-- **测试**: [functionality_test_report.md](docs/functionality_test_report.md)
+### 按问题类型
 
+#### 🚀 安装和配置
+- [QUICKSTART.md](QUICKSTART.md) - 快速安装
+- [USER_GUIDE.md](USER_GUIDE.md) - 详细安装指南
+- [策略参数介绍](docs/策略参数介绍.md) - 配置文件详解
 
-### 按技术栈搜索
-- **机器学习**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.1, [model_selection_analysis.md](docs/model_selection_analysis.md)
-- **深度学习**: [model_selection_analysis.md](docs/model_selection_analysis.md) - 为什么不使用深度学习
-- **RandomForest**: [model_selection_analysis.md](docs/model_selection_analysis.md) - 模型选择原理
-- **贝叶斯优化**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.2
-- **遗传算法**: [algorithms_overview.md](docs/algorithms_overview.md) § 3.3
-- **时间序列**: [strict_data_split_usage.md](docs/strict_data_split_usage.md)
-- **技术指标**: [algorithms_overview.md](docs/algorithms_overview.md) § 1.1
+#### 💻 使用和操作
+- [run.py使用介绍](docs/run.py使用介绍.md) - 所有命令说明
+- [USER_GUIDE.md](USER_GUIDE.md) - 完整操作手册
+- [相对低点计算流程介绍](docs/相对低点计算流程介绍.md) - 核心功能
 
-## 📞 技术支持
+#### 🔧 优化和调试
+- [策略优化流程介绍](docs/策略优化流程介绍.md) - 优化指南
+- [USER_GUIDE.md](USER_GUIDE.md) - 故障排除
+- [策略参数介绍](docs/策略参数介绍.md) - 参数调优
 
-### 🔧 自助解决
-1. **查看日志**: `logs/` 目录 
-2. **检查配置**: `config/config.yaml`
-3. **运行测试**: `python run.py all`
-4. **查看示例**: `examples/` 目录
+#### 🧠 算法和技术
+- [算法介绍和作用](docs/算法介绍和作用.md) - 核心算法
+- [代码重构总结](docs/代码重构总结.md) - 技术架构
+- [README.md](README.md) - 算法概览
 
-### 📖 文档反馈
-如果您发现文档中的问题或有改进建议，欢迎反馈！
+### 按文件类型
 
-### 🎯 更新状态
-- **📅 最后更新**: 2024年12月
-- **📝 文档版本**: v2.0  
-- **🔄 更新频率**: 随项目版本同步
-- **✅ 文档完整性**: 100% (包含所有核心功能)
+#### 📋 核心文档
+- [README.md](README.md) - 项目主页
+- [USER_GUIDE.md](USER_GUIDE.md) - 使用指南
+- [QUICKSTART.md](QUICKSTART.md) - 快速开始
+
+#### 📁 详细文档（docs目录）
+- [项目介绍.md](docs/项目介绍.md)
+- [run.py使用介绍.md](docs/run.py使用介绍.md)
+- [算法介绍和作用.md](docs/算法介绍和作用.md)
+- [策略参数介绍.md](docs/策略参数介绍.md)
+- [策略优化流程介绍.md](docs/策略优化流程介绍.md)
+- [相对低点计算流程介绍.md](docs/相对低点计算流程介绍.md)
+- [代码重构总结.md](docs/代码重构总结.md)
+- [时间范围配置更新.md](docs/time_range_configuration_update.md)
+
+## 📊 文档状态
+
+### ✅ 最新文档（v3.2.0）
+- **README.md** - 已更新配置架构和最新功能
+- **USER_GUIDE.md** - 全新创建的完整使用指南
+- **QUICKSTART.md** - 已优化快速开始流程
+- **项目介绍.md** - 已更新最新特性和架构
+- **run.py使用介绍.md** - 已更新命令说明
+
+### 📚 稳定文档
+- **算法介绍和作用.md** - 核心算法说明
+- **策略参数介绍.md** - 参数配置详解
+- **策略优化流程介绍.md** - 优化流程说明
+- **相对低点计算流程介绍.md** - 核心逻辑说明
+
+### 🔄 归档文档
+- **代码重构总结.md** - 历史架构演进
+- **时间范围配置更新.md** - 配置架构更新记录
+
+## 💡 使用建议
+
+1. **首次使用**：按照"新手用户"路径阅读文档
+2. **遇到问题**：优先查看 [USER_GUIDE.md](USER_GUIDE.md) 的故障排除部分
+3. **深入研究**：阅读 [算法介绍和作用.md](docs/算法介绍和作用.md)
+4. **参数调优**：参考 [策略参数介绍.md](docs/策略参数介绍.md)
+5. **命令使用**：查看 [run.py使用介绍.md](docs/run.py使用介绍.md)
+
+## 📞 支持和反馈
+
+如果您在使用过程中遇到问题或有改进建议：
+
+1. **首先查阅**：[USER_GUIDE.md](USER_GUIDE.md) 故障排除部分
+2. **搜索文档**：使用浏览器的查找功能（Ctrl+F）在相关文档中搜索关键词
+3. **提交Issue**：在项目仓库中提交问题报告
+4. **贡献文档**：欢迎提交文档改进建议
 
 ---
 
-**💡 提示**: 建议收藏本页面作为项目文档的快速入口！ 
+**更新时间**：2024年12月  
+**文档版本**：v3.2.0  
+**项目状态**：活跃开发中 

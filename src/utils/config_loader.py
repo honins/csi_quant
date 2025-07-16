@@ -36,8 +36,8 @@ def load_config(config_paths: Optional[List[str]] = None) -> Dict[str, Any]:
     # 默认配置文件路径
     if config_paths is None:
         config_paths = [
-            str(project_root / 'config' / 'config_core.yaml'),
-            str(project_root / 'config' / 'optimization.yaml')
+            str(project_root / 'config' / 'system.yaml'),
+            str(project_root / 'config' / 'strategy.yaml')
         ]
     
     # 添加环境变量指定的配置文件

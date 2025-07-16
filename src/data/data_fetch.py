@@ -40,8 +40,8 @@ def load_config_safely(custom_config_files=None):
         
         # 默认配置文件列表（按优先级排序）
         default_config_files = [
-            'config_core.yaml',      # 核心系统配置
-            'optimization.yaml',     # 优化配置
+            'system.yaml',           # 系统基础配置
+            'strategy.yaml',         # 策略优化配置
             'config.yaml'            # 兼容性配置（如果存在）
         ]
         

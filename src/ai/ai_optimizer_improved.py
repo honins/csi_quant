@@ -964,8 +964,18 @@ class AIOptimizerImproved:
             print(f"✅ 步骤D完成 (耗时: {step_d_time:.2f}s) [{current_time}]")
             self.logger.info(f"✅ 步骤D完成 (耗时: {step_d_time:.2f}s)")
             
-            # 设置最终成功状态
+            # 设置最终成功状态和最佳得分
             optimization_result['success'] = model_result['success']
+            
+            # 设置最佳得分 - 优先使用策略优化的得分
+            if strategy_result.get('success') and 'best_score' in strategy_result:
+                optimization_result['best_score'] = strategy_result['best_score']
+            elif model_result.get('success') and 'score' in model_result:
+                optimization_result['best_score'] = model_result['score']
+            elif evaluation_result.get('success') and 'score' in evaluation_result:
+                optimization_result['best_score'] = evaluation_result['score']
+            else:
+                optimization_result['best_score'] = 0.0
             
             # 总结报告
             total_time = time.time() - complete_start_time
@@ -1022,7 +1032,8 @@ class AIOptimizerImproved:
                 'strategy_optimization': {},
                 'model_training': {},
                 'final_evaluation': {},
-                'elapsed_time': elapsed_time
+                'elapsed_time': elapsed_time,
+                'best_score': 0.0
             }
     
     def optimize_strategy_parameters_improved(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
@@ -1502,16 +1513,22 @@ class AIOptimizerImproved:
         try:
             # 尝试使用保留注释的保存器
             try:
-                from src.utils.config_saver import ConfigSaver
-                saver = ConfigSaver()
-                saver.save_optimized_params(params)
+                from src.utils.config_saver import CommentPreservingConfigSaver
+                saver = CommentPreservingConfigSaver()
+                saver.save_optimized_parameters(params)
                 self.logger.info("参数已保存（保留注释版本）")
                 return
+            except ImportError as e:
+                self.logger.warning(f"ruamel.yaml模块未安装，使用传统保存方式: {e}")
             except Exception as e:
                 self.logger.warning(f"保留注释版本保存失败，使用传统方式: {e}")
-                self._save_params_fallback(params)
+            
+            # 使用传统方式保存
+            self._save_params_fallback(params)
+            
         except Exception as e:
             self.logger.error(f"保存优化参数失败: {e}")
+            raise
     
     def _save_params_fallback(self, params: dict):
         """
@@ -1523,8 +1540,28 @@ class AIOptimizerImproved:
         import tempfile
         import shutil
         
+        # 转换numpy类型为Python原生类型
+        def convert_numpy_types(obj):
+            if isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_numpy_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            elif isinstance(obj, tuple):
+                return tuple(convert_numpy_types(item) for item in obj)
+            else:
+                return obj
+        
+        # 转换参数
+        converted_params = convert_numpy_types(params)
+        
         try:
-            config_path = 'config/config_improved.yaml'
+            config_path = 'config/strategy.yaml'
             backup_path = f"{config_path}.backup"
             
             # 创建备份
@@ -1547,7 +1584,7 @@ class AIOptimizerImproved:
                             config = yaml.safe_load(f) or {}
             
             # 更新参数
-            for param_name, param_value in params.items():
+            for param_name, param_value in converted_params.items():
                 if param_name == 'final_threshold':
                     if 'strategy' not in config:
                         config['strategy'] = {}
@@ -1581,21 +1618,46 @@ class AIOptimizerImproved:
             # 移动临时文件到目标位置
             shutil.move(temp_path, config_path)
             
-            self.logger.info(f"参数已安全保存到配置文件: {len(params)} 个参数")
+            self.logger.info(f"参数已安全保存到配置文件: {len(converted_params)} 个参数")
             
-            # 清理旧备份
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
+            # 验证保存是否成功
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        saved_config = yaml.safe_load(f)
+                    # 验证参数是否正确保存
+                    saved_count = 0
+                    for param_name in converted_params.keys():
+                        if param_name == 'final_threshold':
+                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get('final_threshold') is not None:
+                                saved_count += 1
+                        elif param_name in ['rsi_oversold_threshold', 'rsi_low_threshold']:
+                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(param_name) is not None:
+                                saved_count += 1
+                        else:
+                            if saved_config.get('strategy', {}).get(param_name) is not None:
+                                saved_count += 1
+                    
+                    self.logger.info(f"验证成功: {saved_count}/{len(converted_params)} 个参数已正确保存")
+                    
+                    # 清理旧备份
+                    if os.path.exists(backup_path):
+                        os.remove(backup_path)
+                except Exception as verify_error:
+                    self.logger.warning(f"参数保存验证失败: {verify_error}")
+            else:
+                self.logger.error("配置文件保存后不存在")
                 
         except Exception as e:
             self.logger.error(f"传统方式保存参数失败: {e}")
             # 尝试从备份恢复
-            if os.path.exists(backup_path) and os.path.exists(config_path):
+            if os.path.exists(backup_path):
                 try:
                     shutil.copy2(backup_path, config_path)
                     self.logger.info("已从备份恢复配置文件")
                 except Exception as restore_error:
                     self.logger.error(f"备份恢复失败: {restore_error}")
+            raise
 
     def run_genetic_algorithm(self, evaluate_func, param_ranges=None) -> Dict[str, Any]:
         """

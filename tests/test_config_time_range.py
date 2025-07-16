@@ -16,7 +16,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / 'src'))
 
-from src.utils.config_loader import ConfigLoader
+from src.utils.config_loader import load_config
 from src.data.data_module import DataModule
 from src.ai.ai_optimizer_improved import AIOptimizerImproved
 
@@ -30,8 +30,7 @@ def test_time_range_config():
     logger = logging.getLogger(__name__)
     
     # 加载配置
-    config_loader = ConfigLoader()
-    config = config_loader.get_config()
+    config = load_config()
     
     # 1. 测试数据时间范围配置
     print("📅 测试数据时间范围配置:")

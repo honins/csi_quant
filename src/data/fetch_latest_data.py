@@ -29,7 +29,7 @@ except ImportError:
 class DataFetcher:
     """数据获取器类"""
     
-    def __init__(self, config_path: str = "config/config_core.yaml"):
+    def __init__(self, config_path: str = "config/system.yaml"):
         """
         初始化数据获取器
         

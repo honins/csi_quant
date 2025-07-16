@@ -32,9 +32,9 @@ def test_genetic_algorithm():
     logger = logging.getLogger("GeneticTest")
     
     try:
-        # 1. 加载配置
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
-        config = load_config(config_path=config_path)
+        # 1. 加载配置（使用标准配置加载器）
+        from src.utils.config_loader import load_config as load_config_improved
+        config = load_config_improved()
         
         # 确保遗传算法已启用
         config.setdefault('genetic_algorithm', {})['enabled'] = True
@@ -173,9 +173,9 @@ def run_genetic_optimization_only():
     logger = logging.getLogger("GeneticOptimization")
     
     try:
-        # 加载配置
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_improved.yaml')
-        config = load_config(config_path=config_path)
+        # 加载配置（使用标准配置加载器）
+        from src.utils.config_loader import load_config as load_config_improved
+        config = load_config_improved()
         
         # 强制启用遗传算法
         config.setdefault('genetic_algorithm', {})['enabled'] = True

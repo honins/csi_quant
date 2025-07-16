@@ -17,7 +17,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / 'src'))
 
-from src.utils.config_loader import ConfigLoader
+from src.utils.config_loader import load_config
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 
@@ -30,8 +30,7 @@ def verify_success_rate_calculation():
     logging.basicConfig(level=logging.INFO)
     
     # 加载配置
-    config_loader = ConfigLoader()
-    config = config_loader.get_config()
+    config = load_config()
     
     # 获取数据
     data_module = DataModule(config)

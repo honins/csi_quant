@@ -194,10 +194,15 @@ class QuantSystemCommands:
                 return f"✅ AI完全重训练完成: {result.get('summary', '成功')}"
                 
             elif mode == 'demo':
-                # 演示预测逻辑
-                from examples.predict_single_day import main as demo_predict
-                result = demo_predict()
-                return f"✅ AI演示预测完成: {result}"
+                # 演示预测逻辑 - 使用最近一个交易日进行预测
+                from examples.predict_single_day import predict_single_day
+                from datetime import datetime, timedelta
+                import pandas as pd
+                
+                # 获取最近的交易日作为演示日期
+                demo_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+                result = predict_single_day(demo_date, use_trained_model=True)
+                return f"✅ AI演示预测完成: {demo_date}"
                 
             else:
                 return f"❌ 未知的AI训练模式: {mode}"

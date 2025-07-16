@@ -1,0 +1,146 @@
+advanced_optimization:
+  enabled: true
+  high_precision_mode: true
+  use_hierarchical: true
+  use_scipy: true
+  use_time_series_cv: true
+ai_scoring:
+  rise_benchmark: 0.1
+  rise_weight: 0.28
+  risk_benchmark: 0.2
+  risk_weight: 0.08
+  speed_weight: 0.22
+  success_weight: 0.42
+bayesian_optimization:
+  acq_func: EI
+  enabled: true
+  kappa: 2.0
+  n_calls: 120
+  n_initial_points: 25
+  n_jobs: 1
+  random_state: 42
+  xi: 0.008
+confidence_std_threshold: 0.05
+confidence_weights:
+  bb_lower_near: 0.22
+  bb_near_threshold: 1.018
+  decline_threshold: -0.048
+  dynamic_confidence_adjustment: 0.12
+  final_threshold: 0.3392
+  ma_all_below: 0.32
+  ma_partial_below: 0.22
+  macd_negative: 0.12
+  market_sentiment_weight: 0.18
+  price_decline_threshold: -0.018
+  price_momentum_weight: 0.22
+  recent_decline: 0.22
+  rsi_low: 0.22
+  rsi_low_threshold: 48.0
+  rsi_oversold: 0.32
+  rsi_oversold_threshold: 25.0
+  trend_strength_weight: 0.14
+  volume_panic_bonus: 0.12
+  volume_panic_threshold: 1.45
+  volume_shrink_penalty: 0.68
+  volume_shrink_threshold: 0.78
+  volume_surge_bonus: 0.06
+  volume_surge_threshold: 1.25
+  volume_weight: 0.28
+early_stopping:
+  enabled: true
+  min_delta: 0.0008
+  patience: 60
+execution:
+  data_decay_rate: 0.35
+  optimization_interval: 30
+  parallel_jobs: 1
+  save_intermediate: false
+  save_results: true
+  train_test_split_ratio: 0.8
+  use_multiprocessing: false
+genetic_algorithm:
+  crossover_rate: 0.8
+  elite_ratio: 0.1
+  enabled: true
+  generations: 20
+  mutation_rate: 0.15
+  population_size: 70
+optimization:
+  enable_history: true
+  enable_incremental: true
+  global_iterations: 600
+  incremental_contraction_factor: 0.45
+  incremental_iterations: 1200
+  max_history_records: 150
+optimization_ranges:
+  dynamic_confidence_adjustment:
+    max: 0.25
+    min: 0.05
+    step: 0.02
+  market_sentiment_weight:
+    max: 0.25
+    min: 0.08
+    step: 0.02
+  price_momentum_weight:
+    max: 0.3
+    min: 0.12
+    step: 0.02
+  trend_strength_weight:
+    max: 0.2
+    min: 0.06
+    step: 0.02
+  volume_weight:
+    max: 0.35
+    min: 0.15
+    step: 0.02
+overfitting_threshold: 0.9
+strategy:
+  bb_near_threshold: 1.01049
+  confidence_weights:
+    final_threshold: 0.4774
+    rsi_low_threshold: 42.0
+    rsi_oversold_threshold: 26.0
+  dynamic_confidence_adjustment: 0.2169
+  market_sentiment_weight: 0.3074
+  price_momentum_weight: 0.2766
+  trend_strength_weight: 0.1035
+  volume_panic_threshold: 1.814
+  volume_shrink_threshold: 0.573
+  volume_surge_threshold: 1.289
+  volume_weight: 0.3287
+strategy_ranges:
+  final_threshold:
+    max: 0.6
+    min: 0.25
+    step: 0.02
+  max_days:
+    max: 30
+    min: 10
+    step: 1
+  rise_threshold:
+    max: 0.08
+    min: 0.03
+    step: 0.005
+  rsi_low_threshold:
+    max: 48
+    min: 38
+    step: 1
+  rsi_oversold_threshold:
+    max: 38
+    min: 28
+    step: 1
+strategy_scoring:
+  days_benchmark: 10.0
+  days_weight: 0.2
+  rise_benchmark: 0.1
+  rise_weight: 0.3
+  success_weight: 0.5
+validation:
+  test_ratio: 0.15
+  train_ratio: 0.65
+  validation_ratio: 0.2
+  walk_forward:
+    enabled: true
+    step_size: 63
+    window_size: 252
+zero_confidence_threshold: 0.5

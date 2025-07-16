@@ -31,7 +31,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / 'src'))
 
-from src.utils.config_loader import ConfigLoader
+from src.utils.config_loader import load_config
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 from src.ai.ai_optimizer_improved import AIOptimizerImproved
@@ -478,8 +478,7 @@ def main():
     
     try:
         # 加载配置和数据
-        config_loader = ConfigLoader()
-        config = config_loader.get_config()
+        config = load_config()
         
         data_module = DataModule(config)
         # 从配置文件获取时间范围
