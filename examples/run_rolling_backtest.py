@@ -137,12 +137,12 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         if not results_df_validated.empty:
             total_predictions = len(results_df_validated)
             correct_predictions = results_df_validated['prediction_correct'].sum()
-            success_rate = (correct_predictions / total_predictions) * 100 if total_predictions > 0 else 0
+            success_rate = (correct_predictions / total_predictions) if total_predictions > 0 else 0
 
-            logger.info(f"\n--- 滚动回测统计结果 ---")
+            logger.info("\n--- 滚动回测统计结果 ---")
             logger.info(f"总预测日期数 (可验证): {total_predictions}")
             logger.info(f"正确预测数: {correct_predictions}")
-            logger.info(f"预测成功率: {success_rate:.2f}%")
+            logger.info(f"预测成功率: {success_rate:.2%}")
 
             # 生成统计图
             plt.figure(figsize=(15, 8))  # 增加高度为参数信息留出空间

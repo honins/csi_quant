@@ -97,12 +97,9 @@ overfitting_threshold: 0.9
 strategy:
   bb_near_threshold: 1.01049
   confidence_weights:
-    final_threshold: 0.3509
-    rsi_low_threshold: 49
-    rsi_oversold_threshold: 26
-    dynamic_confidence_adjustment: 0.1979
-    market_sentiment_weight: 0.1565
-    trend_strength_weight: 0.1516
+    final_threshold: 0.4774
+    rsi_low_threshold: 42.0
+    rsi_oversold_threshold: 26.0
   dynamic_confidence_adjustment: 0.2169
   market_sentiment_weight: 0.3074
   price_momentum_weight: 0.2766
@@ -146,4 +143,4 @@ validation:
     enabled: true
     step_size: 63
     window_size: 252
-zero_confidence_threshold: 0.5
+zero_confidence_threshold: 0.5 

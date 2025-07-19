@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2025-07-15",
+    "timestamp": "20250720_012009",
+    "prediction_time": "2025-07-20T01:20:09.094862",
+    "predicted_low_point": false,
+    "confidence": 0.015454271977141549,
+    "actual_low_point": "False",
+    "prediction_correct": "True",
+    "model_file": "improved_model_20250720_010934.pkl"
+  },
+  {
+    "date": "2025-06-20",
+    "timestamp": "20250720_011950",
+    "prediction_time": "2025-07-20T01:19:50.425725",
+    "predicted_low_point": true,
+    "confidence": 0.8740998632414692,
+    "actual_low_point": "True",
+    "prediction_correct": "True",
+    "model_file": "improved_model_20250720_010934.pkl"
+  }
+]

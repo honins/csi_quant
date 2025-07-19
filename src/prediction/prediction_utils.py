@@ -93,19 +93,8 @@ def predict_and_validate(
         # 检查是否需要重新训练
         if not need_retrain:
             if hasattr(ai_optimizer, 'model') and ai_optimizer.model is not None:
-                # 模型已存在，检查是否需要更新
-                logger.info("检测到已训练的模型，检查是否需要更新...")
-                if hasattr(ai_optimizer, '_last_training_date'):
-                    days_since_last_train = (predict_date - ai_optimizer._last_training_date).days
-                    retrain_interval = config.get("ai", {}).get("retrain_interval_days", 30)
-                    if days_since_last_train >= retrain_interval:
-                        logger.info(f"距离上次训练已过 {days_since_last_train} 天，触发重新训练")
-                        need_retrain = True
-                    else:
-                        logger.info(f"距离上次训练仅 {days_since_last_train} 天，使用现有模型")
-                else:
-                    # 首次运行，需要训练
-                    need_retrain = True
+                logger.info("检测到已训练的模型")
+                need_retrain = False
             else:
                 # 没有模型，需要训练
                 logger.info("未检测到训练模型，需要首次训练")
