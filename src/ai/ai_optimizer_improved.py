@@ -68,33 +68,68 @@ class AIOptimizerImproved:
         """
         self.logger.info("准备改进的机器学习特征")
         
+        # 检查数据中已有的技术指标
+        self.logger.info(f"输入数据列: {list(data.columns)}")
+        
         # 计算额外的趋势确认指标
         data = self._calculate_trend_indicators(data)
         
-        # 重新设计特征列，降低短期指标权重，增加趋势确认指标
-        feature_columns = [
-            # 长期趋势指标（高权重）
-            'ma20', 'ma60',  # 长期均线
-            'trend_strength_20', 'trend_strength_60',  # 趋势强度
-            'price_position_20', 'price_position_60',  # 价格在均线系统中的位置
+        # 🔧 确保重要技术指标存在且有效（如果DataModule已计算则保留，否则重新计算）
+        data = self._ensure_technical_indicators(data)
+        
+        # 🎯 优化：使用精选的高效特征，保留重要的技术指标包括RSI
+        # 基于特征重要性分析 + 保留关键技术指标
+        optimized_feature_columns = [
+            # 🔥 核心趋势指标（最高重要性：0.21 + 0.11 = 32%）
+            'trend_strength_60', 'trend_strength_20',
             
-            # 中期趋势指标（中等权重）
-            'ma10', 'dist_ma10', 'dist_ma20',
-            'rsi', 'macd', 'signal',
-            'bb_upper', 'bb_lower',
-            'volatility_normalized',  # 标准化波动率
+            # 🔥 成交量指标（高重要性：0.10 + 0.07 = 17%）
+            'volume_strength', 'volume_trend',
             
-            # 短期指标（降低权重）
-            'ma5', 'dist_ma5', 'hist',
-            'price_change_5d', 'price_change_10d',
+            # ⚡ 均线系统（中高重要性：0.06 + 0.06 + 0.05 = 17%）
+            'ma5', 'ma10', 'ma20',
             
-            # 成交量和波动率（平衡权重）
-            'volume_trend', 'volume_strength',  # 成交量趋势
-            'volatility'
+            # ⚡ 价格动量和均线距离（中等重要性：0.05 + 0.05 + 0.05 = 15%）
+            'price_change_5d', 'dist_ma20', 'macd',
+            
+            # ⚡ 补充特征（较低但有效：0.05 + 0.05 + 0.04 + 0.04 = 18%）
+            'dist_ma10', 'dist_ma5', 'ma60', 'price_change_10d',
+            
+            # 📊 重要技术指标（保留用于策略一致性）
+            'rsi',                                    # RSI必须保留
+            'bb_upper', 'bb_lower',                   # 布林带上下轨
+            'signal', 'hist'                          # MACD信号和柱状线
         ]
         
-        # 过滤存在的列
-        available_columns = [col for col in feature_columns if col in data.columns]
+        # ❌ 移除的真正噪音特征：
+        # 'price_position_20', 'price_position_60', 'volatility', 'volatility_normalized'
+        
+        # 🚨 重要：确保所有特征都存在，如果不存在则填充合理的默认值
+        for col in optimized_feature_columns:
+            if col not in data.columns:
+                self.logger.warning(f"缺少特征 {col}，将填充默认值")
+                # 根据特征类型填充合理的默认值
+                if 'ma' in col or 'price' in col.lower():
+                    # 均线和价格相关：使用收盘价
+                    data[col] = data['close'] if 'close' in data.columns else 0.0
+                elif col in ['rsi']:
+                    # RSI：填充中性值50
+                    data[col] = 50.0
+                elif 'dist_' in col:
+                    # 距离相关：填充0（表示在均线上）
+                    data[col] = 0.0
+                elif 'volume' in col.lower():
+                    # 成交量相关：填充1.0（表示正常）
+                    data[col] = 1.0
+                elif 'volatility' in col.lower():
+                    # 波动率相关：填充适中值
+                    data[col] = 0.02 if 'normalized' not in col else 1.0
+                else:
+                    # 其他特征：填充0
+                    data[col] = 0.0
+        
+        # 使用精选特征集合
+        available_columns = optimized_feature_columns.copy()
         
         if len(available_columns) == 0:
             self.logger.warning("没有可用的特征列")
@@ -166,6 +201,86 @@ class AIOptimizerImproved:
         data['volume_strength'] = data['volume'] / volume_ma60
         # 处理除零情况
         data['volume_strength'] = data['volume_strength'].fillna(1.0)
+        
+        return data
+    
+    def _ensure_technical_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        确保重要技术指标存在且有效
+        
+        参数:
+        data: 原始数据
+        
+        返回:
+        pd.DataFrame: 包含所有必要技术指标的数据
+        """
+        self.logger.info("🔧 确保技术指标完整性")
+        
+        # 检查并计算RSI
+        if 'rsi' not in data.columns or data['rsi'].isna().all():
+            self.logger.info("重新计算RSI指标")
+            delta = data['close'].diff()
+            gain = delta.where(delta > 0, 0)
+            loss = -delta.where(delta < 0, 0)
+            avg_gain = gain.rolling(14).mean()
+            avg_loss = loss.rolling(14).mean()
+            
+            # 修复除零错误
+            rs = np.where(avg_loss == 0, np.inf, avg_gain / avg_loss)
+            rs = np.where(avg_gain == 0, 0, rs)
+            data['rsi'] = 100 - (100 / (1 + rs))
+        
+        # 检查并计算MACD
+        if 'macd' not in data.columns or data['macd'].isna().all():
+            self.logger.info("重新计算MACD指标")
+            exp1 = data['close'].ewm(span=12, adjust=False).mean()
+            exp2 = data['close'].ewm(span=26, adjust=False).mean()
+            data['macd'] = exp1 - exp2
+            data['signal'] = data['macd'].ewm(span=9, adjust=False).mean()
+            data['hist'] = data['macd'] - data['signal']
+        
+        # 检查并计算布林带
+        if 'bb_upper' not in data.columns or data['bb_upper'].isna().all():
+            self.logger.info("重新计算布林带指标")
+            # 确保ma20存在
+            if 'ma20' not in data.columns:
+                data['ma20'] = data['close'].rolling(20).mean()
+            data['bb_upper'] = data['ma20'] + (data['close'].rolling(20).std() * 2)
+            data['bb_lower'] = data['ma20'] - (data['close'].rolling(20).std() * 2)
+        
+        # 检查移动平均线
+        if 'ma5' not in data.columns:
+            data['ma5'] = data['close'].rolling(5).mean()
+        if 'ma10' not in data.columns:
+            data['ma10'] = data['close'].rolling(10).mean()
+        if 'ma20' not in data.columns:
+            data['ma20'] = data['close'].rolling(20).mean()
+        if 'ma60' not in data.columns:
+            data['ma60'] = data['close'].rolling(60).mean()
+        
+        # 检查价格与均线距离
+        if 'dist_ma5' not in data.columns:
+            data['dist_ma5'] = (data['close'] - data['ma5']) / data['ma5']
+        if 'dist_ma10' not in data.columns:
+            data['dist_ma10'] = (data['close'] - data['ma10']) / data['ma10']
+        if 'dist_ma20' not in data.columns:
+            data['dist_ma20'] = (data['close'] - data['ma20']) / data['ma20']
+        
+        # 检查价格变化率
+        if 'price_change_5d' not in data.columns:
+            data['price_change_5d'] = data['close'].pct_change(5)
+        if 'price_change_10d' not in data.columns:
+            data['price_change_10d'] = data['close'].pct_change(10)
+        
+        # 验证关键指标
+        key_indicators = ['rsi', 'macd', 'signal', 'hist', 'bb_upper', 'bb_lower']
+        for indicator in key_indicators:
+            if indicator in data.columns:
+                valid_count = data[indicator].notna().sum()
+                total_count = len(data)
+                self.logger.info(f"✅ {indicator}: {valid_count}/{total_count} 有效值")
+            else:
+                self.logger.warning(f"❌ {indicator} 不存在")
         
         return data
     
@@ -1907,7 +2022,7 @@ class AIOptimizerImproved:
     
     def _get_enhanced_parameter_ranges(self, base_ranges: dict) -> dict:
         """
-        获取增强的参数范围（更精细的搜索）
+        获取增强的参数范围（使用配置文件中的范围）
         
         参数:
         base_ranges: 基础参数范围
@@ -1918,57 +2033,36 @@ class AIOptimizerImproved:
         # 🚨 重要：固定参数，不参与遗传算法优化
         # rise_threshold: 0.04 和 max_days: 20 是用户预设的固定值
         
-        enhanced_ranges = {
-            # ❌ 移除固定参数，不参与优化
-            # 'rise_threshold': 用户指定固定为0.04
-            # 'max_days': 用户指定固定为20
+        # 从配置文件中获取参数范围
+        config = self.config
+        strategy_ranges = config.get('strategy_ranges', {})
+        optimization_ranges = config.get('optimization_ranges', {})
+        
+        enhanced_ranges = {}
+        
+        # 添加strategy_ranges中的参数
+        for param_name, param_config in strategy_ranges.items():
+            # 🚨 跳过固定参数，不允许优化
+            if param_name in ['rise_threshold', 'max_days']:
+                self.logger.info(f"⚠️ 跳过固定参数 {param_name}，此参数不参与优化")
+                continue
             
-            # RSI参数（扩展范围）
-            'rsi_oversold_threshold': {
-                'min': 20, 'max': 40, 'type': 'int'
-            },
-            'rsi_low_threshold': {
-                'min': 30, 'max': 50, 'type': 'int'
-            },
-            
-            # 置信度阈值（高精度）
-            'final_threshold': {
-                'min': 0.25, 'max': 0.85, 'type': 'float', 'precision': 4
-            },
-            
-            # 高级权重参数（新增）
-            'dynamic_confidence_adjustment': {
-                'min': 0.02, 'max': 0.30, 'type': 'float', 'precision': 4
-            },
-            'market_sentiment_weight': {
-                'min': 0.05, 'max': 0.35, 'type': 'float', 'precision': 4
-            },
-            'trend_strength_weight': {
-                'min': 0.03, 'max': 0.25, 'type': 'float', 'precision': 4
-            },
-            'volume_weight': {
-                'min': 0.10, 'max': 0.45, 'type': 'float', 'precision': 4
-            },
-            'price_momentum_weight': {
-                'min': 0.08, 'max': 0.35, 'type': 'float', 'precision': 4
-            },
-            
-            # 布林带参数
-            'bb_near_threshold': {
-                'min': 1.005, 'max': 1.05, 'type': 'float', 'precision': 5
-            },
-            
-            # 成交量参数
-            'volume_panic_threshold': {
-                'min': 1.2, 'max': 2.0, 'type': 'float', 'precision': 3
-            },
-            'volume_surge_threshold': {
-                'min': 1.1, 'max': 1.5, 'type': 'float', 'precision': 3
-            },
-            'volume_shrink_threshold': {
-                'min': 0.5, 'max': 0.9, 'type': 'float', 'precision': 3
+            # 转换配置格式
+            enhanced_ranges[param_name] = {
+                'min': param_config.get('min', 0),
+                'max': param_config.get('max', 1),
+                'type': 'int' if param_name.endswith('_threshold') and 'rsi' in param_name else 'float',
+                'precision': 4
             }
-        }
+        
+        # 添加optimization_ranges中的参数
+        for param_name, param_config in optimization_ranges.items():
+            enhanced_ranges[param_name] = {
+                'min': param_config.get('min', 0),
+                'max': param_config.get('max', 1),
+                'type': 'float',
+                'precision': 4
+            }
         
         # 合并用户配置的范围（但排除固定参数）
         for param_name, param_config in base_ranges.items():
@@ -1986,8 +2080,13 @@ class AIOptimizerImproved:
                 enhanced_ranges[param_name]['type'] = 'float'  # 默认为浮点数
                 enhanced_ranges[param_name]['precision'] = 4
         
-        self.logger.info(f"🎯 增强参数搜索空间: {len(enhanced_ranges)} 个参数")
+        self.logger.info(f"🎯 参数搜索空间: {len(enhanced_ranges)} 个参数")
         self.logger.info(f"🔒 固定参数: rise_threshold=0.04, max_days=20 (不参与优化)")
+        
+        # 记录参数范围
+        for param_name, param_config in enhanced_ranges.items():
+            self.logger.info(f"   {param_name}: {param_config['min']} - {param_config['max']} ({param_config['type']})")
+        
         return enhanced_ranges
     
     def _initialize_population(self, param_ranges: dict, population_size: int) -> List[Dict]:

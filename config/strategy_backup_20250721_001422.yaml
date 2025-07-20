@@ -107,7 +107,7 @@ optimization_ranges:
     max: 0.35
     min: 0.15
     step: 0.02
-
+  
   # 🆕 新增高重要度参数（6个）
   volume_panic_threshold:
     max: 2.0
@@ -133,7 +133,7 @@ optimization_ranges:
     max: 90
     min: 75
     step: 1
-
+  
   # 🆕 新增中重要度参数（6个）
   volume_panic_bonus:
     max: 0.20
@@ -163,12 +163,12 @@ overfitting_threshold: 0.9
 strategy:
   bb_near_threshold: 1.01049
   confidence_weights:
-    final_threshold: 0.3708
+    final_threshold: 0.2625
     rsi_low_threshold: 48
-    rsi_oversold_threshold: 30
-    dynamic_confidence_adjustment: 0.2384
-    market_sentiment_weight: 0.1767
-    trend_strength_weight: 0.0871
+    rsi_oversold_threshold: 28
+    dynamic_confidence_adjustment: 0.1508
+    market_sentiment_weight: 0.0816
+    trend_strength_weight: 0.0997
   dynamic_confidence_adjustment: 0.2169
   market_sentiment_weight: 0.3074
   price_momentum_weight: 0.2766

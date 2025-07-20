@@ -139,6 +139,45 @@ class StrategyModule:
                     confidence += confidence_config.get('rsi_low', 0.2)
                     reasons.append(f"RSI偏低({rsi:.2f})")
                     
+            # 🆕 条件2B: RSI上升阶段的回调识别（新增逻辑）
+            if rsi is not None and len(data) >= 10:
+                # 获取RSI历史数据用于回调分析
+                rsi_series = data['rsi'].tail(10) if 'rsi' in data.columns else None
+                if rsi_series is not None and not rsi_series.isna().all():
+                    # 🔥 RSI上升阶段参数（大幅放宽条件）
+                    rsi_uptrend_min = confidence_config.get('rsi_uptrend_min', 35)  # 大幅降低门槛
+                    rsi_uptrend_max = confidence_config.get('rsi_uptrend_max', 85)  # 扩大范围
+                    rsi_pullback_threshold = confidence_config.get('rsi_pullback_threshold', 3)  # 降低回调要求
+                    
+                    # 🎯 更宽松的RSI阶段识别（适应更多上升阶段情况）
+                    if rsi_uptrend_min <= rsi <= rsi_uptrend_max:
+                        # 计算RSI短期变化
+                        rsi_recent_high = rsi_series.tail(5).max()  # 近5日RSI最高值
+                        rsi_recent_low = rsi_series.tail(5).min()   # 近5日RSI最低值
+                        rsi_pullback = rsi_recent_high - rsi  # RSI回调幅度
+                        
+                        # 条件1: 任何程度的健康回调都给予奖励
+                        if rsi_pullback >= rsi_pullback_threshold:
+                            # 🚀 不再要求严格的价格回调条件
+                            uptrend_pullback_weight = confidence_config.get('rsi_uptrend_pullback', 0.35)
+                            confidence += uptrend_pullback_weight
+                            is_low_point = True
+                            reasons.append(f"上升趋势中健康回调(RSI:{rsi:.1f}, 回调{rsi_pullback:.1f}点)")
+                        
+                        # 条件2: RSI在中高位（40-70）也给予支持
+                        elif 40 <= rsi <= 70:
+                            # 任何在中高位的RSI都可能是相对低点
+                            moderate_rsi_weight = confidence_config.get('moderate_rsi_bonus', 0.20)
+                            confidence += moderate_rsi_weight
+                            reasons.append(f"RSI中高位支撑({rsi:.1f})")
+                        
+                        # 条件3: RSI从任何高位回落（更宽松）
+                        elif rsi_recent_high >= 60 and rsi >= 45:
+                            # 从中高位回落也算修正机会
+                            overbought_correction_weight = confidence_config.get('rsi_overbought_correction', 0.25)
+                            confidence += overbought_correction_weight
+                            reasons.append(f"RSI超买修正({rsi:.1f}, 从{rsi_recent_high:.1f}回落)")
+                    
             # 条件3: MACD负值
             if macd is not None and macd < 0:
                 confidence += confidence_config.get('macd_negative', 0.1)
@@ -192,23 +231,83 @@ class StrategyModule:
                     confidence += market_sentiment_weight * 0.3
                     reasons.append(f"观望情绪(+{market_sentiment_weight * 0.3:.3f})")
             
-            # 趋势强度权重 - 基于价格趋势强度
+            # 🆕 上升趋势中的成交量配合分析（新增逻辑）
+            if len(data) >= 20:
+                # 判断是否处于上升趋势
+                ma20_current = latest_data.get('ma20', None)
+                ma20_prev = data.iloc[-5]['ma20'] if len(data) >= 5 and 'ma20' in data.columns else None
+                
+                if ma20_current and ma20_prev and ma20_current > ma20_prev:
+                    # 确认在上升趋势中
+                    price_vs_ma20 = (latest_price - ma20_current) / ma20_current
+                    
+                    # 价格回调但仍在均线附近（健康调整）
+                    if -0.02 <= price_vs_ma20 <= 0.03:  # 价格在MA20的-2%到+3%范围内
+                        volume_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else 1.0
+                        
+                        # 缩量回调（健康的洗盘）
+                        if volume_ratio < 0.8:
+                            uptrend_volume_pullback = confidence_config.get('uptrend_volume_pullback', 0.15)
+                            confidence += uptrend_volume_pullback
+                            is_low_point = True
+                            reasons.append(f"上升趋势中缩量回调(+{uptrend_volume_pullback:.3f})")
+                        
+                        # 温和放量（可能是支撑位抄底）
+                        elif 1.0 <= volume_ratio <= 1.3:
+                            uptrend_support_volume = confidence_config.get('uptrend_support_volume', 0.12)
+                            confidence += uptrend_support_volume
+                            reasons.append(f"上升趋势中支撑位放量(+{uptrend_support_volume:.3f})")
+                    
+                    # 价格接近或略低于重要均线（强支撑位）
+                    elif -0.05 <= price_vs_ma20 < -0.02:  # 价格在MA20下方2-5%
+                        ma_support_weight = confidence_config.get('uptrend_ma_support', 0.18)
+                        confidence += ma_support_weight
+                        is_low_point = True
+                        reasons.append(f"上升趋势中均线支撑(+{ma_support_weight:.3f})")
+            
+            # 🔄 趋势强度权重 - 智能趋势内回调识别（修改后的逻辑）
             trend_strength_weight = confidence_config.get('trend_strength_weight', 0.12)
             if len(data) >= 20:
-                # 计算趋势强度（使用线性回归斜率）
-                x = np.arange(20)
-                y = data['close'].tail(20).values
-                slope = np.polyfit(x, y, 1)[0]
-                trend_strength = abs(slope) / y.mean()  # 标准化斜率
+                # 计算多时间框架趋势
+                # 长期趋势（20日）
+                x_long = np.arange(20)
+                y_long = data['close'].tail(20).values
+                slope_long = np.polyfit(x_long, y_long, 1)[0]
+                trend_strength_long = abs(slope_long) / y_long.mean()
                 
-                if trend_strength > 0.01:  # 强趋势
-                    if slope < 0:  # 下跌趋势
+                # 短期趋势（5日）
+                if len(data) >= 5:
+                    x_short = np.arange(5)
+                    y_short = data['close'].tail(5).values
+                    slope_short = np.polyfit(x_short, y_short, 1)[0]
+                    trend_strength_short = abs(slope_short) / y_short.mean()
+                else:
+                    slope_short = slope_long
+                    trend_strength_short = trend_strength_long
+                
+                # 智能趋势分析
+                if trend_strength_long > 0.01:  # 长期强趋势
+                    if slope_long > 0:  # 长期上涨趋势
+                        # 🆕 上升趋势中的智能回调识别
+                        if slope_short < 0 and trend_strength_short > 0.005:
+                            # 短期回调但长期向上 - 这是好的买入机会！
+                            uptrend_pullback_bonus = confidence_config.get('uptrend_pullback_bonus', 0.18)
+                            confidence += uptrend_pullback_bonus
+                            is_low_point = True
+                            reasons.append(f"上升趋势中回调机会(+{uptrend_pullback_bonus:.3f})")
+                        elif abs(slope_short) < 0.002:
+                            # 上升趋势中的横盘整理
+                            uptrend_consolidation_bonus = confidence_config.get('uptrend_consolidation_bonus', 0.12)
+                            confidence += uptrend_consolidation_bonus
+                            reasons.append(f"上升趋势中横盘整理(+{uptrend_consolidation_bonus:.3f})")
+                        else:
+                            # 继续上涨，适度降低权重但不大幅减分
+                            confidence -= trend_strength_weight * 0.1
+                            reasons.append(f"强上涨趋势延续(-{trend_strength_weight * 0.1:.3f})")
+                    else:  # 长期下跌趋势
                         confidence += trend_strength_weight
                         reasons.append(f"强下跌趋势(+{trend_strength_weight:.3f})")
-                    else:  # 上涨趋势
-                        confidence -= trend_strength_weight * 0.5
-                        reasons.append(f"强上涨趋势(-{trend_strength_weight * 0.5:.3f})")
-                elif trend_strength < 0.002:  # 弱趋势
+                elif trend_strength_long < 0.002:  # 弱趋势
                     confidence += trend_strength_weight * 0.2
                     reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.2:.3f})")
                     
@@ -567,46 +666,54 @@ class StrategyModule:
         """
         self.logger.info("更新策略参数: %s", params)
         
+        # 更新基础参数
         if 'rise_threshold' in params:
             self.rise_threshold = params['rise_threshold']
             
         if 'max_days' in params:
             self.max_days = params['max_days']
-            
-        # 更新置信度权重参数
-        if 'rsi_oversold_threshold' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['rsi_oversold_threshold'] = params['rsi_oversold_threshold']
-            
-        if 'rsi_low_threshold' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['rsi_low_threshold'] = params['rsi_low_threshold']
-            
-        if 'final_threshold' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['final_threshold'] = params['final_threshold']
         
-        # 更新新增AI优化参数
-        if 'dynamic_confidence_adjustment' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['dynamic_confidence_adjustment'] = params['dynamic_confidence_adjustment']
-            
-        if 'market_sentiment_weight' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['market_sentiment_weight'] = params['market_sentiment_weight']
-            
-        if 'trend_strength_weight' in params:
-            if 'confidence_weights' not in self.config['strategy']:
-                self.config['strategy']['confidence_weights'] = {}
-            self.config['strategy']['confidence_weights']['trend_strength_weight'] = params['trend_strength_weight']
-            
-        self.logger.info("策略参数已更新: rise_threshold=%.4f, max_days=%d", 
-                        self.rise_threshold, self.max_days)
+        # 确保confidence_weights存在
+        if 'confidence_weights' not in self.config['strategy']:
+            self.config['strategy']['confidence_weights'] = {}
+        
+        # 定义所有可能的参数及其存储位置
+        confidence_weight_params = [
+            'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
+            'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight',
+            # 🆕 新增的confidence_weights参数
+            'volume_panic_bonus', 'volume_surge_bonus', 'volume_shrink_penalty',
+            'bb_lower_near', 'price_decline_threshold', 'decline_threshold',
+            'rsi_uptrend_min', 'rsi_uptrend_max', 'rsi_pullback_threshold',
+            'rsi_uptrend_pullback', 'rsi_overbought_correction'
+        ]
+        
+        strategy_level_params = [
+            'volume_weight', 'price_momentum_weight', 'bb_near_threshold',
+            'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold'
+        ]
+        
+        # 更新confidence_weights中的参数
+        for param in confidence_weight_params:
+            if param in params:
+                self.config['strategy']['confidence_weights'][param] = params[param]
+        
+        # 更新strategy级别的参数
+        for param in strategy_level_params:
+            if param in params:
+                self.config['strategy'][param] = params[param]
+        
+        # 记录更新的参数
+        updated_params = []
+        for param, value in params.items():
+            if param in ['rise_threshold', 'max_days']:
+                updated_params.append(f"{param}={value}")
+            elif param in confidence_weight_params:
+                updated_params.append(f"{param}={value}")
+            elif param in strategy_level_params:
+                updated_params.append(f"{param}={value}")
+        
+        self.logger.info("策略参数已更新: %s", ", ".join(updated_params))
                         
     def get_params(self) -> Dict[str, Any]:
         """
@@ -616,17 +723,51 @@ class StrategyModule:
         dict: 当前参数
         """
         confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
-        return {
+        
+        # 获取所有可用的参数，包括新增的AI优化参数
+        params = {
             'rise_threshold': self.rise_threshold,
             'max_days': self.max_days,
             'rsi_oversold_threshold': confidence_weights.get('rsi_oversold_threshold', 30),
             'rsi_low_threshold': confidence_weights.get('rsi_low_threshold', 40),
             'final_threshold': confidence_weights.get('final_threshold', 0.5),
-            # 新增AI优化参数
+            # 原有AI优化参数
             'dynamic_confidence_adjustment': confidence_weights.get('dynamic_confidence_adjustment', 0.1),
             'market_sentiment_weight': confidence_weights.get('market_sentiment_weight', 0.15),
-            'trend_strength_weight': confidence_weights.get('trend_strength_weight', 0.12)
+            'trend_strength_weight': confidence_weights.get('trend_strength_weight', 0.12),
+            # 🆕 新增高重要度参数
+            'volume_panic_threshold': confidence_weights.get('volume_panic_threshold', 1.45),
+            'volume_surge_threshold': confidence_weights.get('volume_surge_threshold', 1.25),
+            'volume_shrink_threshold': confidence_weights.get('volume_shrink_threshold', 0.78),
+            'bb_near_threshold': confidence_weights.get('bb_near_threshold', 1.018),
+            'rsi_uptrend_min': confidence_weights.get('rsi_uptrend_min', 35),
+            'rsi_uptrend_max': confidence_weights.get('rsi_uptrend_max', 85),
+            # 🆕 新增中重要度参数
+            'volume_panic_bonus': confidence_weights.get('volume_panic_bonus', 0.12),
+            'volume_surge_bonus': confidence_weights.get('volume_surge_bonus', 0.06),
+            'volume_shrink_penalty': confidence_weights.get('volume_shrink_penalty', 0.68),
+            'bb_lower_near': confidence_weights.get('bb_lower_near', 0.22),
+            'price_decline_threshold': confidence_weights.get('price_decline_threshold', -0.018),
+            'decline_threshold': confidence_weights.get('decline_threshold', -0.048)
         }
+        
+        # 添加其他可能存在的参数
+        additional_params = [
+            'volume_weight', 'price_momentum_weight', 'bb_near_threshold',
+            'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold'
+        ]
+        
+        for param in additional_params:
+            if param in confidence_weights:
+                params[param] = confidence_weights[param]
+        
+        # 检查strategy级别是否有这些参数（某些参数可能存储在strategy级别而不是confidence_weights中）
+        strategy_config = self.config.get('strategy', {})
+        for param in additional_params:
+            if param in strategy_config:
+                params[param] = strategy_config[param]
+        
+        return params
 
     def get_current_params(self) -> Dict[str, Any]:
         """

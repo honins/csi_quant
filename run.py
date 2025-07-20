@@ -144,6 +144,14 @@ class QuantSystemCommands:
             # 根据模式选择不同的执行方式
             mode = getattr(args, 'mode', 'optimize')
             
+            print(f"🎯 AI命令模式: {mode}")
+            print("📋 可用模式说明:")
+            print("   • optimize (默认): 完整AI优化 - 策略参数优化 + 模型训练")
+            print("   • full: 完全重训练 - 重新训练整个模型")
+            print("   • incremental: 增量训练 - 基于现有模型增量学习")
+            print("   • demo: 演示预测 - 使用已训练模型进行预测演示")
+            print()
+            
             if mode in ['incremental', 'full', 'demo']:
                 return self._run_ai_training(mode, config)
             else:
@@ -158,15 +166,23 @@ class QuantSystemCommands:
     
     def _run_ai_training(self, mode, config):
         """运行AI训练"""
-        self.logger.info(f"开始AI训练，模式: {mode}")
+        from datetime import datetime
+        start_time = datetime.now()
+        
+        print(f"🤖 开始AI训练，模式: {mode}")
+        print("=" * 60)
+        self.logger.info(f"🤖 开始AI训练，模式: {mode}")
         
         try:
             # 尝试导入并调用真实的AI训练模块
+            print("📦 导入AI训练模块...")
             from src.ai.ai_optimizer_improved import AIOptimizerImproved
             from src.strategy.strategy_module import StrategyModule
             from src.data.data_module import DataModule
+            print("✅ 模块导入成功")
             
             # 初始化数据和策略模块
+            print("\n📊 获取历史数据...")
             data_module = DataModule(config)
             
             # 获取数据配置
@@ -175,34 +191,87 @@ class QuantSystemCommands:
             start_date = time_range.get('start_date', '2019-01-01')
             end_date = time_range.get('end_date', '2025-07-15')
             
+            print(f"📅 数据时间范围: {start_date} ~ {end_date}")
             data = data_module.get_history_data(start_date, end_date)
             strategy_module = StrategyModule(config)
             
             if data is None or data.empty:
                 return "❌ 无法获取数据，请检查数据配置"
             
+            print(f"✅ 数据获取成功: {len(data)} 条记录")
+            
             ai_optimizer = AIOptimizerImproved(config)
+            
+            print(f"\n🚀 开始AI {mode} 训练...")
             
             if mode == 'incremental':
                 # 增量训练逻辑
+                print("💡 增量训练模式: 基于现有模型进行增量学习")
                 result = ai_optimizer.incremental_train(data, strategy_module)
-                return f"✅ AI增量训练完成: {result.get('summary', '成功')}"
+                
+                # 计算耗时
+                end_time = datetime.now()
+                total_time = (end_time - start_time).total_seconds()
+                
+                if result.get('success'):
+                    print(f"\n✅ AI增量训练完成 (耗时: {total_time:.1f}秒)")
+                    print(f"📊 训练结果: {result.get('summary', '成功')}")
+                    return f"✅ AI增量训练完成，耗时: {total_time:.1f}秒"
+                else:
+                    print(f"\n❌ AI增量训练失败 (耗时: {total_time:.1f}秒)")
+                    return f"❌ AI增量训练失败: {result.get('error', '未知错误')}"
                 
             elif mode == 'full':
                 # 完全重训练逻辑
+                print("💡 完全重训练模式: 重新训练整个模型")
                 result = ai_optimizer.full_train(data, strategy_module)
-                return f"✅ AI完全重训练完成: {result.get('summary', '成功')}"
+                
+                # 计算耗时
+                end_time = datetime.now()
+                total_time = (end_time - start_time).total_seconds()
+                
+                if result.get('success'):
+                    train_samples = result.get('train_samples', 0)
+                    feature_count = result.get('feature_count', 0)
+                    positive_ratio = result.get('positive_ratio', 0)
+                    save_success = result.get('save_success', False)
+                    
+                    print(f"\n✅ AI完全重训练完成 (耗时: {total_time:.1f}秒)")
+                    print(f"📊 训练统计:")
+                    print(f"   📈 训练样本: {train_samples:,} 条")
+                    print(f"   🔧 特征数量: {feature_count} 个")
+                    print(f"   📊 正样本比例: {positive_ratio:.2%}")
+                    print(f"   💾 模型保存: {'成功' if save_success else '失败'}")
+                    
+                    return f"✅ AI完全重训练完成，耗时: {total_time:.1f}秒"
+                else:
+                    print(f"\n❌ AI完全重训练失败 (耗时: {total_time:.1f}秒)")
+                    return f"❌ AI完全重训练失败: {result.get('error', '未知错误')}"
                 
             elif mode == 'demo':
                 # 演示预测逻辑 - 使用最近一个交易日进行预测
+                print("💡 演示预测模式: 使用已训练模型进行预测演示")
                 from examples.predict_single_day import predict_single_day
                 from datetime import datetime, timedelta
                 import pandas as pd
                 
                 # 获取最近的交易日作为演示日期
                 demo_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+                print(f"📅 演示预测日期: {demo_date}")
+                
                 result = predict_single_day(demo_date, use_trained_model=True)
-                return f"✅ AI演示预测完成: {demo_date}"
+                
+                # 计算耗时
+                end_time = datetime.now()
+                total_time = (end_time - start_time).total_seconds()
+                
+                if result:
+                    print(f"\n✅ AI演示预测完成 (耗时: {total_time:.1f}秒)")
+                    print(f"📅 预测日期: {demo_date}")
+                    return f"✅ AI演示预测完成: {demo_date}"
+                else:
+                    print(f"\n❌ AI演示预测失败 (耗时: {total_time:.1f}秒)")
+                    return f"❌ AI演示预测失败: {demo_date}"
                 
             else:
                 return f"❌ 未知的AI训练模式: {mode}"
@@ -222,15 +291,23 @@ class QuantSystemCommands:
     
     def _run_ai_optimization(self, config):
         """运行AI优化"""
-        self.logger.info("开始AI参数优化")
+        from datetime import datetime
+        start_time = datetime.now()
+        
+        print("🤖 开始AI参数优化")
+        print("=" * 60)
+        self.logger.info("🤖 开始AI参数优化")
         
         try:
             # 导入所需模块
+            print("📦 导入AI优化模块...")
             from src.ai.ai_optimizer_improved import AIOptimizerImproved
             from src.strategy.strategy_module import StrategyModule
             from src.data.data_module import DataModule
+            print("✅ 模块导入成功")
             
             # 初始化数据模块获取数据
+            print("\n📊 获取历史数据...")
             data_module = DataModule(config)
             
             # 获取数据配置
@@ -239,30 +316,128 @@ class QuantSystemCommands:
             start_date = time_range.get('start_date', '2019-01-01')
             end_date = time_range.get('end_date', '2025-07-15')
             
+            print(f"📅 数据时间范围: {start_date} ~ {end_date}")
             data = data_module.get_history_data(start_date, end_date)
             
             if data is None or data.empty:
                 return "❌ 无法获取数据，请检查数据配置"
             
+            print(f"✅ 数据获取成功: {len(data)} 条记录")
+            
             # 🔧 关键修复：对数据进行预处理，计算技术指标
+            print("\n🔧 数据预处理...")
             self.logger.info("对数据进行预处理，计算技术指标...")
             data = data_module.preprocess_data(data)
+            print(f"✅ 预处理完成，数据列: {list(data.columns)}")
             self.logger.info(f"预处理完成，数据列: {list(data.columns)}")
             
             # 初始化策略模块
+            print("\n⚙️ 初始化策略模块...")
             strategy_module = StrategyModule(config)
+            print("✅ 策略模块初始化完成")
+            
+            # 显示当前策略参数
+            current_params = strategy_module.get_params()
+            print(f"📋 当前策略参数:")
+            for key, value in current_params.items():
+                if isinstance(value, float):
+                    print(f"   {key}: {value:.4f}")
+                else:
+                    print(f"   {key}: {value}")
             
             # 运行完整的AI优化（包含策略优化 + 模型训练）
+            print("\n🚀 开始完整AI优化流程...")
+            print("💡 包含: 策略参数优化 + 模型训练 + 参数保存")
             ai_optimizer = AIOptimizerImproved(config)
+            
             optimization_result = ai_optimizer.run_complete_optimization(
                 data, strategy_module
             )
             
+            # 计算总耗时
+            end_time = datetime.now()
+            total_time = (end_time - start_time).total_seconds()
+            
+            print("\n" + "=" * 60)
+            print("📊 AI优化结果总结")
+            print("=" * 60)
+            
             if optimization_result.get('success'):
-                best_score = optimization_result.get('best_score', 0)
-                return f"✅ AI参数优化完成，最佳得分: {best_score:.4f}"
+                # 获取详细结果
+                strategy_result = optimization_result.get('strategy_optimization', {})
+                model_result = optimization_result.get('model_training', {})
+                evaluation_result = optimization_result.get('final_evaluation', {})
+                
+                print(f"⏱️  总耗时: {total_time:.1f}秒 ({total_time/60:.1f}分钟)")
+                
+                # 策略优化结果
+                if strategy_result.get('success'):
+                    best_score = strategy_result.get('best_score', 0)
+                    test_success_rate = strategy_result.get('test_success_rate', 0)
+                    optimization_method = strategy_result.get('optimization_method', 'unknown')
+                    
+                    print(f"🎯 策略参数优化:")
+                    print(f"   ✅ 优化方法: {optimization_method}")
+                    print(f"   📈 最优得分: {best_score:.6f}")
+                    print(f"   📊 测试集成功率: {test_success_rate:.2%}")
+                    
+                    # 显示优化后的参数
+                    best_params = strategy_result.get('best_params', {})
+                    if best_params:
+                        print(f"   🔧 优化后参数:")
+                        for key, value in best_params.items():
+                            if isinstance(value, float):
+                                print(f"      {key}: {value:.4f}")
+                            else:
+                                print(f"      {key}: {value}")
+                else:
+                    print(f"⚠️ 策略参数优化: 失败")
+                
+                # 模型训练结果
+                if model_result.get('success'):
+                    train_samples = model_result.get('train_samples', 0)
+                    feature_count = model_result.get('feature_count', 0)
+                    positive_ratio = model_result.get('positive_ratio', 0)
+                    save_success = model_result.get('save_success', False)
+                    
+                    print(f"🤖 模型训练:")
+                    print(f"   ✅ 训练样本: {train_samples:,} 条")
+                    print(f"   📈 特征数量: {feature_count} 个")
+                    print(f"   📊 正样本比例: {positive_ratio:.2%}")
+                    print(f"   💾 模型保存: {'成功' if save_success else '失败'}")
+                else:
+                    print(f"❌ 模型训练: 失败")
+                
+                # 最终评估结果
+                if evaluation_result.get('success'):
+                    strategy_score = evaluation_result.get('strategy_score', 0)
+                    strategy_success_rate = evaluation_result.get('strategy_success_rate', 0)
+                    identified_points = evaluation_result.get('identified_points', 0)
+                    ai_confidence = evaluation_result.get('ai_confidence', 0)
+                    
+                    print(f"📊 最终评估:")
+                    print(f"   🎯 策略得分: {strategy_score:.4f}")
+                    print(f"   📈 成功率: {strategy_success_rate:.2%}")
+                    print(f"   🔍 识别点数: {identified_points}")
+                    print(f"   🤖 AI置信度: {ai_confidence:.4f}")
+                else:
+                    print(f"⚠️ 最终评估: 部分失败")
+                
+                print("\n🎉 AI优化完成！")
+                print("💡 优化后的策略参数已保存到 config/strategy.yaml")
+                print("💡 新训练的模型已保存到 models/ 目录")
+                
+                return f"✅ AI参数优化完成，总耗时: {total_time:.1f}秒"
             else:
                 error_msg = optimization_result.get('error', '未知错误')
+                errors = optimization_result.get('errors', [])
+                
+                print(f"❌ AI优化失败 (耗时: {total_time:.1f}秒)")
+                if errors:
+                    print(f"📋 错误详情:")
+                    for error in errors:
+                        print(f"   • {error}")
+                
                 return f"❌ AI参数优化失败: {error_msg}"
                 
         except ImportError as e:

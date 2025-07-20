@@ -75,9 +75,9 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 10  # 🔧 增加进化代数：20 → 30
+  generations: 20
   mutation_rate: 0.15
-  population_size: 120  # 🔧 增加种群大小：70 → 120
+  population_size: 70
 optimization:
   enable_history: true
   enable_incremental: true
@@ -86,7 +86,6 @@ optimization:
   incremental_iterations: 1200
   max_history_records: 150
 optimization_ranges:
-  # 原有AI优化参数（5个）
   dynamic_confidence_adjustment:
     max: 0.25
     min: 0.05
@@ -107,68 +106,16 @@ optimization_ranges:
     max: 0.35
     min: 0.15
     step: 0.02
-
-  # 🆕 新增高重要度参数（6个）
-  volume_panic_threshold:
-    max: 2.0
-    min: 1.2
-    step: 0.05
-  volume_surge_threshold:
-    max: 1.5
-    min: 1.1
-    step: 0.05
-  volume_shrink_threshold:
-    max: 0.9
-    min: 0.5
-    step: 0.05
-  bb_near_threshold:
-    max: 1.05
-    min: 1.005
-    step: 0.005
-  rsi_uptrend_min:
-    max: 45
-    min: 30
-    step: 1
-  rsi_uptrend_max:
-    max: 90
-    min: 75
-    step: 1
-
-  # 🆕 新增中重要度参数（6个）
-  volume_panic_bonus:
-    max: 0.20
-    min: 0.05
-    step: 0.02
-  volume_surge_bonus:
-    max: 0.15
-    min: 0.02
-    step: 0.02
-  volume_shrink_penalty:
-    max: 0.8
-    min: 0.5
-    step: 0.05
-  bb_lower_near:
-    max: 0.35
-    min: 0.15
-    step: 0.02
-  price_decline_threshold:
-    max: -0.01
-    min: -0.03
-    step: 0.005
-  decline_threshold:
-    max: -0.03
-    min: -0.06
-    step: 0.005
 overfitting_threshold: 0.9
 strategy:
   bb_near_threshold: 1.01049
   confidence_weights:
-    final_threshold: 0.3708
+    final_threshold: 0.2721
     rsi_low_threshold: 48
-    rsi_oversold_threshold: 30
-    dynamic_confidence_adjustment: 0.2384
-    market_sentiment_weight: 0.1767
-    trend_strength_weight: 0.0871
+    rsi_oversold_threshold: 25
+    dynamic_confidence_adjustment: 0.1184
+    market_sentiment_weight: 0.1087
+    trend_strength_weight: 0.1897
   dynamic_confidence_adjustment: 0.2169
   market_sentiment_weight: 0.3074
   price_momentum_weight: 0.2766
