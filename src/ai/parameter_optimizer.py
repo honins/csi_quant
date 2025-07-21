@@ -8,6 +8,7 @@
 功能：
 - 策略参数搜索和优化
 - 网格搜索和随机搜索
+- 真正的贝叶斯优化（使用scikit-optimize）
 - 参数范围管理
 - 评分函数计算
 - 优化结果保存
@@ -20,6 +21,15 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 from itertools import product
+
+# 贝叶斯优化相关导入
+try:
+    from skopt import gp_minimize
+    from skopt.space import Real, Integer
+    from skopt.utils import use_named_args
+    BAYESIAN_AVAILABLE = True
+except ImportError:
+    BAYESIAN_AVAILABLE = False
 
 from ..utils.base_module import AIModule
 from ..utils.common import (
@@ -51,7 +61,11 @@ class ParameterOptimizer(AIModule):
         # 评分权重配置
         self.scoring_weights = self._load_scoring_weights()
         
-        self.logger.info("参数优化器初始化完成")
+        # 贝叶斯优化配置
+        self.bayesian_config = self.get_config_section('bayesian_optimization', {})
+        self.ai_config = self.get_config_section('ai', {})  # 添加ai_config属性
+        
+        self.logger.info(f"参数优化器初始化完成，贝叶斯优化可用: {BAYESIAN_AVAILABLE}")
     
     def _validate_module_config(self):
         """验证参数优化器配置"""
@@ -278,13 +292,111 @@ class ParameterOptimizer(AIModule):
         }
     
     def _bayesian_optimization(self, strategy_module, data, param_ranges, max_iterations) -> Dict[str, Any]:
-        """贝叶斯优化（简化实现）"""
-        # 这里可以集成 scikit-optimize 或其他贝叶斯优化库
-        # 目前使用改进的随机搜索作为替代
-        self.logger.info("执行贝叶斯优化（当前使用改进随机搜索）")
+        """真正的贝叶斯优化实现"""
+        if not BAYESIAN_AVAILABLE:
+            self.logger.warning("scikit-optimize未安装，回退到自适应随机搜索")
+            return self._adaptive_random_search(strategy_module, data, param_ranges, max_iterations)
         
-        # 使用自适应的随机搜索
-        return self._adaptive_random_search(strategy_module, data, param_ranges, max_iterations)
+        self.logger.info("🔬 开始贝叶斯优化（使用scikit-optimize）")
+        start_time = time.time()
+        
+        # 获取贝叶斯优化配置
+        n_calls = self.bayesian_config.get('n_calls', 120)
+        n_initial_points = self.bayesian_config.get('n_initial_points', 25)
+        acq_func = self.bayesian_config.get('acq_func', 'EI')  # Expected Improvement
+        xi = self.bayesian_config.get('xi', 0.01)
+        kappa = self.bayesian_config.get('kappa', 1.96)
+        random_state = self.bayesian_config.get('random_state', 42)
+        
+        self.logger.info(f"🎯 贝叶斯优化配置:")
+        self.logger.info(f"   总调用次数: {n_calls}")
+        self.logger.info(f"   初始随机点: {n_initial_points}")
+        self.logger.info(f"   采集函数: {acq_func}")
+        self.logger.info(f"   探索参数 xi: {xi}")
+        self.logger.info(f"   置信参数 kappa: {kappa}")
+        
+        # 创建搜索空间
+        search_space = []
+        param_names = []
+        
+        for param_name, param_config in param_ranges.items():
+            min_val = param_config['min']
+            max_val = param_config['max']
+            param_type = param_config.get('type', 'float')
+            
+            param_names.append(param_name)
+            
+            if param_type == 'int':
+                search_space.append(Integer(min_val, max_val, name=param_name))
+            else:
+                search_space.append(Real(min_val, max_val, name=param_name))
+        
+        self.logger.info(f"🔍 搜索空间: {len(search_space)} 个参数")
+        
+        # 定义目标函数
+        @use_named_args(search_space)
+        def objective(**params):
+            try:
+                # 评估参数组合
+                score, metrics = self._evaluate_parameters(strategy_module, data, params)
+                
+                # 贝叶斯优化最小化目标函数，所以返回负值
+                return -score
+                
+            except Exception as e:
+                self.logger.warning(f"贝叶斯优化评估参数失败 {params}: {e}")
+                return 1.0  # 返回一个较大的值表示失败
+        
+        # 运行贝叶斯优化
+        self.logger.info("🚀 开始贝叶斯优化搜索...")
+        
+        try:
+            result = gp_minimize(
+                func=objective,
+                dimensions=search_space,
+                n_calls=n_calls,
+                n_initial_points=n_initial_points,
+                acq_func=acq_func,
+                xi=xi,
+                kappa=kappa,
+                random_state=random_state,
+                verbose=True
+            )
+            
+            # 提取最佳参数
+            best_params = dict(zip(param_names, result.x))
+            best_score = -result.fun  # 转换回正值
+            
+            # 详细评估最佳参数
+            final_score, final_metrics = self._evaluate_parameters(strategy_module, data, best_params)
+            
+            total_time = time.time() - start_time
+            
+            self.logger.info(f"✅ 贝叶斯优化完成 (耗时: {total_time:.2f}s)")
+            self.logger.info(f"   最佳得分: {best_score:.6f}")
+            self.logger.info(f"   收敛值: {result.fun:.6f}")
+            self.logger.info(f"   函数调用次数: {len(result.func_vals)}")
+            
+            return {
+                'success': True,
+                'method': 'bayesian_optimization',
+                'best_params': best_params,
+                'best_score': best_score,
+                'best_metrics': final_metrics,
+                'convergence_info': {
+                    'fun_value': result.fun,
+                    'n_calls': len(result.func_vals),
+                    'convergence_curve': result.func_vals
+                },
+                'optimization_time': total_time,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"贝叶斯优化失败: {e}")
+            # 回退到自适应随机搜索
+            self.logger.info("回退到自适应随机搜索...")
+            return self._adaptive_random_search(strategy_module, data, param_ranges, max_iterations)
     
     def _adaptive_random_search(self, strategy_module, data, param_ranges, max_iterations) -> Dict[str, Any]:
         """自适应随机搜索"""
@@ -466,8 +578,11 @@ class ParameterOptimizer(AIModule):
         return params
     
     def _evaluate_parameters(self, strategy_module, data, params) -> Tuple[float, Dict[str, Any]]:
-        """评估参数组合"""
-        # 更新策略模块参数
+        """评估参数组合 - 修复版：只有更优参数才保留"""
+        # 🔧 关键修复：保存当前策略模块状态
+        original_params = strategy_module.get_current_params() if hasattr(strategy_module, 'get_current_params') else None
+        
+        # 临时应用新参数进行评估
         strategy_module.update_params(params)
         
         # 运行回测
@@ -478,6 +593,11 @@ class ParameterOptimizer(AIModule):
         
         # 计算综合得分
         score = self._calculate_score(metrics)
+        
+        # 🎯 修复后的参数管理逻辑：始终恢复原始参数，让外部统一管理
+        # 这样避免了内部管理和外部管理的冲突
+        if original_params is not None:
+            strategy_module.update_params(original_params)
         
         return score, metrics
     

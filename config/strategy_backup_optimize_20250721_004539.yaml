@@ -6,11 +6,11 @@ advanced_optimization:
   use_time_series_cv: true
 ai_scoring:
   rise_benchmark: 0.1
-  rise_weight: 0.25
+  rise_weight: 0.28
   risk_benchmark: 0.2
-  risk_weight: 0.1
-  speed_weight: 0.15
-  success_weight: 0.5
+  risk_weight: 0.08
+  speed_weight: 0.22
+  success_weight: 0.42
 bayesian_optimization:
   acq_func: EI
   enabled: true
@@ -22,47 +22,43 @@ bayesian_optimization:
   xi: 0.008
 confidence_std_threshold: 0.05
 confidence_weights:
-  bb_lower_near: 0.32
+  bb_lower_near: 0.22
   bb_near_threshold: 1.018
-  consolidation_breakout: 0.22
   decline_threshold: -0.048
   dynamic_confidence_adjustment: 0.12
-  final_threshold: 0.15
-  ma_all_below: 0.42
+  final_threshold: 0.22  # 🔧 进一步降低阈值，增强上升阶段识别敏感度
+  ma_all_below: 0.32
   ma_partial_below: 0.22
-  macd_negative: 0.18
-  macd_rsi_combo: 0.15
+  macd_negative: 0.12
   market_sentiment_weight: 0.18
-  moderate_rsi_bonus: 0.3
-  momentum_reversal_bonus: 0.28
   price_decline_threshold: -0.018
   price_momentum_weight: 0.22
-  recent_decline: 0.32
-  resistance_break_bonus: 0.3
+  recent_decline: 0.22
   rsi_low: 0.22
-  rsi_low_threshold: 42.0
-  rsi_overbought_correction: 0.35
-  rsi_oversold: 0.42
-  rsi_oversold_threshold: 22.0
-  rsi_pullback_threshold: 2
-  rsi_uptrend_max: 85
-  rsi_uptrend_min: 30
-  rsi_uptrend_pullback: 0.45
-  support_level_bonus: 0.25
+  rsi_low_threshold: 48.0
+  rsi_oversold: 0.32
+  rsi_oversold_threshold: 25.0
   trend_strength_weight: 0.14
-  uptrend_consolidation_bonus: 0.28
-  uptrend_ma_support: 0.32
-  uptrend_pullback_bonus: 0.35
-  uptrend_support_volume: 0.15
-  uptrend_volume_pullback: 0.2
-  volume_panic_bonus: 0.18
+  volume_panic_bonus: 0.12
   volume_panic_threshold: 1.45
-  volume_price_divergence: 0.2
   volume_shrink_penalty: 0.68
   volume_shrink_threshold: 0.78
-  volume_surge_bonus: 0.12
+  volume_surge_bonus: 0.06
   volume_surge_threshold: 1.25
-  volume_weight: 0.35
+  volume_weight: 0.28
+  # 🆕 上升趋势中的相对低点识别参数（增强版）
+  rsi_uptrend_min: 35              # RSI上升阶段最低值（大幅降低）
+  rsi_uptrend_max: 85              # RSI上升阶段最高值（扩大范围）  
+  rsi_pullback_threshold: 3        # RSI回调幅度阈值（降低要求）
+  rsi_uptrend_pullback: 0.35       # 上升趋势健康回调权重（增强）
+  rsi_overbought_correction: 0.25  # RSI超买修正权重（增强）
+  moderate_rsi_bonus: 0.20         # RSI中高位支撑权重（新增）
+  uptrend_pullback_bonus: 0.25     # 上升趋势中回调机会权重（增强）
+  uptrend_consolidation_bonus: 0.18 # 上升趋势中横盘整理权重（增强）
+  uptrend_volume_pullback: 0.20    # 上升趋势中缩量回调权重（增强）
+  uptrend_support_volume: 0.15     # 上升趋势中支撑位放量权重（增强）
+  uptrend_ma_support: 0.22         # 上升趋势中均线支撑权重（增强）
+  macd_rsi_combo: 0.15             # MACD负值+RSI中性组合权重（新增）
 early_stopping:
   enabled: true
   min_delta: 0.0008
@@ -79,9 +75,9 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 20
-  mutation_rate: 0.12
-  population_size: 200
+  generations: 10  # 🔧 增加进化代数：20 → 30
+  mutation_rate: 0.15
+  population_size: 120  # 🔧 增加种群大小：70 → 120
 optimization:
   enable_history: true
   enable_incremental: true
@@ -90,128 +86,96 @@ optimization:
   incremental_iterations: 1200
   max_history_records: 150
 optimization_ranges:
-  bb_lower_near:
-    max: 0.35
-    min: 0.15
-    step: 0.02
-  bb_near_threshold:
-    max: 1.05
-    min: 1.005
-    step: 0.005
-  consolidation_breakout:
-    max: 0.32
-    min: 0.12
-    step: 0.02
-  decline_threshold:
-    max: -0.03
-    min: -0.06
-    step: 0.005
+  # 原有AI优化参数（5个）
   dynamic_confidence_adjustment:
     max: 0.25
     min: 0.05
-    step: 0.02
-  final_threshold:
-    max: 0.35
-    min: 0.15
     step: 0.02
   market_sentiment_weight:
     max: 0.25
     min: 0.08
     step: 0.02
-  momentum_reversal_bonus:
-    max: 0.38
-    min: 0.18
-    step: 0.02
-  price_decline_threshold:
-    max: -0.01
-    min: -0.03
-    step: 0.005
   price_momentum_weight:
     max: 0.3
     min: 0.12
     step: 0.02
-  resistance_break_bonus:
-    max: 0.4
-    min: 0.2
+  trend_strength_weight:
+    max: 0.2
+    min: 0.06
     step: 0.02
-  rsi_low_threshold:
-    max: 50
-    min: 40
-    step: 1
-  rsi_oversold_threshold:
-    max: 35
-    min: 25
-    step: 1
-  rsi_uptrend_max:
-    max: 90
-    min: 75
-    step: 1
-  rsi_uptrend_min:
-    max: 45
-    min: 30
-    step: 1
-  support_level_bonus:
+  volume_weight:
     max: 0.35
     min: 0.15
     step: 0.02
-  trend_strength_weight:
-    max: 0.25
-    min: 0.1
-    step: 0.02
-  volume_panic_bonus:
-    max: 0.2
-    min: 0.05
-    step: 0.02
+
+  # 🆕 新增高重要度参数（6个）
   volume_panic_threshold:
     max: 2.0
     min: 1.2
     step: 0.05
-  volume_price_divergence:
-    max: 0.3
-    min: 0.1
-    step: 0.02
-  volume_shrink_penalty:
-    max: 0.8
-    min: 0.5
+  volume_surge_threshold:
+    max: 1.5
+    min: 1.1
     step: 0.05
   volume_shrink_threshold:
     max: 0.9
     min: 0.5
     step: 0.05
+  bb_near_threshold:
+    max: 1.05
+    min: 1.005
+    step: 0.005
+  rsi_uptrend_min:
+    max: 45
+    min: 30
+    step: 1
+  rsi_uptrend_max:
+    max: 90
+    min: 75
+    step: 1
+
+  # 🆕 新增中重要度参数（6个）
+  volume_panic_bonus:
+    max: 0.20
+    min: 0.05
+    step: 0.02
   volume_surge_bonus:
     max: 0.15
     min: 0.02
     step: 0.02
-  volume_surge_threshold:
-    max: 1.5
-    min: 1.1
+  volume_shrink_penalty:
+    max: 0.8
+    min: 0.5
     step: 0.05
-  volume_weight:
-    max: 0.4
-    min: 0.2
+  bb_lower_near:
+    max: 0.35
+    min: 0.15
     step: 0.02
+  price_decline_threshold:
+    max: -0.01
+    min: -0.03
+    step: 0.005
+  decline_threshold:
+    max: -0.03
+    min: -0.06
+    step: 0.005
 overfitting_threshold: 0.9
 strategy:
   bb_near_threshold: 1.01049
   confidence_weights:
+    final_threshold: 0.3708
+    rsi_low_threshold: 48
+    rsi_oversold_threshold: 30
     dynamic_confidence_adjustment: 0.2384
-    final_threshold: 0.25
-    ma_all_below: 0.35
     market_sentiment_weight: 0.1767
-    rsi_low_threshold: 45.0
-    rsi_oversold: 0.35
-    rsi_oversold_threshold: 30.0
-    trend_strength_weight: 0.16
-    volume_weight: 0.3
+    trend_strength_weight: 0.0871
   dynamic_confidence_adjustment: 0.2169
   market_sentiment_weight: 0.3074
-  max_days: 20
   price_momentum_weight: 0.2766
-  rise_threshold: 0.035
   trend_strength_weight: 0.1035
-  volume_panic_threshold: 1.3
+  volume_panic_threshold: 1.814
   volume_shrink_threshold: 0.573
-  volume_surge_threshold: 1.15
+  volume_surge_threshold: 1.289
   volume_weight: 0.3287
 strategy_ranges:
   final_threshold:

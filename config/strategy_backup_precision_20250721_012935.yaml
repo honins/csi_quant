@@ -6,11 +6,11 @@ advanced_optimization:
   use_time_series_cv: true
 ai_scoring:
   rise_benchmark: 0.1
-  rise_weight: 0.25
+  rise_weight: 0.28
   risk_benchmark: 0.2
-  risk_weight: 0.1
-  speed_weight: 0.15
-  success_weight: 0.5
+  risk_weight: 0.08
+  speed_weight: 0.22
+  success_weight: 0.42
 bayesian_optimization:
   acq_func: EI
   enabled: true
@@ -22,47 +22,42 @@ bayesian_optimization:
   xi: 0.008
 confidence_std_threshold: 0.05
 confidence_weights:
-  bb_lower_near: 0.32
+  bb_lower_near: 0.22
   bb_near_threshold: 1.018
-  consolidation_breakout: 0.22
   decline_threshold: -0.048
   dynamic_confidence_adjustment: 0.12
-  final_threshold: 0.15
-  ma_all_below: 0.42
+  final_threshold: 0.22
+  ma_all_below: 0.32
   ma_partial_below: 0.22
-  macd_negative: 0.18
+  macd_negative: 0.12
   macd_rsi_combo: 0.15
   market_sentiment_weight: 0.18
-  moderate_rsi_bonus: 0.3
-  momentum_reversal_bonus: 0.28
+  moderate_rsi_bonus: 0.2
   price_decline_threshold: -0.018
   price_momentum_weight: 0.22
-  recent_decline: 0.32
-  resistance_break_bonus: 0.3
+  recent_decline: 0.22
   rsi_low: 0.22
-  rsi_low_threshold: 42.0
-  rsi_overbought_correction: 0.35
-  rsi_oversold: 0.42
-  rsi_oversold_threshold: 22.0
-  rsi_pullback_threshold: 2
+  rsi_low_threshold: 48.0
+  rsi_overbought_correction: 0.25
+  rsi_oversold: 0.32
+  rsi_oversold_threshold: 25.0
+  rsi_pullback_threshold: 3
   rsi_uptrend_max: 85
-  rsi_uptrend_min: 30
-  rsi_uptrend_pullback: 0.45
-  support_level_bonus: 0.25
+  rsi_uptrend_min: 35
+  rsi_uptrend_pullback: 0.35
   trend_strength_weight: 0.14
-  uptrend_consolidation_bonus: 0.28
-  uptrend_ma_support: 0.32
-  uptrend_pullback_bonus: 0.35
+  uptrend_consolidation_bonus: 0.18
+  uptrend_ma_support: 0.22
+  uptrend_pullback_bonus: 0.25
   uptrend_support_volume: 0.15
   uptrend_volume_pullback: 0.2
-  volume_panic_bonus: 0.18
+  volume_panic_bonus: 0.12
   volume_panic_threshold: 1.45
-  volume_price_divergence: 0.2
   volume_shrink_penalty: 0.68
   volume_shrink_threshold: 0.78
-  volume_surge_bonus: 0.12
+  volume_surge_bonus: 0.06
   volume_surge_threshold: 1.25
-  volume_weight: 0.35
+  volume_weight: 0.28
 early_stopping:
   enabled: true
   min_delta: 0.0008
@@ -79,9 +74,9 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 20
-  mutation_rate: 0.12
-  population_size: 200
+  generations: 15
+  mutation_rate: 0.15
+  population_size: 150
 optimization:
   enable_history: true
   enable_incremental: true
@@ -98,10 +93,6 @@ optimization_ranges:
     max: 1.05
     min: 1.005
     step: 0.005
-  consolidation_breakout:
-    max: 0.32
-    min: 0.12
-    step: 0.02
   decline_threshold:
     max: -0.03
     min: -0.06
@@ -118,10 +109,6 @@ optimization_ranges:
     max: 0.25
     min: 0.08
     step: 0.02
-  momentum_reversal_bonus:
-    max: 0.38
-    min: 0.18
-    step: 0.02
   price_decline_threshold:
     max: -0.01
     min: -0.03
@@ -129,10 +116,6 @@ optimization_ranges:
   price_momentum_weight:
     max: 0.3
     min: 0.12
-    step: 0.02
-  resistance_break_bonus:
-    max: 0.4
-    min: 0.2
     step: 0.02
   rsi_low_threshold:
     max: 50
@@ -150,10 +133,6 @@ optimization_ranges:
     max: 45
     min: 30
     step: 1
-  support_level_bonus:
-    max: 0.35
-    min: 0.15
-    step: 0.02
   trend_strength_weight:
     max: 0.25
     min: 0.1
@@ -166,10 +145,6 @@ optimization_ranges:
     max: 2.0
     min: 1.2
     step: 0.05
-  volume_price_divergence:
-    max: 0.3
-    min: 0.1
-    step: 0.02
   volume_shrink_penalty:
     max: 0.8
     min: 0.5
@@ -209,9 +184,9 @@ strategy:
   price_momentum_weight: 0.2766
   rise_threshold: 0.035
   trend_strength_weight: 0.1035
-  volume_panic_threshold: 1.3
+  volume_panic_threshold: 1.814
   volume_shrink_threshold: 0.573
-  volume_surge_threshold: 1.15
+  volume_surge_threshold: 1.289
   volume_weight: 0.3287
 strategy_ranges:
   final_threshold:

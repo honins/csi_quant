@@ -98,10 +98,6 @@ optimization_ranges:
     max: 1.05
     min: 1.005
     step: 0.005
-  consolidation_breakout:
-    max: 0.32
-    min: 0.12
-    step: 0.02
   decline_threshold:
     max: -0.03
     min: -0.06
@@ -118,10 +114,6 @@ optimization_ranges:
     max: 0.25
     min: 0.08
     step: 0.02
-  momentum_reversal_bonus:
-    max: 0.38
-    min: 0.18
-    step: 0.02
   price_decline_threshold:
     max: -0.01
     min: -0.03
@@ -129,10 +121,6 @@ optimization_ranges:
   price_momentum_weight:
     max: 0.3
     min: 0.12
-    step: 0.02
-  resistance_break_bonus:
-    max: 0.4
-    min: 0.2
     step: 0.02
   rsi_low_threshold:
     max: 50
@@ -150,10 +138,6 @@ optimization_ranges:
     max: 45
     min: 30
     step: 1
-  support_level_bonus:
-    max: 0.35
-    min: 0.15
-    step: 0.02
   trend_strength_weight:
     max: 0.25
     min: 0.1
@@ -166,10 +150,6 @@ optimization_ranges:
     max: 2.0
     min: 1.2
     step: 0.05
-  volume_price_divergence:
-    max: 0.3
-    min: 0.1
-    step: 0.02
   volume_shrink_penalty:
     max: 0.8
     min: 0.5

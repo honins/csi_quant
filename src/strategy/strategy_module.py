@@ -664,7 +664,9 @@ class StrategyModule:
         参数:
         params: 新参数
         """
-        self.logger.info("更新策略参数: %s", params)
+        # 🔧 修复：添加参数更新的详细日志追踪
+        param_count = len(params)
+        self.logger.info(f"更新策略参数({param_count}个): {', '.join(params)}")
         
         # 更新基础参数
         if 'rise_threshold' in params:
@@ -703,17 +705,8 @@ class StrategyModule:
             if param in params:
                 self.config['strategy'][param] = params[param]
         
-        # 记录更新的参数
-        updated_params = []
-        for param, value in params.items():
-            if param in ['rise_threshold', 'max_days']:
-                updated_params.append(f"{param}={value}")
-            elif param in confidence_weight_params:
-                updated_params.append(f"{param}={value}")
-            elif param in strategy_level_params:
-                updated_params.append(f"{param}={value}")
-        
-        self.logger.info("策略参数已更新: %s", ", ".join(updated_params))
+        # 参数更新完成
+        self.logger.debug("策略参数更新完成")
                         
     def get_params(self) -> Dict[str, Any]:
         """
