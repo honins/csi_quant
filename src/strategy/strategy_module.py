@@ -666,7 +666,7 @@ class StrategyModule:
         """
         # 🔧 修复：添加参数更新的详细日志追踪
         param_count = len(params)
-        self.logger.info(f"更新策略参数({param_count}个): {', '.join(params)}")
+        # self.logger.info(f"更新策略参数({param_count}个): {', '.join(params)}")
         
         # 更新基础参数
         if 'rise_threshold' in params:

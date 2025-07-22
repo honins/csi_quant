@@ -1265,229 +1265,133 @@ class AIOptimizerImproved:
             print(f"   🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
             self.logger.info(f"🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
 
-            # 优先尝试贝叶斯优化
-            if bayesian_enabled and advanced_enabled:
-                print("    🔬 选择贝叶斯优化进行高精度参数优化")
-                print("    🎯 配置参数: 高斯过程回归 + 期望改进采集函数")
-                print("    ⏳ 预计耗时: 10-20分钟（智能搜索）")
+       
+            # 直接进入遗传算法参数优化流程
+            print("    🧬 使用遗传算法进行参数优化")
+            print("    🎯 配置参数: 200个体 × 20代 = 4000次评估")
+            print("    ⏳ 预计耗时: 15-30分钟（进化搜索）")
 
-                self.logger.info("🔬 选择贝叶斯优化进行高精度参数优化")
-                bayesian_start_time = time.time()
+            self.logger.info("🧬 使用遗传算法进行参数优化")
+            genetic_start_time = time.time()
+
+            # 🔧 关键修复：定义不影响策略模块状态的评估函数
+            current_best_params_in_genetic = initial_params.copy()
+            
+            # 🔧 修复：计算初始参数的统一评分作为基准
+            if initial_params:
+                # 评估初始参数
+                initial_backtest = strategy_module.backtest(train_data)
+                initial_evaluation = strategy_module.evaluate_strategy(initial_backtest)
+                
+                # 使用统一的评分方法计算初始得分
+                initial_unified_score = self._calculate_unified_score(initial_evaluation)
+                
+                current_best_score_in_genetic = initial_unified_score
+                print(f"    📊 遗传算法初始统一得分: {initial_unified_score:.6f}")
+                self.logger.info(f"📊 遗传算法初始统一得分: {initial_unified_score:.6f}")
+            else:
+                current_best_score_in_genetic = 0.0
+
+            def evaluate_strategy_params(params):
+                nonlocal current_best_params_in_genetic, current_best_score_in_genetic
 
                 try:
-                    # 使用参数优化器进行贝叶斯优化
-                    from .parameter_optimizer import ParameterOptimizer
-                    param_optimizer = ParameterOptimizer(self.config)
+                    # 🔧 修复：rise_threshold和max_days是固定参数，不应该参与优化
+                    # 直接使用优化算法生成的参数，不进行强制覆盖
+                    complete_params = params.copy()
 
-                    # 🔧 启用外部参数管理，避免parameter_optimizer内部管理参数
-                    param_optimizer._external_best_management = True
+                    # 🔧 关键修复：保存当前策略模块状态
+                    original_params = strategy_module.get_current_params() if hasattr(strategy_module,
+                                                                                      'get_current_params') else None
 
-                    # 获取参数范围
-                    param_ranges = self._get_enhanced_parameter_ranges({})
+                    # 临时应用参数进行评估
+                    # print("    临时应用参数进行评估")
+                    strategy_module.update_params(complete_params)
 
-                    # 🔧 为贝叶斯优化实现相同的参数管理逻辑
-                    current_best_params_in_bayesian = initial_params.copy()
-                    current_best_score_in_bayesian = best_score
+                    # 在训练集上评估
+                    backtest_results = strategy_module.backtest(train_data)
+                    evaluation = strategy_module.evaluate_strategy(backtest_results)
 
-                    # 定义贝叶斯优化的评估包装函数
-                    original_evaluate = param_optimizer._evaluate_parameters
+                    # 使用统一的评分方法
+                    final_score = self._calculate_unified_score(evaluation)
 
-                    def bayesian_evaluate_wrapper(strategy_module, data, params):
-                        nonlocal current_best_params_in_bayesian, current_best_score_in_bayesian
-
-                        # 调用原始评估（现在会恢复原始参数）
-                        score, metrics = original_evaluate(strategy_module, data, params)
-
-                        # 🎯 修复后的参数管理逻辑：只有更优参数才保留
-                        if score > current_best_score_in_bayesian:
-                            # 新参数更优，应用到策略模块
-                            prev_score = current_best_score_in_bayesian
-                            strategy_module.update_params(params)
-                            current_best_params_in_bayesian = params.copy()
-                            current_best_score_in_bayesian = score
-                            self.logger.info(f"贝叶斯优化发现更优参数: 得分 {score:.6f} > {prev_score:.6f}")
-                        else:
-                            # 新参数较差，确保策略模块恢复到当前最佳参数
-                            if current_best_params_in_bayesian:
-                                strategy_module.update_params(current_best_params_in_bayesian)
-
-                        return score, metrics
-
-                    # 替换评估函数
-                    param_optimizer._evaluate_parameters = bayesian_evaluate_wrapper
-
-                    # 运行贝叶斯优化
-                    print(f"    🚀 开始贝叶斯优化参数搜索... [{datetime.now().strftime('%H:%M:%S')}]")
-                    self.logger.info("🚀 开始贝叶斯优化参数搜索...")
-
-                    bayesian_result = param_optimizer.optimize_parameters(
-                        strategy_module, train_data, param_ranges,
-                        method='bayesian', max_iterations=120
-                    )
-
-                    bayesian_time = time.time() - bayesian_start_time
-
-                    if bayesian_result.get('success') and bayesian_result.get('best_params'):
-                        # 🔧 修复：贝叶斯优化已经通过包装函数管理了最佳参数
-                        # 获取当前策略模块中的参数（应该是最佳的）
-                        final_bayesian_params = strategy_module.get_current_params() if hasattr(strategy_module,
-                                                                                                'get_current_params') else \
-                        bayesian_result['best_params']
-
-                        # 最终评估贝叶斯优化结果（策略模块已经是最佳状态）
-                        bayesian_backtest = strategy_module.backtest(train_data)
-                        bayesian_evaluation = strategy_module.evaluate_strategy(bayesian_backtest)
-                        bayesian_score = bayesian_evaluation.get('score', 0)
-
-                        best_params = final_bayesian_params.copy()
-                        best_score = bayesian_score
-                        optimization_method = 'bayesian_optimization'
-
-                        current_time = datetime.now().strftime("%H:%M:%S")
-                        print(f"    🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s) [{current_time}]")
-                        print(f"       📈 最优得分: {bayesian_score:.6f}")
-                        print(f"       📊 成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
-                        print(f"       🔍 识别点数: {bayesian_evaluation.get('total_points', 0)}")
-                        print(f"       📈 平均涨幅: {bayesian_evaluation.get('avg_rise', 0):.2%}")
-                        print(
-                            f"       🔧 收敛信息: {bayesian_result.get('convergence_info', {}).get('n_calls', 0)} 次函数调用")
-
-                        self.logger.info(f"🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s)")
-                        self.logger.info(f"   最优得分: {bayesian_score:.6f}")
-                        self.logger.info(f"   成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
-                        self.logger.info(f"   识别点数: {bayesian_evaluation.get('total_points', 0)}")
-                        self.logger.info(f"   平均涨幅: {bayesian_evaluation.get('avg_rise', 0):.2%}")
+                    # 🎯 修复后的参数管理逻辑：只有更好的参数才保留在策略模块中
+                    if final_score > current_best_score_in_genetic:
+                        # 新参数更好，保留在策略模块中
+                        prev_score = current_best_score_in_genetic
+                        current_best_params_in_genetic = complete_params.copy()
+                        current_best_score_in_genetic = final_score
+                        # 策略模块已经更新为新参数，不需要额外操作
+                        self.logger.info(f"遗传算法发现更优参数: 得分 {final_score:.6f} > {prev_score:.6f}")
+                        self.logger.info(f"参数详情: ")
+                        for param_name, param_value in complete_params.items():
+                            print(f"          {param_name}: {param_value}")
                     else:
-                        print("    ⚠️ 贝叶斯优化未找到有效解，回退到遗传算法")
-                        self.logger.warning("⚠️ 贝叶斯优化未找到有效解，回退到遗传算法")
-                        bayesian_enabled = False
-
-                except Exception as e:
-                    print(f"    ❌ 贝叶斯优化失败: {e}，回退到遗传算法")
-                    self.logger.error(f"❌ 贝叶斯优化失败: {e}，回退到遗传算法")
-                    bayesian_enabled = False
-
-            # 如果贝叶斯优化失败或未启用，使用遗传算法
-            if (not bayesian_enabled or not best_params) and genetic_enabled and advanced_enabled:
-                print("    🧬 使用遗传算法进行参数优化")
-                print("    🎯 配置参数: 200个体 × 20代 = 4000次评估")
-                print("    ⏳ 预计耗时: 15-30分钟（进化搜索）")
-
-                self.logger.info("🧬 使用遗传算法进行参数优化")
-                genetic_start_time = time.time()
-
-                # 🔧 关键修复：定义不影响策略模块状态的评估函数
-                current_best_params_in_genetic = initial_params.copy()
-                current_best_score_in_genetic = best_score
-
-                def evaluate_strategy_params(params):
-                    nonlocal current_best_params_in_genetic, current_best_score_in_genetic
-
-                    try:
-                        # 🚨 重要：添加固定参数（从配置文件读取）
-                        complete_params = params.copy()
-                        complete_params['rise_threshold'] = fixed_rise_threshold  # 从配置文件读取
-                        complete_params['max_days'] = fixed_max_days  # 从配置文件读取
-
-                        # 🔧 关键修复：保存当前策略模块状态
-                        original_params = strategy_module.get_current_params() if hasattr(strategy_module,
-                                                                                          'get_current_params') else None
-
-                        # 临时应用参数进行评估
-                        print("    临时应用参数进行评估")
-                        strategy_module.update_params(complete_params)
-
-                        # 在训练集上评估
-                        backtest_results = strategy_module.backtest(train_data)
-                        evaluation = strategy_module.evaluate_strategy(backtest_results)
-
-                        # 计算评分
-                        score = evaluation.get('score', 0)
-                        success_rate = evaluation.get('success_rate', 0)
-                        avg_rise = evaluation.get('avg_rise', 0)
-
-                        # 高精度评分：更重视成功率
-                        final_score = (
-                                success_rate * 0.7 +  # 70%权重给成功率
-                                min(avg_rise / 0.1, 1.0) * 0.2 +  # 20%权重给涨幅（最高10%）
-                                score * 0.1  # 10%权重给综合分
-                        )
-                        final_score = max(0.0, min(1.0, final_score))
-
-                        # 🎯 修复后的参数管理逻辑：只有更好的参数才保留在策略模块中
-                        if final_score > current_best_score_in_genetic:
-                            # 新参数更好，保留在策略模块中
-                            prev_score = current_best_score_in_genetic
-                            current_best_params_in_genetic = complete_params.copy()
-                            current_best_score_in_genetic = final_score
-                            # 策略模块已经更新为新参数，不需要额外操作
-                            self.logger.info(f"遗传算法发现更优参数: 得分 {final_score:.6f} > {prev_score:.6f}")
+                        # 新参数较差，必须恢复到之前的最佳参数
+                        if current_best_params_in_genetic:
+                            strategy_module.update_params(current_best_params_in_genetic)
                         else:
-                            # 新参数较差，必须恢复到之前的最佳参数
-                            if current_best_params_in_genetic:
-                                strategy_module.update_params(current_best_params_in_genetic)
-                            else:
-                                # 如果没有最佳参数，恢复到原始参数
-                                if original_params:
-                                    strategy_module.update_params(original_params)
+                            # 如果没有最佳参数，恢复到原始参数
+                            if original_params:
+                                strategy_module.update_params(original_params)
 
                         return final_score
 
-                    except Exception as e:
-                        self.logger.warning(f"参数评估失败: {e}")
-                        # 出错时恢复到最佳参数或原始参数
-                        if current_best_params_in_genetic:
-                            strategy_module.update_params(current_best_params_in_genetic)
-                        elif original_params:
-                            strategy_module.update_params(original_params)
-                        return -1.0
+                except Exception as e:
+                    self.logger.warning(f"参数评估失败: {e}")
+                    # 出错时恢复到最佳参数或原始参数
+                    if current_best_params_in_genetic:
+                        strategy_module.update_params(current_best_params_in_genetic)
+                    elif original_params:
+                        strategy_module.update_params(original_params)
+                    return -1.0
 
-                # 运行遗传算法
-                print(f"    🔬 开始遗传算法参数搜索... [{datetime.now().strftime('%H:%M:%S')}]")
-                self.logger.info("🔬 开始遗传算法参数搜索...")
-                genetic_params = self.run_genetic_algorithm(evaluate_strategy_params)
-                genetic_time = time.time() - genetic_start_time
+            # 运行遗传算法
+            print(f"    🔬 开始遗传算法参数搜索... [{datetime.now().strftime('%H:%M:%S')}]")
+            self.logger.info("🔬 开始遗传算法参数搜索...")
+            genetic_params = self.run_genetic_algorithm(evaluate_strategy_params)
+            genetic_time = time.time() - genetic_start_time
 
-                if genetic_params:
-                    # 🔧 修复：遗传算法已经通过评估函数管理了最佳参数
-                    # 获取遗传算法过程中找到的最佳参数（已经在策略模块中）
-                    final_genetic_params = strategy_module.get_current_params() if hasattr(strategy_module,
-                                                                                           'get_current_params') else genetic_params
+            if genetic_params:
+                # 🔧 修复：遗传算法已经通过评估函数管理了最佳参数
+                # 获取遗传算法过程中找到的最佳参数（已经在策略模块中）
+                final_genetic_params = strategy_module.get_current_params() if hasattr(strategy_module,
+                                                                                        'get_current_params') else genetic_params
 
-                    # 最终评估遗传算法结果（此时策略模块已经是最佳状态）
-                    genetic_backtest = strategy_module.backtest(train_data)
-                    genetic_evaluation = strategy_module.evaluate_strategy(genetic_backtest)
-                    genetic_score = genetic_evaluation.get('score', 0)
+                # 最终评估遗传算法结果（此时策略模块已经是最佳状态）
+                genetic_backtest = strategy_module.backtest(train_data)
+                genetic_evaluation = strategy_module.evaluate_strategy(genetic_backtest)
+                genetic_unified_score = self._calculate_unified_score(genetic_evaluation)
 
-                    # 如果遗传算法结果更好，更新全局最佳参数
-                    if genetic_score > best_score:
-                        best_params = final_genetic_params.copy()  # 使用遗传算法管理的最佳参数
-                        best_score = genetic_score
-                        optimization_method = 'genetic_algorithm'
+                # 如果遗传算法结果更好，更新全局最佳参数
+                if genetic_unified_score > best_score:
+                    best_params = final_genetic_params.copy()  # 使用遗传算法管理的最佳参数
+                    best_score = genetic_unified_score
+                    optimization_method = 'genetic_algorithm'
 
-                        print(f"    ✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
-                        self.logger.info(f"✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
-                    else:
-                        print(f"    ⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
-                        self.logger.info(f"⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
-                        # 恢复到之前的最佳参数
-                        strategy_module.update_params(best_params)
-
-                    current_time = datetime.now().strftime("%H:%M:%S")
-                    print(f"    🧬 遗传算法完成 (耗时: {genetic_time:.2f}s) [{current_time}]")
-                    print(f"       📈 最优得分: {genetic_score:.6f}")
-                    print(f"       📊 成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
-                    print(f"       🔍 识别点数: {genetic_evaluation.get('total_points', 0)}")
-                    print(f"       📈 平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
-
-                    self.logger.info(f"🧬 遗传算法完成 (耗时: {genetic_time:.2f}s)")
-                    self.logger.info(f"   最优得分: {genetic_score:.6f}")
-                    self.logger.info(f"   成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
-                    self.logger.info(f"   识别点数: {genetic_evaluation.get('total_points', 0)}")
-                    self.logger.info(f"   平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
+                    print(f"    ✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
+                    self.logger.info(f"✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
                 else:
-                    print("    ⚠️ 遗传算法未找到有效解")
-                    self.logger.warning("⚠️ 遗传算法未找到有效解")
+                    print(f"    ⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
+                    self.logger.info(f"⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
+                    # 恢复到之前的最佳参数
+                    strategy_module.update_params(best_params)
+
+                current_time = datetime.now().strftime("%H:%M:%S")
+                print(f"    🧬 遗传算法完成 (耗时: {genetic_time:.2f}s) [{current_time}]")
+                print(f"       📈 最优得分: {genetic_unified_score:.6f}")
+                print(f"       📊 成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
+                print(f"       🔍 识别点数: {genetic_evaluation.get('total_points', 0)}")
+                print(f"       📈 平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
+
+                self.logger.info(f"🧬 遗传算法完成 (耗时: {genetic_time:.2f}s)")
+                self.logger.info(f"   最优得分: {genetic_unified_score:.6f}")
+                self.logger.info(f"   成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
+                self.logger.info(f"   识别点数: {genetic_evaluation.get('total_points', 0)}")
+                self.logger.info(f"   平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
+            else:
+                print("    ⚠️ 遗传算法未找到有效解")
+                self.logger.warning("⚠️ 遗传算法未找到有效解")
 
             # 验证最佳参数
             if not best_params:
@@ -1842,28 +1746,34 @@ class AIOptimizerImproved:
 
             # 更新参数
             for param_name, param_value in converted_params.items():
-                if param_name == 'final_threshold':
-                    if 'strategy' not in config:
-                        config['strategy'] = {}
-                    if 'confidence_weights' not in config['strategy']:
-                        config['strategy']['confidence_weights'] = {}
-                    config['strategy']['confidence_weights']['final_threshold'] = float(param_value)
-                elif param_name in ['rsi_oversold_threshold', 'rsi_low_threshold']:
-                    if 'strategy' not in config:
-                        config['strategy'] = {}
-                    if 'confidence_weights' not in config['strategy']:
-                        config['strategy']['confidence_weights'] = {}
+                # 导入参数配置
+                from src.utils.param_config import (
+                    is_confidence_weight_param, 
+                    is_strategy_level_param,
+                    get_param_category,
+                    OPTIMIZABLE_PARAMS,
+                    get_all_optimizable_params
+                )
+                
+                # 确保strategy和confidence_weights存在
+                if 'strategy' not in config:
+                    config['strategy'] = {}
+                if 'confidence_weights' not in config['strategy']:
+                    config['strategy']['confidence_weights'] = {}
+                
+                # 根据参数类型保存到正确位置
+                if is_confidence_weight_param(param_name):
+                    # 保存到confidence_weights
                     config['strategy']['confidence_weights'][param_name] = float(param_value)
+                    self.logger.info(f"保存confidence_weights参数: {param_name} = {param_value}")
+                elif is_strategy_level_param(param_name):
+                    # 保存到strategy级别
+                    config['strategy'][param_name] = float(param_value)
+                    self.logger.info(f"保存strategy参数: {param_name} = {param_value}")
                 else:
-                    # 其他参数按原有逻辑处理
-                    if 'strategy' not in config:
-                        config['strategy'] = {}
-
-                    # 类型转换
-                    if isinstance(param_value, (int, float)):
-                        config['strategy'][param_name] = float(param_value)
-                    else:
-                        config['strategy'][param_name] = param_value
+                    # 默认保存到strategy级别
+                    config['strategy'][param_name] = float(param_value)
+                    self.logger.info(f"保存默认参数: {param_name} = {param_value} (分类: {get_param_category(param_name)})")
 
             # 原子性写入：先写入临时文件，再移动
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
@@ -1885,17 +1795,34 @@ class AIOptimizerImproved:
                     # 验证参数是否正确保存
                     saved_count = 0
                     for param_name in converted_params.keys():
-                        if param_name == 'final_threshold':
-                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(
-                                    'final_threshold') is not None:
+                        # 导入参数配置
+                        from src.utils.param_config import (
+                            is_confidence_weight_param, 
+                            is_strategy_level_param,
+                            get_param_category,
+                            OPTIMIZABLE_PARAMS,
+                            get_all_optimizable_params
+                        )
+                        
+                        # 根据参数类型验证保存位置
+                        if is_confidence_weight_param(param_name):
+                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(param_name) is not None:
                                 saved_count += 1
-                        elif param_name in ['rsi_oversold_threshold', 'rsi_low_threshold']:
-                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(
-                                    param_name) is not None:
+                                self.logger.info(f"✅ 验证confidence_weights参数: {param_name}")
+                            else:
+                                self.logger.warning(f"❌ 验证失败: confidence_weights参数 {param_name} 未找到")
+                        elif is_strategy_level_param(param_name):
+                            if saved_config.get('strategy', {}).get(param_name) is not None:
                                 saved_count += 1
+                                self.logger.info(f"✅ 验证strategy参数: {param_name}")
+                            else:
+                                self.logger.warning(f"❌ 验证失败: strategy参数 {param_name} 未找到")
                         else:
                             if saved_config.get('strategy', {}).get(param_name) is not None:
                                 saved_count += 1
+                                self.logger.info(f"✅ 验证默认参数: {param_name} (分类: {get_param_category(param_name)})")
+                            else:
+                                self.logger.warning(f"❌ 验证失败: 默认参数 {param_name} 未找到")
 
                     self.logger.info(f"验证成功: {saved_count}/{len(converted_params)} 个参数已正确保存")
 
@@ -2183,6 +2110,9 @@ class AIOptimizerImproved:
         fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
         fixed_max_days = strategy_config.get('max_days', 20)
 
+        # 导入参数配置
+        from src.utils.param_config import FIXED_PARAMS, get_all_optimizable_params
+
         # 从配置文件中获取参数范围
         config = self.config
         strategy_ranges = config.get('strategy_ranges', {})
@@ -2193,7 +2123,7 @@ class AIOptimizerImproved:
         # 添加strategy_ranges中的参数
         for param_name, param_config in strategy_ranges.items():
             # 🚨 跳过固定参数，不允许优化
-            if param_name in ['rise_threshold', 'max_days']:
+            if param_name in FIXED_PARAMS:
                 self.logger.info(f"⚠️ 跳过固定参数 {param_name}，此参数不参与优化")
                 continue
 
@@ -2217,7 +2147,7 @@ class AIOptimizerImproved:
         # 合并用户配置的范围（但排除固定参数）
         for param_name, param_config in base_ranges.items():
             # 🚨 跳过固定参数，不允许优化
-            if param_name in ['rise_threshold', 'max_days']:
+            if param_name in FIXED_PARAMS:
                 self.logger.info(f"⚠️ 跳过固定参数 {param_name}，此参数不参与优化")
                 continue
 
@@ -2231,7 +2161,8 @@ class AIOptimizerImproved:
                 enhanced_ranges[param_name]['precision'] = 4
 
         self.logger.info(f"🎯 参数搜索空间: {len(enhanced_ranges)} 个参数")
-        self.logger.info(f"🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days} (不参与优化)")
+        self.logger.info(f"🔒 固定参数: {', '.join(FIXED_PARAMS)} (不参与优化)")
+        self.logger.info(f"🔧 可优化参数: {len(get_all_optimizable_params())} 个（14个有效参数）")
 
         # 记录参数范围
         for param_name, param_config in enhanced_ranges.items():
@@ -2698,3 +2629,35 @@ class AIOptimizerImproved:
             self.logger.error(f"保存优化参数失败: {e}")
             print(f"   ❌ 参数保存失败: {e}")
             return False
+
+    def _calculate_unified_score(self, evaluation: Dict[str, Any]) -> float:
+        """
+        统一的评分方法，与策略模块保持一致
+        
+        参数:
+        evaluation: 策略评估结果字典
+        
+        返回:
+        float: 统一评分
+        """
+        success_rate = evaluation.get('success_rate', 0)
+        avg_rise = evaluation.get('avg_rise', 0)
+        avg_days = evaluation.get('avg_days', 0)
+        
+        # 使用与策略模块相同的评分公式
+        # 成功率权重：50%
+        success_score = success_rate * 0.5
+        
+        # 平均涨幅权重：30%（相对于基准涨幅）
+        rise_benchmark = 0.1  # 10%基准
+        rise_score = min(avg_rise / rise_benchmark, 1.0) * 0.3
+        
+        # 平均天数权重：20%（天数越少越好，以基准天数为准）
+        days_benchmark = 10.0  # 10天基准
+        if avg_days > 0:
+            days_score = min(days_benchmark / avg_days, 1.0) * 0.2
+        else:
+            days_score = 0.0
+            
+        total_score = success_score + rise_score + days_score
+        return total_score
