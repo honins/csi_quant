@@ -79,9 +79,9 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 20
-  mutation_rate: 0.12
-  population_size: 200
+  generations: 25
+  mutation_rate: 0.15
+  population_size: 300
 optimization:
   enable_history: true
   enable_incremental: true
@@ -90,106 +90,73 @@ optimization:
   incremental_iterations: 1200
   max_history_records: 150
 optimization_ranges:
-  bb_lower_near:
-    max: 0.35
-    min: 0.15
-    step: 0.02
-  bb_near_threshold:
-    max: 1.05
-    min: 1.005
-    step: 0.005
-  consolidation_breakout:
-    max: 0.32
-    min: 0.12
-    step: 0.02
-  decline_threshold:
-    max: -0.03
-    min: -0.06
-    step: 0.005
-  dynamic_confidence_adjustment:
-    max: 0.25
-    min: 0.05
-    step: 0.02
+  # 🔥 核心决策参数（3个）- 最重要，每次预测都使用
   final_threshold:
     max: 0.35
     min: 0.15
+    step: 0.02
+  rsi_oversold_threshold:
+    max: 35
+    min: 25
+    step: 1
+  rsi_low_threshold:
+    max: 50
+    min: 40
+    step: 1
+  
+  # 🔥 基础权重参数（4个）- 高频使用，重要逻辑
+  ma_all_below:
+    max: 0.4
+    min: 0.2
+    step: 0.02
+  dynamic_confidence_adjustment:
+    max: 0.25
+    min: 0.05
     step: 0.02
   market_sentiment_weight:
     max: 0.25
     min: 0.08
     step: 0.02
-  momentum_reversal_bonus:
-    max: 0.38
-    min: 0.18
-    step: 0.02
-  price_decline_threshold:
-    max: -0.01
-    min: -0.03
-    step: 0.005
-  price_momentum_weight:
-    max: 0.3
-    min: 0.12
-    step: 0.02
-  resistance_break_bonus:
-    max: 0.4
-    min: 0.2
-    step: 0.02
-  rsi_low_threshold:
-    max: 50
-    min: 40
-    step: 1
-  rsi_oversold_threshold:
-    max: 35
-    min: 25
-    step: 1
-  rsi_uptrend_max:
-    max: 90
-    min: 75
-    step: 1
-  rsi_uptrend_min:
-    max: 45
-    min: 30
-    step: 1
-  support_level_bonus:
-    max: 0.35
-    min: 0.15
-    step: 0.02
   trend_strength_weight:
     max: 0.25
     min: 0.1
     step: 0.02
-  volume_panic_bonus:
-    max: 0.2
-    min: 0.05
-    step: 0.02
+  
+  # 🔥 成交量逻辑参数（4个）- 代码中大量使用的核心逻辑
   volume_panic_threshold:
     max: 2.0
     min: 1.2
     step: 0.05
-  volume_price_divergence:
-    max: 0.3
-    min: 0.1
+  volume_panic_bonus:
+    max: 0.2
+    min: 0.05
+    step: 0.02
+  volume_surge_bonus:
+    max: 0.15
+    min: 0.02
     step: 0.02
   volume_shrink_penalty:
     max: 0.8
     min: 0.5
     step: 0.05
-  volume_shrink_threshold:
-    max: 0.9
-    min: 0.5
-    step: 0.05
-  volume_surge_bonus:
+  
+  # 🔥 技术指标参数（4个）- 基础但重要的技术指标
+  bb_near_threshold:
+    max: 1.05
+    min: 1.005
+    step: 0.005
+  recent_decline:
+    max: 0.3
+    min: 0.1
+    step: 0.02
+  macd_negative:
     max: 0.15
-    min: 0.02
+    min: 0.05
     step: 0.02
-  volume_surge_threshold:
-    max: 1.5
-    min: 1.1
-    step: 0.05
-  volume_weight:
-    max: 0.4
-    min: 0.2
-    step: 0.02
+  price_decline_threshold:
+    max: -0.01
+    min: -0.06
+    step: 0.005
 overfitting_threshold: 0.9
 strategy:
   bb_near_threshold: 1.01049
