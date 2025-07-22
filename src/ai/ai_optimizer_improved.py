@@ -921,7 +921,12 @@ class AIOptimizerImproved:
             print(f"🔧 步骤A: 策略参数优化 [{current_time}]")
             print("   🎯 目标: 寻找最优策略参数组合")
             print("   📊 方法: 遗传算法高精度优化")
-            print("   🔒 固定参数: rise_threshold=0.035, max_days=20")
+            
+            # 🔧 从配置文件中读取固定参数值
+            strategy_config = self.config.get('strategy', {})
+            fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
+            fixed_max_days = strategy_config.get('max_days', 20)
+            print(f"   🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
 
             # 🔧 获取当前策略基准得分
             current_time = datetime.now().strftime("%H:%M:%S")
@@ -1252,6 +1257,14 @@ class AIOptimizerImproved:
                 print(f"    📊 初始参数基准得分: {initial_score:.6f}")
                 self.logger.info(f"📊 初始参数基准得分: {initial_score:.6f}")
 
+            # 🔧 从配置文件中读取固定参数值
+            strategy_config = self.config.get('strategy', {})
+            fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
+            fixed_max_days = strategy_config.get('max_days', 20)
+            
+            print(f"   🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
+            self.logger.info(f"🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
+
             # 优先尝试贝叶斯优化
             if bayesian_enabled and advanced_enabled:
                 print("    🔬 选择贝叶斯优化进行高精度参数优化")
@@ -1371,10 +1384,10 @@ class AIOptimizerImproved:
                     nonlocal current_best_params_in_genetic, current_best_score_in_genetic
 
                     try:
-                        # 🚨 重要：添加固定参数
+                        # 🚨 重要：添加固定参数（从配置文件读取）
                         complete_params = params.copy()
-                        complete_params['rise_threshold'] = 0.035  # 固定涨幅阈值
-                        complete_params['max_days'] = 20  # 固定交易日期
+                        complete_params['rise_threshold'] = fixed_rise_threshold  # 从配置文件读取
+                        complete_params['max_days'] = fixed_max_days  # 从配置文件读取
 
                         # 🔧 关键修复：保存当前策略模块状态
                         original_params = strategy_module.get_current_params() if hasattr(strategy_module,
@@ -1643,12 +1656,17 @@ class AIOptimizerImproved:
         """
         self.logger.info("开始网格搜索优化")
 
-        # 定义默认参数范围
-        default_ranges = {
-            'rsi_oversold_threshold': {'min': 25, 'max': 35, 'step': 2},
-            'rsi_low_threshold': {'min': 35, 'max': 45, 'step': 2},
-            'final_threshold': {'min': 0.3, 'max': 0.7, 'step': 0.1}
-        }
+        # 🔧 从配置文件中读取参数范围，而不是硬编码
+        optimization_ranges = self.config.get('optimization_ranges', {})
+        
+        # 转换配置文件格式为搜索格式
+        default_ranges = {}
+        for param_name, param_config in optimization_ranges.items():
+            default_ranges[param_name] = {
+                'min': param_config.get('min', 0),
+                'max': param_config.get('max', 1),
+                'step': param_config.get('step', 0.01)
+            }
 
         # 合并用户配置和默认配置
         search_ranges = {**default_ranges, **param_ranges}
@@ -2160,7 +2178,10 @@ class AIOptimizerImproved:
         dict: 增强的参数范围
         """
         # 🚨 重要：固定参数，不参与遗传算法优化
-        # rise_threshold: 0.04 和 max_days: 20 是用户预设的固定值
+        # 从配置文件中读取固定参数值
+        strategy_config = self.config.get('strategy', {})
+        fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
+        fixed_max_days = strategy_config.get('max_days', 20)
 
         # 从配置文件中获取参数范围
         config = self.config
@@ -2210,7 +2231,7 @@ class AIOptimizerImproved:
                 enhanced_ranges[param_name]['precision'] = 4
 
         self.logger.info(f"🎯 参数搜索空间: {len(enhanced_ranges)} 个参数")
-        self.logger.info(f"🔒 固定参数: rise_threshold=0.035, max_days=20 (不参与优化)")
+        self.logger.info(f"🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days} (不参与优化)")
 
         # 记录参数范围
         for param_name, param_config in enhanced_ranges.items():
