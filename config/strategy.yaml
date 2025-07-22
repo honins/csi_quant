@@ -79,9 +79,9 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 2
+  generations: 15
   mutation_rate: 0.15
-  population_size: 100
+  population_size: 200
 optimization:
   enable_history: true
   enable_incremental: true
