@@ -271,7 +271,7 @@ def run_single_day_test(predict_date):
         with open(latest_model_path, 'r') as f:
             model_path = f.read().strip()
             model_file = os.path.basename(model_path)
-                            if 'model_' in model_file:
+            if 'model_' in model_file:
                     timestamp_str = model_file.replace('model_', '').replace('.pkl', '')
                     try:
                         from datetime import datetime
@@ -764,9 +764,9 @@ def run_ai_optimization_improved(config):
                     print(f"   🎯 泛化能力: {'✅ 良好' if strategy_opt.get('generalization_passed', False) else '⚠️ 一般'}")
                 print(f"   🛡️ 过拟合检测: {'通过' if strategy_opt.get('overfitting_passed', False) else '警告'}")
                 
-                # 如果使用了遗传算法，显示特殊标识
-                if strategy_opt.get('genetic_algorithm_used', False):
-                    print("   🧬 使用了高精度遗传算法优化")
+                # 如果使用了贝叶斯优化，显示特殊标识
+                if strategy_opt.get('bayesian_optimization_used', False):
+                    print("   🔬 使用了高精度贝叶斯优化")
             
             # 生成优化报告
             try:

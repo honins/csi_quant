@@ -311,8 +311,8 @@ class StrategyModule:
                     confidence += trend_strength_weight * 0.2
                     reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.2:.3f})")
                     
-            # 最终判断
-            confidence_threshold = confidence_config.get('final_threshold', 0.5)
+            # 最终判断 - 从 system.yaml 读取 final_threshold
+            confidence_threshold = self.config.get('final_threshold', 0.5)
             if confidence >= confidence_threshold:
                 is_low_point = True
                 
@@ -491,9 +491,8 @@ class StrategyModule:
         返回:
         float: 策略得分
         """
-        # 从配置文件获取评分参数
-        strategy_config = self.config.get('strategy', {})
-        scoring_config = strategy_config.get('scoring', {})
+        # 从配置文件获取统一的评分参数
+        scoring_config = self.config.get('strategy_scoring', {})
         
         # 成功率权重：50%
         success_weight = scoring_config.get('success_weight', 0.5)
@@ -626,7 +625,7 @@ class StrategyModule:
             
             # 在图表底部添加策略参数信息
             confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
-            param_info = f"策略参数: 涨幅阈值={self.rise_threshold:.1%}, 最大观察天数={self.max_days}天, RSI超卖阈值={confidence_weights.get('rsi_oversold_threshold', 30)}, RSI偏低阈值={confidence_weights.get('rsi_low_threshold', 40)}, 置信度阈值={confidence_weights.get('final_threshold', 0.5):.2f}"
+            param_info = f"策略参数: 涨幅阈值={self.rise_threshold:.1%}, 最大观察天数={self.max_days}天, RSI超卖阈值={confidence_weights.get('rsi_oversold_threshold', 30)}, RSI偏低阈值={confidence_weights.get('rsi_low_threshold', 40)}, 置信度阈值={self.config.get('final_threshold', 0.5):.2f}"
             plt.figtext(0.5, 0.02, param_info, ha='center', fontsize=10, 
                        bbox=dict(facecolor='lightgray', alpha=0.8))
             
@@ -723,7 +722,7 @@ class StrategyModule:
             'max_days': self.max_days,
             'rsi_oversold_threshold': confidence_weights.get('rsi_oversold_threshold', 30),
             'rsi_low_threshold': confidence_weights.get('rsi_low_threshold', 40),
-            'final_threshold': confidence_weights.get('final_threshold', 0.5),
+            'final_threshold': self.config.get('final_threshold', 0.5),
             # 原有AI优化参数
             'dynamic_confidence_adjustment': confidence_weights.get('dynamic_confidence_adjustment', 0.1),
             'market_sentiment_weight': confidence_weights.get('market_sentiment_weight', 0.15),

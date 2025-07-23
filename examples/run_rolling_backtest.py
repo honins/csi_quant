@@ -162,7 +162,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
             rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)
             rsi_low = confidence_weights.get('rsi_low_threshold', 40)
-            final_threshold = confidence_weights.get('final_threshold', 0.5)
+            # 从 system.yaml 读取 final_threshold
+            final_threshold = config.get('final_threshold', 0.5)
 
             # 更新标题以包含训练效率信息
             efficiency_str = f"训练次数: {training_count}/{len(results)} (节省 {((len(results) - training_count) / len(results) * 100):.1f}%)"
@@ -280,7 +281,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             confidence_weights = config.get('strategy', {}).get('confidence_weights', {})
             rsi_oversold = confidence_weights.get('rsi_oversold_threshold', 30)
             rsi_low = confidence_weights.get('rsi_low_threshold', 40)
-            final_threshold = confidence_weights.get('final_threshold', 0.5)
+            # 从 system.yaml 读取 final_threshold
+            final_threshold = config.get('final_threshold', 0.5)
 
             plt.title(f'Prediction Details\n(Rise Threshold: {rise_threshold:.1%}, Max Days: {max_days})', fontsize=14, pad=20)
             

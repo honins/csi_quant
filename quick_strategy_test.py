@@ -56,7 +56,7 @@ def test_strategy_param_save():
         'confidence_weights': {
             'rsi_oversold_threshold': 28,  # 从30优化到28
             'rsi_low_threshold': 38,       # 从40优化到38
-            'final_threshold': 0.18,       # 从0.22优化到0.18
+            # final_threshold 现在在 system.yaml 中，不在这里优化
             'dynamic_confidence_adjustment': 0.85,  # 新增参数
             'market_sentiment_weight': 1.2,         # 新增参数
             'trend_strength_weight': 1.8            # 新增参数
@@ -165,4 +165,4 @@ def main():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    main() 
+    main()

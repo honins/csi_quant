@@ -112,9 +112,21 @@ class CommentPreservingConfigSaver:
         """
         # 检查参数类型，决定保存到哪个文件
         # 所有AI优化相关参数都保存到strategy.yaml
-        if any(key in params for key in ['optimization', 'bayesian_optimization', 'genetic_algorithm', 
-                                        'confidence_smoothing', 'advanced_optimization', 'strategy',
-                                        'confidence_weights', 'ai_scoring']):
+        strategy_keywords = [
+            'optimization', 'bayesian_optimization', 'genetic_algorithm', 
+            'confidence_smoothing', 'advanced_optimization', 'strategy',
+            'confidence_weights', 'ai_scoring',
+            # 添加所有策略优化相关的参数关键词
+            'rsi_oversold_threshold', 'rsi_low_threshold',
+            'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight',
+            'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold',
+            'bb_near_threshold', 'rsi_uptrend_min', 'rsi_uptrend_max',
+            'volume_panic_bonus', 'volume_surge_bonus', 'volume_shrink_penalty',
+            'bb_lower_near', 'price_decline_threshold', 'decline_threshold',
+            'volume_weight', 'price_momentum_weight'
+        ]
+        
+        if any(key in params for key in strategy_keywords):
             return 'strategy.yaml'
         else:
             return 'system.yaml'
@@ -291,7 +303,6 @@ from src.utils.config_saver import save_optimized_config, save_strategy_config
 optimized_params = {
     'strategy': {
         'confidence_weights': {
-            'final_threshold': 0.55,
             'volume_weight': 0.28
         }
     },
@@ -306,10 +317,9 @@ save_optimized_config(optimized_params)
 # 方法2：仅保存策略参数
 strategy_params = {
     'confidence_weights': {
-        'final_threshold': 0.55,
         'volume_weight': 0.28
     }
 }
 save_strategy_config(strategy_params)
 
-""" 
+"""
