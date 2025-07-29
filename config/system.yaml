@@ -79,7 +79,6 @@ results:
 risk:
   min_confidence: 0.6
   max_daily_signals: 3
-  cooldown_days: 5
 
 system:
   mode: backtest
