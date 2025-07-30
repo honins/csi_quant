@@ -76,10 +76,6 @@ results:
   images_path: results/images
   tables_path: results/tables
 
-risk:
-  min_confidence: 0.6
-  max_daily_signals: 3
-
 system:
   mode: backtest
   log_level: INFO
