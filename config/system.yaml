@@ -80,7 +80,3 @@ system:
   mode: backtest
   log_level: INFO
   log_file: logs/system.log
-  
-rise_threshold: 0.035
-max_days: 20
-final_threshold: 0.5

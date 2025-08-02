@@ -173,7 +173,7 @@ class OptimizationReporter:
 
 ### 策略参数
 - **涨幅阈值**: {self.config.get('strategy', {}).get('rise_threshold', 0.04) * 100:.1f}%
-- **最大天数**: {self.config.get('strategy', {}).get('max_days', 20)}
+- **最大天数**: {self.config.get('strategy_params', {}).get('max_days', 20)}
 
 ---
 
@@ -539,4 +539,4 @@ def create_optimization_report(optimization_result: Dict[str, Any],
     str: 报告文件路径
     """
     reporter = OptimizationReporter(config)
-    return reporter.generate_report(optimization_result, model_info, overfitting_detection) 
+    return reporter.generate_report(optimization_result, model_info, overfitting_detection)

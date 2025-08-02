@@ -259,8 +259,10 @@ def predict_and_validate(
         logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，原始置信度: {confidence:.2f}, 最终置信度: {final_confidence:.2f}")
 
         # 5. 验证预测结果
-        end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
-        start_date_for_validation = predict_date - timedelta(days=config["strategy"]["max_days"] + 10)
+        # max_days现在在strategy_params中
+        max_days = config.get("strategy_params", {}).get("max_days", 20)
+        end_date_for_validation = predict_date + timedelta(days=max_days + 10)
+        start_date_for_validation = predict_date - timedelta(days=max_days + 10)
         
         validation_data = data_module.get_history_data(
             start_date=start_date_for_validation.strftime('%Y-%m-%d'),
@@ -361,4 +363,4 @@ def predict_and_validate(
             days_to_rise=None,
             prediction_correct=None,
             predict_price=None
-        ) 
+        )
