@@ -637,7 +637,8 @@ class AIOptimizerImproved:
             final_confidence = raw_confidence
 
             # 使用配置的阈值和原始置信度进行最终预测
-            confidence_config = self.config.get('strategy', {}).get('confidence_weights', {})
+            # 优化参数现在在根级别的confidence_weights中
+            confidence_config = self.config.get('confidence_weights', {})
             final_threshold = confidence_config.get('final_threshold', 0.5)
 
             # 基于原始置信度和配置阈值进行预测
@@ -1081,7 +1082,7 @@ class AIOptimizerImproved:
             if strategy_result['success']:
                 print("   📝 保存最优参数到配置文件...")
                 self.logger.info("   📝 保存最优参数到配置文件...")
-                self.save_optimized_params(strategy_result['best_params'])
+                self._save_optimized_parameters(strategy_result['best_params'])
                 print("   ✅ 参数保存完成")
                 self.logger.info("   ✅ 参数保存完成")
             else:
@@ -1664,186 +1665,41 @@ class AIOptimizerImproved:
                 'error': str(e)
             }
 
-    def save_optimized_params(self, params: dict):
+    def _save_optimized_parameters(self, best_params: Dict[str, Any]) -> bool:
         """
-        保存优化后的参数到配置文件（保留注释版）
+        保存优化后的参数到optimized_params.yaml文件
         
         参数:
-        params: 优化后的参数
+        best_params: 优化后的参数
         """
         try:
-            # 尝试使用保留注释的保存器
-            try:
-                from src.utils.config_saver import CommentPreservingConfigSaver
-                saver = CommentPreservingConfigSaver()
-                saver.save_optimized_parameters(params)
-                self.logger.info("参数已保存（保留注释版本）")
-                return
-            except ImportError as e:
-                self.logger.warning(f"ruamel.yaml模块未安装，使用传统保存方式: {e}")
-            except Exception as e:
-                self.logger.warning(f"保留注释版本保存失败，使用传统方式: {e}")
-
-            # 使用传统方式保存
-            self._save_params_fallback(params)
-
-        except Exception as e:
-            self.logger.error(f"保存优化参数失败: {e}")
-            raise
-
-    def _save_params_fallback(self, params: dict):
-        """
-        传统的参数保存方式（原子性写入）
-        
-        参数:
-        params: 优化后的参数
-        """
-        import tempfile
-        import shutil
-
-        # 转换numpy类型为Python原生类型
-        def convert_numpy_types(obj):
-            if isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, dict):
-                return {key: convert_numpy_types(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy_types(item) for item in obj]
-            elif isinstance(obj, tuple):
-                return tuple(convert_numpy_types(item) for item in obj)
+            from src.utils.optimized_params_saver import save_optimized_params
+            
+            # 添加优化信息
+            optimization_info = {
+                'method': 'genetic_algorithm',
+                'timestamp': datetime.now().isoformat(),
+                'param_count': len(best_params)
+            }
+            
+            # 保存参数到optimized_params.yaml
+            success = save_optimized_params(
+                params=best_params,
+                optimization_info=optimization_info
+            )
+            
+            if success:
+                self.logger.info(f"优化参数已保存到optimized_params.yaml，共{len(best_params)}个参数")
+                return True
             else:
-                return obj
-
-        # 转换参数
-        converted_params = convert_numpy_types(params)
-
-        try:
-            config_path = 'config/strategy.yaml'
-            backup_path = f"{config_path}.backup"
-
-            # 创建备份
-            if os.path.exists(config_path):
-                shutil.copy2(config_path, backup_path)
-                self.logger.info(f"已创建配置文件备份: {backup_path}")
-
-            # 读取现有配置
-            config = {}
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f) or {}
-                except yaml.YAMLError as e:
-                    self.logger.error(f"配置文件格式错误: {e}")
-                    if os.path.exists(backup_path):
-                        shutil.copy2(backup_path, config_path)
-                        self.logger.info("已从备份恢复配置文件")
-                        with open(config_path, 'r', encoding='utf-8') as f:
-                            config = yaml.safe_load(f) or {}
-
-            # 更新参数
-            for param_name, param_value in converted_params.items():
-                # 导入参数配置
-                from src.utils.param_config import (
-                    is_confidence_weight_param, 
-                    is_strategy_level_param,
-                    get_param_category,
-                    OPTIMIZABLE_PARAMS,
-                    get_all_optimizable_params
-                )
+                self.logger.error("保存优化参数失败")
+                return False
                 
-                # 确保strategy和confidence_weights存在
-                if 'strategy' not in config:
-                    config['strategy'] = {}
-                if 'confidence_weights' not in config['strategy']:
-                    config['strategy']['confidence_weights'] = {}
-                
-                # 根据参数类型保存到正确位置
-                if is_confidence_weight_param(param_name):
-                    # 保存到confidence_weights
-                    config['strategy']['confidence_weights'][param_name] = float(param_value)
-                    self.logger.info(f"保存confidence_weights参数: {param_name} = {param_value}")
-                elif is_strategy_level_param(param_name):
-                    # 保存到strategy级别
-                    config['strategy'][param_name] = float(param_value)
-                    self.logger.info(f"保存strategy参数: {param_name} = {param_value}")
-                else:
-                    # 默认保存到strategy级别
-                    config['strategy'][param_name] = float(param_value)
-                    self.logger.info(f"保存默认参数: {param_name} = {param_value} (分类: {get_param_category(param_name)})")
-
-            # 原子性写入：先写入临时文件，再移动
-            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
-                                             dir=os.path.dirname(config_path),
-                                             delete=False) as temp_file:
-                yaml.dump(config, temp_file, default_flow_style=False, allow_unicode=True)
-                temp_path = temp_file.name
-
-            # 移动临时文件到目标位置
-            shutil.move(temp_path, config_path)
-
-            self.logger.info(f"参数已安全保存到配置文件: {len(converted_params)} 个参数")
-
-            # 验证保存是否成功
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        saved_config = yaml.safe_load(f)
-                    # 验证参数是否正确保存
-                    saved_count = 0
-                    for param_name in converted_params.keys():
-                        # 导入参数配置
-                        from src.utils.param_config import (
-                            is_confidence_weight_param, 
-                            is_strategy_level_param,
-                            get_param_category,
-                            OPTIMIZABLE_PARAMS,
-                            get_all_optimizable_params
-                        )
-                        
-                        # 根据参数类型验证保存位置
-                        if is_confidence_weight_param(param_name):
-                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证confidence_weights参数: {param_name}")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: confidence_weights参数 {param_name} 未找到")
-                        elif is_strategy_level_param(param_name):
-                            if saved_config.get('strategy', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证strategy参数: {param_name}")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: strategy参数 {param_name} 未找到")
-                        else:
-                            if saved_config.get('strategy', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证默认参数: {param_name} (分类: {get_param_category(param_name)})")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: 默认参数 {param_name} 未找到")
-
-                    self.logger.info(f"验证成功: {saved_count}/{len(converted_params)} 个参数已正确保存")
-
-                    # 清理旧备份
-                    if os.path.exists(backup_path):
-                        os.remove(backup_path)
-                except Exception as verify_error:
-                    self.logger.warning(f"参数保存验证失败: {verify_error}")
-            else:
-                self.logger.error("配置文件保存后不存在")
-
         except Exception as e:
-            self.logger.error(f"传统方式保存参数失败: {e}")
-            # 尝试从备份恢复
-            if os.path.exists(backup_path):
-                try:
-                    shutil.copy2(backup_path, config_path)
-                    self.logger.info("已从备份恢复配置文件")
-                except Exception as restore_error:
-                    self.logger.error(f"备份恢复失败: {restore_error}")
-            raise
+             self.logger.error(f"保存优化参数时发生错误: {e}")
+             return False
+
+    # 已移除_save_params_fallback方法，现在统一使用optimized_params_saver
 
     def run_genetic_algorithm(self, evaluate_func, param_ranges=None) -> Dict[str, Any]:
         """
@@ -2568,67 +2424,7 @@ class AIOptimizerImproved:
             self.logger.warning(f"收敛检测失败: {e}")
             return False
 
-    def _save_optimized_parameters(self, best_params: Dict[str, Any]) -> bool:
-        """
-        保存优化后的参数到配置文件
-        
-        参数:
-        best_params: 最优参数字典
-        
-        返回:
-        bool: 是否保存成功
-        """
-        try:
-            from src.utils.config_saver import save_strategy_config
-
-            # 构建策略参数字典
-            strategy_params = {}
-
-            # 基础参数
-            if 'rise_threshold' in best_params:
-                strategy_params['rise_threshold'] = best_params['rise_threshold']
-            if 'max_days' in best_params:
-                strategy_params['max_days'] = best_params['max_days']
-
-            # 置信度权重参数
-            confidence_weights = {}
-            confidence_weight_keys = [
-                'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
-                'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight'
-            ]
-
-            for key in confidence_weight_keys:
-                if key in best_params:
-                    confidence_weights[key] = best_params[key]
-
-            if confidence_weights:
-                strategy_params['confidence_weights'] = confidence_weights
-
-            # 保存到配置文件
-            if strategy_params:
-                success = save_strategy_config(strategy_params)
-
-                if success:
-                    print(f"   💾 最优参数已保存到配置文件")
-                    self.logger.info("💾 最优参数已保存到配置文件")
-                    self.logger.info(f"   保存的参数: {strategy_params}")
-                    return True
-                else:
-                    print(f"   ⚠️ 参数保存失败，但优化结果仍然有效")
-                    self.logger.warning("参数保存失败，但优化结果仍然有效")
-                    return False
-            else:
-                self.logger.info("没有需要保存的策略参数")
-                return True
-
-        except ImportError as e:
-            self.logger.warning(f"配置保存模块不可用: {e}")
-            print(f"   ⚠️ 配置保存模块不可用，参数未持久化")
-            return False
-        except Exception as e:
-            self.logger.error(f"保存优化参数失败: {e}")
-            print(f"   ❌ 参数保存失败: {e}")
-            return False
+    # 已移除重复的_save_optimized_parameters方法定义
 
     def _calculate_unified_score(self, evaluation: Dict[str, Any]) -> float:
         """

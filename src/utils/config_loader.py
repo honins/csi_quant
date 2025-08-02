@@ -37,7 +37,8 @@ def load_config(config_paths: Optional[List[str]] = None) -> Dict[str, Any]:
     if config_paths is None:
         config_paths = [
             str(project_root / 'config' / 'system.yaml'),
-            str(project_root / 'config' / 'strategy.yaml')
+            str(project_root / 'config' / 'strategy.yaml'),
+            str(project_root / 'config' / 'optimized_params.yaml')
         ]
     
     # 添加环境变量指定的配置文件
@@ -264,4 +265,4 @@ class ConfigLoader:
 
 
 # 模块导出
-__all__ = ['load_config', 'save_config', 'get_default_config', 'deep_merge_dict', 'ConfigLoader'] 
+__all__ = ['load_config', 'save_config', 'get_default_config', 'deep_merge_dict', 'ConfigLoader']

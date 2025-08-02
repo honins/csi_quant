@@ -82,7 +82,8 @@ class StrategyModule:
             
             # 从配置文件获取置信度权重
             strategy_config = self.config.get('strategy', {})
-            confidence_config = strategy_config.get('confidence_weights', {})
+            # 优化参数现在在根级别的confidence_weights中
+            confidence_config = self.config.get('confidence_weights', {})
             
             # 条件1: 价格低于多条移动平均线
             if ma5 is not None and ma10 is not None and ma20 is not None:

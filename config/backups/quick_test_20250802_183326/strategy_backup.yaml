@@ -79,8 +79,8 @@ genetic_algorithm:
   crossover_rate: 0.8
   elite_ratio: 0.1
   enabled: true
-  generations: 20
-  mutation_rate: 0.12
+  generations: 15
+  mutation_rate: 0.15
   population_size: 200
 optimization:
   enable_history: true
@@ -91,16 +91,16 @@ optimization:
   max_history_records: 150
 optimization_ranges:
   bb_lower_near:
-    max: 0.35
-    min: 0.15
+    max: 0.5
+    min: 0.1
     step: 0.02
   bb_near_threshold:
     max: 1.05
     min: 1.005
     step: 0.005
   decline_threshold:
-    max: -0.03
-    min: -0.06
+    max: -0.02
+    min: -0.08
     step: 0.005
   dynamic_confidence_adjustment:
     max: 0.25
@@ -110,34 +110,58 @@ optimization_ranges:
     max: 0.35
     min: 0.15
     step: 0.02
+  ma_all_below:
+    max: 0.4
+    min: 0.2
+    step: 0.02
+  macd_negative:
+    max: 0.15
+    min: 0.05
+    step: 0.02
   market_sentiment_weight:
     max: 0.25
     min: 0.08
     step: 0.02
   price_decline_threshold:
     max: -0.01
-    min: -0.03
+    min: -0.06
     step: 0.005
   price_momentum_weight:
+    max: 0.4
+    min: 0.1
+    step: 0.02
+  recent_decline:
     max: 0.3
-    min: 0.12
+    min: 0.1
     step: 0.02
   rsi_low_threshold:
     max: 50
     min: 40
     step: 1
+  rsi_overbought_correction:
+    max: 0.5
+    min: 0.2
+    step: 0.02
   rsi_oversold_threshold:
     max: 35
     min: 25
+    step: 1
+  rsi_pullback_threshold:
+    max: 5
+    min: 1
     step: 1
   rsi_uptrend_max:
     max: 90
     min: 75
     step: 1
   rsi_uptrend_min:
-    max: 45
-    min: 30
+    max: 40
+    min: 25
     step: 1
+  rsi_uptrend_pullback:
+    max: 0.6
+    min: 0.2
+    step: 0.02
   trend_strength_weight:
     max: 0.25
     min: 0.1
@@ -156,7 +180,7 @@ optimization_ranges:
     step: 0.05
   volume_shrink_threshold:
     max: 0.9
-    min: 0.5
+    min: 0.6
     step: 0.05
   volume_surge_bonus:
     max: 0.15
@@ -167,32 +191,12 @@ optimization_ranges:
     min: 1.1
     step: 0.05
   volume_weight:
-    max: 0.4
+    max: 0.5
     min: 0.2
     step: 0.02
 overfitting_threshold: 0.9
-strategy:
-  bb_near_threshold: 1.01049
-  confidence_weights:
-    dynamic_confidence_adjustment: 0.2384
-    final_threshold: 0.25
-    ma_all_below: 0.35
-    market_sentiment_weight: 0.1767
-    rsi_low_threshold: 45.0
-    rsi_oversold: 0.35
-    rsi_oversold_threshold: 30.0
-    trend_strength_weight: 0.16
-    volume_weight: 0.3
-  dynamic_confidence_adjustment: 0.2169
-  market_sentiment_weight: 0.3074
-  max_days: 20
-  price_momentum_weight: 0.2766
-  rise_threshold: 0.035
-  trend_strength_weight: 0.1035
-  volume_panic_threshold: 1.3
-  volume_shrink_threshold: 0.573
-  volume_surge_threshold: 1.15
-  volume_weight: 0.3287
+# 注意：策略参数已迁移到 optimized_params.yaml
+# 此处保留优化算法配置和参数范围定义
 strategy_ranges:
   final_threshold:
     max: 0.6
