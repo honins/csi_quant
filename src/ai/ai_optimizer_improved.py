@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-改进版AI优化器
+AI优化器
 集成增量学习、特征权重优化和趋势确认指标
-已废弃置信度平滑功能，直接使用AI模型原始输出
 """
 
 import logging
@@ -32,12 +31,9 @@ BAYESIAN_AVAILABLE = True
 
 
 
-# 注释：以下ConfidenceSmoother类已废弃，不再使用平滑处理
-# 现在直接使用模型的原始输出，保持信息完整性
-
 
 class AIOptimizerImproved:
-    """改进版AI优化器"""
+    """AI优化器"""
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -60,10 +56,10 @@ class AIOptimizerImproved:
         self.max_incremental_updates = incremental_config.get('max_updates', 10)  # 最大增量更新次数
         self.incremental_count = 0
 
-        # 移除置信度平滑器 - 使用模型原始输出
-        # self.confidence_smoother = ConfidenceSmoother(config)
+        # 移除置信度处理器 - 使用模型原始输出
+        # self.confidence_processor = ConfidenceProcessor(config)
 
-        self.logger.info("改进版AI优化器初始化完成")
+        self.logger.info("AI优化器初始化完成")
 
     def prepare_features_improved(self, data: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
         """
@@ -409,7 +405,7 @@ class AIOptimizerImproved:
 
     def full_train(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
         """
-        完整训练改进版AI模型
+        完整训练AI模型
         
         参数:
         data: 历史数据
@@ -419,7 +415,7 @@ class AIOptimizerImproved:
         dict: 训练结果
         """
         train_start_time = time.time()
-        self.logger.info("🤖 开始改进版AI模型完整训练")
+        self.logger.info("🤖 开始AI模型完整训练")
         self.logger.info("=" * 80)
 
         try:
@@ -546,7 +542,7 @@ class AIOptimizerImproved:
             # 训练总结
             total_train_time = time.time() - train_start_time
             self.logger.info("=" * 80)
-            self.logger.info("🎉 改进版AI模型训练完成!")
+            self.logger.info("🎉 AI模型训练完成!")
             self.logger.info(f"⏱️ 总耗时: {total_train_time:.2f}s ({total_train_time / 60:.1f}分钟)")
             self.logger.info(f"📊 训练统计:")
             self.logger.info(f"   特征工程: {feature_time:.2f}s")
@@ -583,7 +579,7 @@ class AIOptimizerImproved:
             }
 
         except Exception as e:
-            self.logger.error(f"改进版模型训练失败: {e}")
+            self.logger.error(f"模型训练失败: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -591,16 +587,16 @@ class AIOptimizerImproved:
 
     def predict_low_point(self, data: pd.DataFrame, prediction_date: str = None) -> Dict[str, Any]:
         """
-        预测相对低点（带置信度平滑）
+        预测相对低点
         
         参数:
         data: 市场数据
-        prediction_date: 预测日期（用于置信度平滑）
+        prediction_date: 预测日期
         
         返回:
         dict: 预测结果
         """
-        self.logger.info("预测相对低点（改进版）")
+        self.logger.info("预测相对低点")
 
         try:
             # 加载模型（如果未加载）
@@ -638,10 +634,10 @@ class AIOptimizerImproved:
             # 获取预测概率（不使用predict方法，避免内置阈值影响）
             prediction_proba = self.model.predict_proba(latest_features)[0]
 
-            # 获取原始置信度（不再进行平滑处理）
+            # 获取原始置信度（不再进行处理）
             raw_confidence = prediction_proba[1] if len(prediction_proba) > 1 else 0.0
 
-            # 直接使用原始置信度，不进行平滑处理
+            # 直接使用原始置信度，不进行处理
             final_confidence = raw_confidence
 
             # 使用配置的阈值和原始置信度进行最终预测
@@ -664,7 +660,7 @@ class AIOptimizerImproved:
 
             # 输出预测结果
             self.logger.info("----------------------------------------------------")
-            self.logger.info("AI预测结果（无平滑）: \033[1m%s\033[0m",
+            self.logger.info("AI预测结果: \033[1m%s\033[0m",
                              "相对低点" if is_low_point else "非相对低点")
             self.logger.info("原始置信度: \033[1m%.4f\033[0m, 阈值: \033[1m%.2f\033[0m",
                              raw_confidence, final_threshold)
@@ -775,6 +771,12 @@ class AIOptimizerImproved:
             with open(latest_path, 'r') as f:
                 model_path = f.read().strip()
 
+            # 如果是相对路径，转换为绝对路径（相对于项目根目录）
+            if not os.path.isabs(model_path):
+                # 获取项目根目录（从当前文件位置向上三级：src/ai/ai_optimizer_improved.py -> 项目根目录）
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                model_path = os.path.join(project_root, model_path)
+            
             # 安全检查：验证模型文件路径
             if not os.path.abspath(model_path).startswith(os.path.abspath(self.models_dir)):
                 self.logger.error(f"模型文件路径不安全: {model_path}")
@@ -902,9 +904,9 @@ class AIOptimizerImproved:
 
         # 同时使用print和logger确保输出可见
         current_time = datetime.now().strftime("%H:%M:%S")
-        print(f"🚀 开始完整的AI优化流程（改进版） [{current_time}]")
+        print(f"🚀 开始完整的AI优化流程 [{current_time}]")
         print("=" * 80)
-        self.logger.info("🚀 开始完整的AI优化流程（改进版）")
+        self.logger.info("🚀 开始完整的AI优化流程")
         self.logger.info("=" * 80)
 
         try:
@@ -920,7 +922,7 @@ class AIOptimizerImproved:
             current_time = datetime.now().strftime("%H:%M:%S")
             print(f"📋 优化流程概览: [{current_time}]")
             print("   🔧 步骤A: 策略参数优化 (贝叶斯优化)")
-            print("   🤖 步骤B: 改进版模型训练")
+            print("   🤖 步骤B: 模型训练")
             print("   📊 步骤C: 最终性能评估")
             print("   💾 步骤D: 结果保存")
             print("-" * 80)
@@ -995,14 +997,14 @@ class AIOptimizerImproved:
             print("-" * 80)
             self.logger.info("-" * 80)
 
-            # 步骤B: 改进版模型训练
+            # 步骤B: 模型训练
             current_time = datetime.now().strftime("%H:%M:%S")
-            print(f"🤖 步骤B: 改进版模型训练 [{current_time}]")
+            print(f"🤖 步骤B: 模型训练 [{current_time}]")
             print("   🎯 目标: 训练RandomForest分类模型")
             print("   ⚙️ 配置: 150棵树, 深度12, 平衡权重")
             print("   📊 数据: 特征工程 + 样本权重 + 标准化")
 
-            self.logger.info("🤖 步骤B: 改进版模型训练")
+            self.logger.info("🤖 步骤B: 模型训练")
             self.logger.info("   🎯 目标: 训练RandomForest分类模型")
             self.logger.info("   ⚙️ 配置: 150棵树, 深度12, 平衡权重")
             self.logger.info("   📊 数据: 特征工程 + 样本权重 + 标准化")
@@ -1173,7 +1175,7 @@ class AIOptimizerImproved:
 
     def optimize_strategy_parameters_improved(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        改进版策略参数优化（贝叶斯优化高精度模式）
+        策略参数优化（贝叶斯优化高精度模式）
         
         参数:
         strategy_module: 策略模块
@@ -1190,7 +1192,7 @@ class AIOptimizerImproved:
         print(f"    🚀 启动策略参数优化子流程 [{current_time}]")
         print(f"    📊 数据规模: {len(data)} 条记录")
 
-        self.logger.info("🚀 开始改进版策略参数优化（贝叶斯优化）")
+        self.logger.info("🚀 开始策略参数优化（贝叶斯优化）")
         self.logger.info("=" * 80)
 
         try:

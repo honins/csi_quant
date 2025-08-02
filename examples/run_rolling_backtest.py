@@ -46,7 +46,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         # 初始化模块
         data_module = DataModule(config)
         strategy_module = StrategyModule(config)
-        # 使用改进版AI优化器以支持置信度平滑
+        # 使用AI优化器
         from src.ai.ai_optimizer_improved import AIOptimizerImproved
         ai_optimizer = AIOptimizerImproved(config)
 
@@ -225,7 +225,6 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             for date, row in results_df.iterrows():
                 predict_price = safe_str(row['predict_price'])
                 predicted = "Yes" if row['predicted_low_point'] else "No"
-                # 使用最终置信度（已废弃平滑功能，直接使用模型原始输出）
                 confidence = safe_str(row.get('final_confidence', row.get('confidence', 0)))
                 actual = "Yes" if row['actual_low_point'] else "No"
                 max_rise = safe_str(row['future_max_rise'], "{:.2%}")

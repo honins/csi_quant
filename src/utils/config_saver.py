@@ -114,7 +114,7 @@ class CommentPreservingConfigSaver:
         # 所有AI优化相关参数都保存到strategy.yaml
         strategy_keywords = [
             'optimization', 'bayesian_optimization', 'genetic_algorithm', 
-            'confidence_smoothing', 'advanced_optimization', 'strategy',
+            'advanced_optimization', 'strategy',
             'confidence_weights', 'ai_scoring',
             # 添加所有策略优化相关的参数关键词
             'rsi_oversold_threshold', 'rsi_low_threshold',

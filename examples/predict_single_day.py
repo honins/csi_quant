@@ -396,6 +396,13 @@ def predict_with_trained_model(
         if os.path.exists(latest_model_path):
             with open(latest_model_path, 'r') as f:
                 model_path = f.read().strip()
+                
+                # 如果是相对路径，转换为绝对路径（相对于项目根目录）
+                if not os.path.isabs(model_path):
+                    # 获取项目根目录（从当前文件位置向上两级：examples/predict_single_day.py -> 项目根目录）
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    model_path = os.path.join(project_root, model_path)
+                
                 model_file = os.path.basename(model_path)
                 model_analysis['model_file'] = model_file
                 # 从文件名提取时间戳
