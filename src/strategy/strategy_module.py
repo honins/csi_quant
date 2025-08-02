@@ -676,8 +676,8 @@ class StrategyModule:
             self.max_days = params['max_days']
         
         # 确保confidence_weights存在
-        if 'confidence_weights' not in self.config['strategy']:
-            self.config['strategy']['confidence_weights'] = {}
+        if 'confidence_weights' not in self.config['default_strategy']:
+            self.config['default_strategy']['confidence_weights'] = {}
         
         # 定义所有可能的参数及其存储位置
         confidence_weight_params = [
@@ -698,12 +698,12 @@ class StrategyModule:
         # 更新confidence_weights中的参数
         for param in confidence_weight_params:
             if param in params:
-                self.config['strategy']['confidence_weights'][param] = params[param]
+                self.config['default_strategy']['confidence_weights'][param] = params[param]
         
         # 更新strategy级别的参数
         for param in strategy_level_params:
             if param in params:
-                self.config['strategy'][param] = params[param]
+                self.config['default_strategy'][param] = params[param]
         
         # 参数更新完成
         self.logger.debug("策略参数更新完成")

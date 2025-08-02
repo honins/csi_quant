@@ -249,7 +249,7 @@ system:
 #### 策略参数
 
 ```yaml
-strategy:
+default_strategy:
   rise_threshold: 0.04          # 涨幅阈值
   max_days: 20                  # 最大持有天数
 ```

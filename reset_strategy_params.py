@@ -320,7 +320,7 @@ class StrategyParamsResetter:
     
     def reset_strategy_params(self):
         """重置策略参数"""
-        self.reset_config_file("strategy.yaml", ["strategy"])
+        self.reset_config_file("strategy.yaml", ["default_strategy"])
     
     def reset_confidence_weights(self):
         """重置置信度权重"""

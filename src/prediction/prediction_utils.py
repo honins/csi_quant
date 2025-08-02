@@ -329,7 +329,7 @@ def predict_and_validate(
                 max_rise = rise_rate
                 days_to_rise = row['index'] - predict_index  # 用index相减，代表交易日天数
 
-        actual_is_low_point = max_rise >= config["strategy"]["rise_threshold"]
+        actual_is_low_point = max_rise >= config["default_strategy"]["rise_threshold"]
 
         logger.info(f"\n--- 验证结果 --- ")
         logger.info(f"日期: {predict_date.strftime('%Y-%m-%d')}")

@@ -109,13 +109,12 @@ csi_quant/
 包含所有策略参数和优化范围：
 
 ```yaml
-strategy:
+default_strategy:
   rise_threshold: 0.04      # 涨幅阈值
   max_days: 20              # 最大持有天数
-  
-confidence_weights:
-  rsi_oversold_threshold: 30
-  final_threshold: 0.5
+  confidence_weights:
+    rsi_oversold_threshold: 30
+    final_threshold: 0.5
   
 optimization_ranges:
   rise_threshold: [0.02, 0.08]

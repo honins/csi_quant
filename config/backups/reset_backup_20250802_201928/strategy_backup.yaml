@@ -63,63 +63,6 @@ confidence_weights:
   volume_surge_bonus: 0.1
   volume_surge_threshold: 1.2
   volume_weight: 0.3
-default_optimization_ranges:
-  bb_near_threshold: &id001
-    max: 1.05
-    min: 1.005
-    step: 0.005
-  dynamic_confidence_adjustment: &id002
-    max: 0.25
-    min: 0.05
-    step: 0.02
-  ma_all_below: &id003
-    max: 0.4
-    min: 0.2
-    step: 0.02
-  macd_negative: &id004
-    max: 0.15
-    min: 0.05
-    step: 0.02
-  market_sentiment_weight: &id005
-    max: 0.25
-    min: 0.08
-    step: 0.02
-  price_decline_threshold: &id006
-    max: -0.01
-    min: -0.06
-    step: 0.005
-  recent_decline: &id007
-    max: 0.3
-    min: 0.1
-    step: 0.02
-  rsi_low_threshold: &id008
-    max: 50
-    min: 40
-    step: 1
-  rsi_oversold_threshold: &id009
-    max: 35
-    min: 25
-    step: 1
-  trend_strength_weight: &id010
-    max: 0.25
-    min: 0.1
-    step: 0.02
-  volume_panic_bonus: &id011
-    max: 0.2
-    min: 0.05
-    step: 0.02
-  volume_panic_threshold: &id012
-    max: 2.0
-    min: 1.2
-    step: 0.05
-  volume_shrink_penalty: &id013
-    max: 0.8
-    min: 0.5
-    step: 0.05
-  volume_surge_bonus: &id014
-    max: 0.15
-    min: 0.02
-    step: 0.02
 early_stopping:
   enabled: true
   min_delta: 0.001
@@ -146,32 +89,7 @@ optimization:
   incremental_contraction_factor: 0.5
   incremental_iterations: 1000
   max_history_records: 100
-optimization_ranges:
-  bb_near_threshold: *id001
-  dynamic_confidence_adjustment: *id002
-  ma_all_below: *id003
-  macd_negative: *id004
-  market_sentiment_weight: *id005
-  price_decline_threshold: *id006
-  recent_decline: *id007
-  rsi_low_threshold: *id008
-  rsi_oversold_threshold: *id009
-  trend_strength_weight: *id010
-  volume_panic_bonus: *id011
-  volume_panic_threshold: *id012
-  volume_shrink_penalty: *id013
-  volume_surge_bonus: *id014
 overfitting_threshold: 0.9
-default_strategy:
-  confidence_weights:
-    dynamic_confidence_adjustment: 0.1
-    final_threshold: 0.5
-    market_sentiment_weight: 0.15
-    rsi_low_threshold: 40
-    rsi_oversold_threshold: 30
-    trend_strength_weight: 0.15
-  max_days: 20
-  rise_threshold: 0.04
 strategy_scoring:
   days_benchmark: 10.0
   days_weight: 0.2
@@ -187,3 +105,13 @@ validation:
     step_size: 63
     window_size: 252
 zero_confidence_threshold: 0.5
+strategy:
+  rise_threshold: 0.04
+  max_days: 20
+  confidence_weights:
+    rsi_oversold_threshold: 30
+    rsi_low_threshold: 40
+    final_threshold: 0.5
+    dynamic_confidence_adjustment: 0.1
+    market_sentiment_weight: 0.15
+    trend_strength_weight: 0.15

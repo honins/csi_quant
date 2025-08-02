@@ -158,12 +158,11 @@ python run.py ai
 
 ```yaml
 # config/strategy.yaml
-strategy:
+default_strategy:
   rise_threshold: 0.04    # 涨幅阈值（4%）
   max_days: 20           # 最大持有天数
-
-confidence_weights:
-  final_threshold: 0.5   # 最终置信度阈值
+  confidence_weights:
+    final_threshold: 0.5   # 最终置信度阈值
 ```
 
 ## ❗ 常见问题

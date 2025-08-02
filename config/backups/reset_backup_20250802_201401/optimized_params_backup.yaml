@@ -1,10 +1,10 @@
 metadata:
-  last_updated: '2025-08-02 20:19:43'
+  last_updated: '2025-08-02 19:50:39'
   optimization_version: v1.0
   total_params: 20
   description: 策略优化参数配置文件
   method: genetic_algorithm
-  timestamp: '2025-08-02T20:19:43.736127'
+  timestamp: '2025-08-02T19:50:39.013014'
   param_count: 20
 strategy_params:
   rise_threshold: 0.04

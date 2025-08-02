@@ -713,8 +713,8 @@ def predict_with_trained_model(
         logger.info("📊 历史验证分析")
         logger.info("="*80)
         
-        end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
-        start_date_for_validation = predict_date - timedelta(days=config["strategy"]["max_days"] + 10)
+        end_date_for_validation = predict_date + timedelta(days=config["default_strategy"]["max_days"] + 10)
+        start_date_for_validation = predict_date - timedelta(days=config["default_strategy"]["max_days"] + 10)
         
         validation_data = data_module.get_history_data(
             start_date=start_date_for_validation.strftime('%Y-%m-%d'),
@@ -813,8 +813,8 @@ def predict_with_trained_model(
         predict_index = predict_date_data.iloc[0]['index']
         max_rise = 0.0
         days_to_rise = 0
-        rise_threshold = config["strategy"]["rise_threshold"]
-        max_days = config["strategy"]["max_days"]
+        rise_threshold = config["default_strategy"]["rise_threshold"]
+        max_days = config["default_strategy"]["max_days"]
         
         logger.info(f"📈 未来{max_days}天表现追踪:")
         logger.info(f"   预测日价格: {predict_price:.2f}")
