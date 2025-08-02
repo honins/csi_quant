@@ -1,3 +1,7 @@
+# =============================================================================
+# 中证500指数相对低点识别系统 - 核心配置文件
+# =============================================================================
+
 ai:
   enable: true
   model_type: machine_learning
@@ -6,9 +10,10 @@ ai:
   retrain_interval_days: 30
   enable_model_reuse: true
   training_data:
-    full_train_years: 5
-    optimize_years: 5
+    full_train_years: 6
+    optimize_years: 6
     incremental_years: 1
+
 data:
   data_file_path: data/SHSE.000905_1d.csv
   data_source: akshare
@@ -17,6 +22,7 @@ data:
   history_days: 1000
   cache_enabled: true
   cache_dir: cache
+
 strategy:
   rise_threshold: 0.04
   max_days: 20
@@ -28,10 +34,11 @@ strategy:
   macd_signal: 9
   macd_slow: 26
   ma_periods:
-  - 5
-  - 10
-  - 20
-  - 60
+    - 5
+    - 10
+    - 20
+    - 60
+
 backtest:
   start_date: '2022-01-01'
   end_date: '2025-06-21'
@@ -41,34 +48,34 @@ backtest:
   rolling_step: 63
   generate_charts: true
   charts_dir: charts
+
 logging:
   level: INFO
   file: logs/system.log
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   max_bytes: 10485760
   backup_count: 5
+
 notification:
   methods:
-  - console
-  - email
+    - console
+    - email
   logs_dir: logs
   email:
     sender: quant_system@example.com
     recipients:
-    - your_email@example.com
+      - your_email@example.com
     smtp_server: smtp.example.com
     smtp_port: 587
     username: your_username
     password: your_password
+
 results:
   save_path: results
   save_detailed: true
   images_path: results/images
   tables_path: results/tables
-risk:
-  min_confidence: 0.6
-  max_daily_signals: 3
-  cooldown_days: 5
+
 system:
   mode: backtest
   log_level: INFO

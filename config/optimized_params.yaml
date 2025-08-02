@@ -1,56 +1,37 @@
 metadata:
-  last_updated: '2025-08-02 18:46:00'
+  last_updated: '2025-08-02 19:28:05'
   optimization_version: v1.0
-  total_params: 14
+  total_params: 20
   description: 策略优化参数配置文件
-  method: test_genetic_algorithm
-  timestamp: '2025-08-02T18:46:00.918084'
-  param_count: 14
+  method: genetic_algorithm
+  timestamp: '2025-08-02T19:28:05.145707'
+  param_count: 20
 strategy_params:
-  rise_threshold: 0.035
+  rise_threshold: 0.04
   max_days: 20
-  final_threshold: 0.3429
+  final_threshold: 0.5
 confidence_weights:
-  dynamic_confidence_adjustment: 0.75
-  final_threshold: 0.25
-  ma_all_below: 0.85
-  market_sentiment_weight: 0.65
-  rsi_low_threshold: 35.2
-  rsi_oversold: 0.35
-  rsi_oversold_threshold: 25.5
-  trend_strength_weight: 0.55
-  volume_weight: 0.3
+  rsi_oversold_threshold: 30
+  rsi_low_threshold: 40
+  dynamic_confidence_adjustment: 0.1
+  market_sentiment_weight: 0.15
+  trend_strength_weight: 0.15
 technical_indicators:
-  rsi_oversold_threshold: 25.5
-  rsi_low_threshold: 35.2
-  rsi_uptrend_max: 87.7408
-  rsi_uptrend_min: 35.8581
-  bb_near_threshold: 0.15
-  bb_lower_near: 0.1138
-  price_decline_threshold: 0.08
-  decline_threshold: -0.0321
-  recent_decline: 0.45
-  macd_negative: 0.35
+  bb_near_threshold: 1.018
+  price_decline_threshold: -0.018
+  rsi_oversold_threshold: 30
+  rsi_low_threshold: 40
 volume_params:
-  volume_weight: 0.2148
-  volume_panic_threshold: 2.5
-  volume_surge_threshold: 1.2916
-  volume_shrink_threshold: 0.6638
-  volume_shrink_penalty: 0.1
-  volume_surge_bonus: 0.15
-  volume_panic_bonus: 0.25
+  volume_panic_threshold: 1.45
+  volume_panic_bonus: 0.12
+  volume_surge_bonus: 0.06
+  volume_shrink_penalty: 0.68
 market_params:
-  market_sentiment_weight: 0.65
-  price_momentum_weight: 0.2338
-  trend_strength_weight: 0.55
-  dynamic_confidence_adjustment: 0.75
+  market_sentiment_weight: 0.15
+  trend_strength_weight: 0.15
+  dynamic_confidence_adjustment: 0.1
 strategy_level_params:
-  bb_near_threshold: 0.15
-  dynamic_confidence_adjustment: 0.2169
-  market_sentiment_weight: 0.3074
-  price_momentum_weight: 0.2766
-  trend_strength_weight: 0.1035
-  volume_panic_threshold: 2.5
-  volume_shrink_threshold: 0.573
-  volume_surge_threshold: 1.15
-  volume_weight: 0.3287
+  bb_near_threshold: 1.018
+  volume_panic_threshold: 1.45
+  volume_surge_threshold: 1.25
+  volume_shrink_threshold: 0.78
