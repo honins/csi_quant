@@ -79,15 +79,7 @@ class CommandProcessor:
             return config, None
         except Exception as e:
             error_msg = f"加载配置失败: {e}"
-            self.logger.error(error_msg)
-            # 返回最小可用配置
-            minimal_config = {
-                'data': {'data_file_path': 'data/'},
-                'strategy': {'rise_threshold': 0.04, 'max_days': 20},
-                'ai': {'model_type': 'RandomForest', 'models_dir': 'models'},
-                'logging': {'level': 'INFO'}
-            }
-            return minimal_config, error_msg
+            raise QuantError(error_msg)
     
     def _register_builtin_commands(self):
         """注册内置命令"""

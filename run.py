@@ -107,17 +107,6 @@ class QuantSystemCommands:
             handler=self.run_unit_tests,
             require_config=False
         )
-        
-        # 全套测试命令
-        self.processor.register_command(
-            name='all',
-            description='运行全套测试和回测',
-            handler=self.run_all_tests,
-            require_config=True,
-            args_spec=[
-                {'name': 'params', 'type': list, 'required': False}
-            ]
-        )
     
     def run_basic_test(self, args, config):
         """运行基础策略测试"""
@@ -427,39 +416,6 @@ class QuantSystemCommands:
         except Exception as e:
             self.logger.error(f"单元测试异常: {e}")
             return f"❌ 单元测试异常: {e}"
-    
-    def run_all_tests(self, args, config):
-        """运行全套测试"""
-        results = []
-        
-        self.logger.info("开始运行全套测试")
-        
-        # 1. 基础测试
-        with PerformanceMonitor("基础测试"):
-            result = self.run_basic_test(args, config)
-            results.append(f"📊 基础测试: {result}")
-        
-        # 2. 数据获取
-        with PerformanceMonitor("数据获取"):
-            result = self.run_data_fetch(args, config)
-            results.append(f"📥 数据获取: {result}")
-        
-        # 3. AI优化（如果有参数指定）
-        if hasattr(args, 'mode') and args.mode:
-            with PerformanceMonitor("AI优化"):
-                result = self.run_ai_optimization(args, config)
-                results.append(f"🤖 AI优化: {result}")
-        
-        # 4. 回测（如果提供了日期参数）
-        if args.params and len(args.params) >= 2:
-            with PerformanceMonitor("滚动回测"):
-                result = self.run_rolling_backtest(args, config)
-                results.append(f"📈 回测: {result}")
-        
-        # 汇总结果
-        summary = "\n".join(results)
-        return f"🎯 全套测试完成:\n\n{summary}"
-
 
 def check_virtual_environment():
     """检查虚拟环境"""
@@ -486,6 +442,9 @@ def main():
         
         # 创建命令处理器
         processor = CommandProcessor()
+        
+        # 创建并注册量化系统命令
+        quant_commands = QuantSystemCommands(processor)
         
         # 运行命令处理器
         exit_code = processor.run()

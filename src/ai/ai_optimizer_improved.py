@@ -1248,7 +1248,7 @@ class AIOptimizerImproved:
 
             best_params = {}
             best_score = -float('inf')
-            optimization_method = 'unknown'
+            optimization_method = 'initial_params'
 
             # 🔧 修复：保存初始策略参数作为基准
             initial_params = strategy_module.get_current_params() if hasattr(strategy_module,
@@ -1385,6 +1385,9 @@ class AIOptimizerImproved:
                     self.logger.info(f"⚠️ 贝叶斯优化结果未超过当前最优，恢复之前最佳参数")
                     # 恢复到之前的最佳参数
                     strategy_module.update_params(best_params)
+                    # 如果使用的是初始参数，保持optimization_method为initial_params
+                    if optimization_method == 'initial_params':
+                        optimization_method = 'initial_params_retained'
 
                 current_time = datetime.now().strftime("%H:%M:%S")
                 print(f"    🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s) [{current_time}]")
@@ -1401,6 +1404,9 @@ class AIOptimizerImproved:
             else:
                 print("    ⚠️ 贝叶斯优化未找到有效解")
                 self.logger.warning("⚠️ 贝叶斯优化未找到有效解")
+                # 如果贝叶斯优化失败，使用初始参数
+                if optimization_method == 'initial_params':
+                    optimization_method = 'initial_params_fallback'
 
             # 验证最佳参数
             if not best_params:
