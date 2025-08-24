@@ -1,0 +1,4 @@
+# Temporary override to disable dynamic threshold for A/B testing
+confidence_weights:
+  dynamic_threshold:
+    enabled: false

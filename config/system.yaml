@@ -9,6 +9,10 @@ ai:
     full_train_years: 5
     optimize_years: 5
     incremental_years: 1
+  calibration:
+    enabled: true
+    method: sigmoid
+    cv: 5
 data:
   data_file_path: data/SHSE.000905_1d.csv
   data_source: akshare

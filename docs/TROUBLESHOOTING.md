@@ -33,6 +33,9 @@ del data\cache\*     # Windows
 
 # 3. 重新运行优化
 python run.py ai
+
+# 若仅需验证环境与配置是否正常，可先用快速模式
+python run.py ai --quick
 ```
 
 ### 数据获取失败
@@ -118,6 +121,9 @@ top      # 查看进程内存使用
 data:
   train_years: 3  # 减少到3年
   batch_size: 500 # 减少批次大小
+
+# 或使用快速验证模式（自动缩短时间范围并减少优化迭代）
+python run.py ai --quick
 ```
 
 ### 📊 数据相关问题
@@ -228,7 +234,7 @@ python reset_strategy_params.py --all --force
 # 2. 调整阈值
 # 编辑config/strategy.yaml
 confidence_weights:
-  final_threshold: 0.2  # 降低阈值
+  final_threshold: 0.5  # 标准阈值
 
 # 3. 重新优化
 python run.py ai

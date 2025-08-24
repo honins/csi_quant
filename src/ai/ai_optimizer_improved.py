@@ -15,6 +15,9 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, precision_recall_curve
 from typing import Dict, Any, Tuple, List, Optional
 import json
 import yaml
@@ -28,6 +31,9 @@ from skopt import gp_minimize
 from skopt.space import Real, Integer
 from skopt.utils import use_named_args
 BAYESIAN_AVAILABLE = True
+
+# 导入工具函数
+from src.utils.utils import resolve_confidence_param
 
 
 
@@ -374,14 +380,20 @@ class AIOptimizerImproved:
                     self.logger.warning("缺少scaler，进行完全重训练")
                     return self.full_train(new_data, strategy_module)
 
-                # 使用warm_start进行增量学习
-                if hasattr(self.model.named_steps['classifier'], 'n_estimators'):
+                # 使用warm_start进行增量学习（仅当为Pipeline且底层分类器支持）
+                classifier = None
+                if hasattr(self.model, 'named_steps') and 'classifier' in getattr(self.model, 'named_steps', {}):
                     classifier = self.model.named_steps['classifier']
+                else:
+                    self.logger.warning("当前模型不是Pipeline（可能为校准后的模型），回退到完全重训练")
+                    return self.full_train(new_data, strategy_module)
+
+                if hasattr(classifier, 'n_estimators'):
                     classifier.n_estimators += 10  # 增加树的数量
                     classifier.warm_start = True
 
                     # 重新训练（这里实际上是增量的）
-                    self.model.named_steps['classifier'].fit(recent_features_scaled, recent_labels)
+                    classifier.fit(recent_features_scaled, recent_labels)
 
                     self.incremental_count += 1
                     self.logger.info(f"增量训练完成，更新次数: {self.incremental_count}")
@@ -523,9 +535,79 @@ class AIOptimizerImproved:
 
             model_time = time.time() - model_start_time
             self.model = model
+            # 保存scaler供增量训练复用
+            try:
+                self.scaler = model.named_steps['scaler'] if hasattr(model, 'named_steps') and 'scaler' in model.named_steps else None
+            except Exception:
+                self.scaler = None
 
             self.logger.info(f"✅ 模型训练完成 (耗时: {model_time:.2f}s)")
             self.logger.info("-" * 60)
+
+            # === 概率校准（Calibration）开始 ===
+            try:
+                calib_cfg = {}
+                if isinstance(self.config, dict):
+                    calib_cfg = (self.config.get('calibration')
+                                 or self.config.get('ai', {}).get('calibration')
+                                 or {})
+                calib_enabled = bool(calib_cfg.get('enabled', True))
+                calib_method = calib_cfg.get('method', 'isotonic')
+                calib_cv = calib_cfg.get('cv', 'prefit')
+                holdout_size = int(calib_cfg.get('holdout_size', max(30, int(len(features) * 0.2))))
+                holdout_size = min(holdout_size, 120)
+
+                if calib_enabled:
+                    self.logger.info("📏 启用概率校准: method=%s, cv=%s", calib_method, str(calib_cv))
+                    if calib_cv == 'prefit':
+                        if len(features) - holdout_size < 50:
+                            self.logger.warning("样本较少，prefit 留出集不足，自动退化为 cv=3")
+                            calib_cv = 3
+                        else:
+                            split_idx = len(features) - holdout_size
+                            X_train_base = features[:split_idx]
+                            y_train_base = labels[:split_idx]
+                            X_calib = features[split_idx:]
+                            y_calib = labels[split_idx:]
+                            w_train_base = sample_weights[:split_idx] if sample_weights is not None else None
+
+                            base_model = Pipeline([
+                                ('scaler', StandardScaler()),
+                                ('classifier', RandomForestClassifier(
+                                    n_estimators=100,
+                                    max_depth=8,
+                                    min_samples_split=15,
+                                    min_samples_leaf=8,
+                                    class_weight='balanced',
+                                    n_jobs=-1,
+                                    random_state=42,
+                                    verbose=1
+                                ))
+                            ])
+                            base_model.fit(X_train_base, y_train_base,
+                                           classifier__sample_weight=w_train_base)
+
+                            calibrated = CalibratedClassifierCV(
+                                estimator=base_model, method=calib_method, cv='prefit'
+                            )
+                            calibrated.fit(X_calib, y_calib)
+
+                            self.model = calibrated
+                            self.logger.info("✅ 概率校准完成（prefit + 留出集=%d）", len(X_calib))
+                    if isinstance(calib_cv, int) and calib_cv >= 2:
+                        calibrated = CalibratedClassifierCV(
+                            estimator=self.model, method=calib_method, cv=calib_cv
+                        )
+                        try:
+                            calibrated.fit(features, labels, sample_weight=sample_weights)
+                        except TypeError:
+                            self.logger.warning("CalibratedClassifierCV.fit 不支持 sample_weight，已回退为无权重拟合")
+                            calibrated.fit(features, labels)
+                        self.model = calibrated
+                        self.logger.info("✅ 概率校准完成（%d 折CV）", calib_cv)
+            except Exception as e_calib:
+                self.logger.warning(f"概率校准阶段出现问题，已跳过校准: {e_calib}")
+            # === 概率校准结束 ===
 
             # 步骤5: 模型保存
             self.logger.info("💾 步骤5: 模型保存...")
@@ -640,13 +722,26 @@ class AIOptimizerImproved:
             # 直接使用原始置信度，不进行处理
             final_confidence = raw_confidence
 
-            # 使用配置的阈值和原始置信度进行最终预测
-            # 优化参数现在在根级别的confidence_weights中
-            confidence_config = self.config.get('confidence_weights', {})
-            final_threshold = confidence_config.get('final_threshold', 0.5)
+            # 使用固定阈值（从配置读取，不进行动态调整）
+            final_threshold = resolve_confidence_param(self.config, 'final_threshold', 0.5)
 
             # 基于原始置信度和配置阈值进行预测
             is_low_point = final_confidence >= final_threshold
+
+            # 安全获取模型类型（兼容 Pipeline 或 CalibratedClassifierCV）
+            model_type = type(self.model).__name__
+            try:
+                if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
+                    model_type = type(self.model.named_steps['classifier']).__name__
+                else:
+                    base_est = getattr(self.model, 'base_estimator', getattr(self.model, 'estimator', None))
+                    if base_est is not None:
+                        if hasattr(base_est, 'named_steps') and 'classifier' in getattr(base_est, 'named_steps', {}):
+                            model_type = type(base_est.named_steps['classifier']).__name__
+                        else:
+                            model_type = type(base_est).__name__
+            except Exception:
+                pass
 
             result = {
                 'is_low_point': bool(is_low_point),
@@ -654,7 +749,7 @@ class AIOptimizerImproved:
                 'final_confidence': float(final_confidence),  # 现在等于原始置信度
                 'prediction_proba': prediction_proba.tolist(),
                 'feature_count': len(feature_names),
-                'model_type': type(self.model.named_steps['classifier']).__name__,
+                'model_type': model_type,
                 'threshold_used': final_threshold
             }
 
@@ -857,12 +952,18 @@ class AIOptimizerImproved:
                 self.logger.error("特征名称未设置，无法获取特征重要性")
                 return {}
 
+            # 兼容 CalibratedClassifierCV，优先提取底层基学习器
+            model_obj = self.model
+            base_est = getattr(model_obj, 'base_estimator', getattr(model_obj, 'estimator', None))
+            if base_est is not None:
+                model_obj = base_est
+
             # 从Pipeline中获取分类器
-            if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
-                classifier = self.model.named_steps['classifier']
+            if hasattr(model_obj, 'named_steps') and 'classifier' in getattr(model_obj, 'named_steps', {}):
+                classifier = model_obj.named_steps['classifier']
             else:
                 # 如果模型不是Pipeline，直接使用
-                classifier = self.model
+                classifier = model_obj
 
             # 检查分类器是否有feature_importances_属性
             if hasattr(classifier, 'feature_importances_'):
@@ -1063,13 +1164,13 @@ class AIOptimizerImproved:
                 print(f"✅ 步骤C完成 (耗时: {step_c_time:.2f}s) [{current_time}]")
                 print(f"   🎯 策略得分: {evaluation_result.get('strategy_score', 0):.4f}")
                 print(f"   📊 成功率: {evaluation_result.get('strategy_success_rate', 0):.2%}")
-                print(f"   🔍 识别点数: {evaluation_result.get('identified_points', 0)}")
+                print(f"   🔍 交易数: {evaluation_result.get('identified_points', 0)}")
                 print(f"   🤖 AI置信度: {evaluation_result.get('ai_confidence', 0):.4f}")
 
                 self.logger.info(f"✅ 步骤C完成 (耗时: {step_c_time:.2f}s)")
                 self.logger.info(f"   🎯 策略得分: {evaluation_result.get('strategy_score', 0):.4f}")
                 self.logger.info(f"   📊 成功率: {evaluation_result.get('strategy_success_rate', 0):.2%}")
-                self.logger.info(f"   🔍 识别点数: {evaluation_result.get('identified_points', 0)}")
+                self.logger.info(f"   🔍 交易数: {evaluation_result.get('identified_points', 0)}")
                 self.logger.info(f"   🤖 AI置信度: {evaluation_result.get('ai_confidence', 0):.4f}")
             else:
                 current_time = datetime.now().strftime("%H:%M:%S")
@@ -1316,9 +1417,22 @@ class AIOptimizerImproved:
                     # print("    临时应用参数进行评估")
                     strategy_module.update_params(complete_params)
 
-                    # 在训练集上评估
-                    backtest_results = strategy_module.backtest(train_data)
-                    evaluation = strategy_module.evaluate_strategy(backtest_results)
+                    # 在训练集上评估（使用配置中的固定 final_threshold，仅在优化期间生效）
+                    orig_ft = None
+                    cw = strategy_module.config.setdefault('confidence_weights', {})
+                    try:
+                        orig_ft = cw.get('final_threshold', None)
+                        # 从配置解析固定 final_threshold（不参与优化）
+                        cw['final_threshold'] = resolve_confidence_param(strategy_module.config, 'final_threshold', 0.5)
+                        backtest_results = strategy_module.backtest(train_data)
+                        evaluation = strategy_module.evaluate_strategy(backtest_results)
+                    finally:
+                        # 恢复final_threshold，避免污染全局配置
+                        if orig_ft is None:
+                            if 'final_threshold' in cw:
+                                del cw['final_threshold']
+                        else:
+                            cw['final_threshold'] = orig_ft
 
                     # 使用统一的评分方法
                     final_score = self._calculate_unified_score(evaluation)
@@ -1393,14 +1507,14 @@ class AIOptimizerImproved:
                 print(f"    🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s) [{current_time}]")
                 print(f"       📈 最优得分: {bayesian_unified_score:.6f}")
                 print(f"       📊 成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
-                print(f"       🔍 识别点数: {bayesian_evaluation.get('total_points', 0)}")
-                print(f"       📈 平均涨幅: {bayesian_evaluation.get('avg_rise', 0):.2%}")
+                print(f"       🔍 交易数: {bayesian_evaluation.get('total_trades', 0)}")
+                print(f"       📈 平均收益: {bayesian_evaluation.get('avg_return', 0):.2%}")
 
                 self.logger.info(f"🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s)")
                 self.logger.info(f"   最优得分: {bayesian_unified_score:.6f}")
                 self.logger.info(f"   成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
-                self.logger.info(f"   识别点数: {bayesian_evaluation.get('total_points', 0)}")
-                self.logger.info(f"   平均涨幅: {bayesian_evaluation.get('avg_rise', 0):.2%}")
+                self.logger.info(f"   交易数: {bayesian_evaluation.get('total_trades', 0)}")
+                self.logger.info(f"   平均收益: {bayesian_evaluation.get('avg_return', 0):.2%}")
             else:
                 print("    ⚠️ 贝叶斯优化未找到有效解")
                 self.logger.warning("⚠️ 贝叶斯优化未找到有效解")
@@ -1433,8 +1547,8 @@ class AIOptimizerImproved:
             val_evaluation = strategy_module.evaluate_strategy(val_backtest)
             val_score = val_evaluation['score']
             val_success_rate = val_evaluation.get('success_rate', 0)
-            val_total_points = val_evaluation.get('total_points', 0)
-            val_avg_rise = val_evaluation.get('avg_rise', 0)
+            val_total_points = val_evaluation.get('total_trades', val_evaluation.get('total_points', 0))
+            val_avg_rise = val_evaluation.get('avg_return', val_evaluation.get('avg_rise', 0))
 
             validation_time = time.time() - validation_start_time
 
@@ -1445,15 +1559,15 @@ class AIOptimizerImproved:
             print(f"    ✅ 验证集评估完成 (耗时: {validation_time:.2f}s)")
             print(f"       得分: {val_score:.6f}")
             print(f"       成功率: {val_success_rate:.2%}")
-            print(f"       识别点数: {val_total_points}")
-            print(f"       平均涨幅: {val_avg_rise:.2%}")
+            print(f"       交易数: {val_total_points}")
+            print(f"       平均收益: {val_avg_rise:.2%}")
             print(f"       过拟合检测: {'✅ 通过' if overfitting_passed else '⚠️ 警告'}")
 
             self.logger.info(f"✅ 验证集评估完成 (耗时: {validation_time:.2f}s)")
             self.logger.info(f"   得分: {val_score:.6f}")
             self.logger.info(f"   成功率: {val_success_rate:.2%}")
-            self.logger.info(f"   识别点数: {val_total_points}")
-            self.logger.info(f"   平均涨幅: {val_avg_rise:.2%}")
+            self.logger.info(f"   交易数: {val_total_points}")
+            self.logger.info(f"   平均收益: {val_avg_rise:.2%}")
             self.logger.info(f"   过拟合检测: {'✅ 通过' if overfitting_passed else '⚠️ 警告'}")
             self.logger.info("-" * 60)
 
@@ -1467,8 +1581,8 @@ class AIOptimizerImproved:
             test_evaluation = strategy_module.evaluate_strategy(test_backtest)
             test_score = test_evaluation['score']
             test_success_rate = test_evaluation.get('success_rate', 0)
-            test_total_points = test_evaluation.get('total_points', 0)
-            test_avg_rise = test_evaluation.get('avg_rise', 0)
+            test_total_points = test_evaluation.get('total_trades', test_evaluation.get('total_points', 0))
+            test_avg_rise = test_evaluation.get('avg_return', test_evaluation.get('avg_rise', 0))
 
             test_time = time.time() - test_start_time
 
@@ -1485,16 +1599,16 @@ class AIOptimizerImproved:
             print(f"    ✅ 测试集评估完成 (耗时: {test_time:.2f}s)")
             print(f"       得分: {test_score:.6f}")
             print(f"       成功率: {test_success_rate:.2%}")
-            print(f"       识别点数: {test_total_points}")
-            print(f"       平均涨幅: {test_avg_rise:.2%}")
+            print(f"       交易数: {test_total_points}")
+            print(f"       平均收益: {test_avg_rise:.2%}")
             print(
                 f"       泛化能力: {'✅ 良好' if generalization_passed else '⚠️ 一般'} (比率: {generalization_ratio:.3f})")
 
             self.logger.info(f"✅ 测试集评估完成 (耗时: {test_time:.2f}s)")
             self.logger.info(f"   得分: {test_score:.6f}")
             self.logger.info(f"   成功率: {test_success_rate:.2%}")
-            self.logger.info(f"   识别点数: {test_total_points}")
-            self.logger.info(f"   平均涨幅: {test_avg_rise:.2%}")
+            self.logger.info(f"   交易数: {test_total_points}")
+            self.logger.info(f"   平均收益: {test_avg_rise:.2%}")
             self.logger.info(
                 f"   泛化能力: {'✅ 良好' if generalization_passed else '⚠️ 一般'} (比率: {generalization_ratio:.3f})")
 
@@ -1538,12 +1652,18 @@ class AIOptimizerImproved:
                 'best_score': best_score,
                 'validation_score': val_score,
                 'validation_success_rate': val_success_rate,
+                # 兼容命名：仍保留旧字段，但含义改为交易数/平均收益
                 'validation_total_points': val_total_points,
                 'validation_avg_rise': val_avg_rise,
+                # 新字段
+                'validation_total_trades': val_total_points,
+                'validation_avg_return': val_avg_rise,
                 'test_score': test_score,
                 'test_success_rate': test_success_rate,
                 'test_total_points': test_total_points,
                 'test_avg_rise': test_avg_rise,
+                'test_total_trades': test_total_points,
+                'test_avg_return': test_avg_rise,
                 'overfitting_passed': overfitting_passed,
                 'generalization_passed': generalization_passed,
                 'generalization_ratio': generalization_ratio,
@@ -1582,12 +1702,44 @@ class AIOptimizerImproved:
             # AI模型预测评估
             prediction_result = self.predict_low_point(data)
 
+            # 新增：记录用于预测的日期和概率向量，便于诊断
+            try:
+                prediction_date = None
+                if 'date' in getattr(data, 'columns', []):
+                    try:
+                        prediction_date = pd.to_datetime(data['date'].iloc[-1]).strftime('%Y-%m-%d')
+                    except Exception:
+                        prediction_date = str(data['date'].iloc[-1])
+                elif hasattr(data, 'index') and len(data.index) > 0:
+                    try:
+                        prediction_date = pd.to_datetime(data.index[-1]).strftime('%Y-%m-%d')
+                    except Exception:
+                        prediction_date = str(data.index[-1])
+
+                proba = prediction_result.get('prediction_proba')
+
+                if isinstance(proba, (list, tuple, np.ndarray)):
+                    proba_iter = proba.tolist() if hasattr(proba, 'tolist') else list(proba)
+                    proba_str = '[' + ', '.join(f'{float(p):.4f}' for p in proba_iter) + ']'
+                else:
+                    proba_str = str(proba)
+
+                print(f"    🔎 评估-预测日期: {prediction_date} | 概率向量: {proba_str}")
+                self.logger.info(f"评估-预测日期: {prediction_date} | 概率向量: {proba_str}")
+
+                if prediction_result.get('error'):
+                    print(f"    ⚠️ 评估-预测错误: {prediction_result.get('error')}")
+                    self.logger.warning(f"评估-预测错误: {prediction_result.get('error')}")
+            except Exception as log_ex:
+                self.logger.warning(f"记录预测细节时发生异常: {log_ex}")
+
             return {
                 'success': True,
                 'strategy_score': strategy_evaluation['score'],
-                'strategy_success_rate': strategy_evaluation['success_rate'],
-                'identified_points': strategy_evaluation['total_points'],
-                'avg_rise': strategy_evaluation['avg_rise'],
+                'strategy_success_rate': strategy_evaluation.get('success_rate', 0),
+                'identified_points': strategy_evaluation.get('total_trades', strategy_evaluation.get('total_points', 0)),
+                'avg_return': strategy_evaluation.get('avg_return', strategy_evaluation.get('avg_rise', 0)),
+                'total_profit': strategy_evaluation.get('total_profit', 0),
                 'ai_confidence': prediction_result.get('final_confidence', 0),
                 'ai_prediction': prediction_result.get('is_low_point', False)
             }
@@ -1681,6 +1833,13 @@ class AIOptimizerImproved:
 
             print(f"        🎯 优化参数数量: {len(param_ranges)} 个")
 
+            # 若搜索空间为空，直接跳过并给出清晰提示
+            if not param_ranges:
+                msg = "参数搜索空间为空，跳过贝叶斯优化（请检查配置optimization_ranges或固定参数设置）"
+                print(f"        ⚠️ {msg}")
+                self.logger.warning(msg)
+                return {}
+
             # 构建搜索空间
             dimensions = []
             param_names = []
@@ -1696,6 +1855,13 @@ class AIOptimizerImproved:
             print(f"        🌱 构建搜索空间完成")
             self.logger.info(f"搜索空间维度: {len(dimensions)}")
 
+            # 若维度为0，无法执行优化
+            if len(dimensions) == 0:
+                msg = "搜索空间维度为0，无法执行贝叶斯优化（可能所有参数被固定或范围缺失）"
+                print(f"        ⚠️ {msg}")
+                self.logger.warning(msg)
+                return {}
+
             # 定义目标函数（贝叶斯优化需要最小化，所以返回负值）
             best_score = -float('inf')
             best_params = None
@@ -1710,28 +1876,48 @@ class AIOptimizerImproved:
                     # 验证并修复参数
                     validated_params = self._validate_and_fix_parameters(params, param_ranges)
                     
+                    # 🔍 详细日志：记录每次评估的参数取值
+                    param_str = ", ".join([f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}" 
+                                          for k, v in validated_params.items()])
+                    print(f"        🧪 试验 #{evaluation_count}: {param_str}")
+                    self.logger.info(f"🧪 试验 #{evaluation_count}: {param_str}")
+                    
                     # 评估参数
                     score = evaluate_func(validated_params)
                     
-                    if score is None or score < 0:
+                    # 🔍 详细日志：记录每次评估的得分
+                    # 修复：evaluate_func 返回的是用于最小化的"负得分"，这里转换为正得分显示与比较
+                    if score is None or not isinstance(score, (int, float)) or (isinstance(score, float) and (np.isnan(score) or np.isinf(score))):
+                        print(f"           ❌ 得分: 无效 (score={score})")
+                        self.logger.info(f"           ❌ 得分: 无效 (score={score})")
                         return 1.0  # 返回正值表示差的结果
                     
-                    # 更新最佳结果
-                    if score > best_score:
-                        best_score = score
+                    actual_score = -score  # 转回正的统一评分用于展示与比较
+                    print(f"           📊 得分: {actual_score:.6f}")
+                    self.logger.info(f"           📊 得分: {actual_score:.6f}")
+                    
+                    # 更新最佳结果（使用正值进行比较）
+                    if actual_score > best_score:
+                        improvement = actual_score - best_score
+                        best_score = actual_score
                         best_params = validated_params.copy()
-                        print(f"        🎉 发现新最佳解! 得分: {best_score:.6f} (第{evaluation_count}次评估)")
-                        self.logger.info(f"🎉 发现新最佳解! 得分: {best_score:.6f} (第{evaluation_count}次评估)")
+                        print(f"        🎉 发现新最佳解! 得分: {best_score:.6f} (改进: +{improvement:.6f}) (第{evaluation_count}次评估)")
+                        self.logger.info(f"🎉 发现新最佳解! 得分: {best_score:.6f} (改进: +{improvement:.6f}) (第{evaluation_count}次评估)")
+                    else:
+                        deficit = best_score - actual_score
+                        print(f"           🔍 当前解劣于最佳: -{deficit:.6f}")
+                        self.logger.info(f"           🔍 当前解劣于最佳: -{deficit:.6f}")
                     
-                    # 每10次评估显示进度
-                    if evaluation_count % 10 == 0:
+                    # 每5次评估显示进度（更频繁的反馈）
+                    if evaluation_count % 5 == 0:
                         progress = (evaluation_count / n_calls) * 100
-                        print(f"        🔍 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
-                        self.logger.info(f"🔍 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
+                        print(f"        📈 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
+                        self.logger.info(f"📈 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
                     
-                    return -score  # 返回负值用于最小化
+                    return score  # 直接返回用于最小化的值（负得分）
                     
                 except Exception as e:
+                    print(f"           ❌ 参数评估异常: {e}")
                     self.logger.warning(f"参数评估失败: {e}")
                     return 1.0  # 返回正值表示差的结果
 
@@ -1816,12 +2002,21 @@ class AIOptimizerImproved:
 
         # 添加optimization_ranges中的参数
         for param_name, param_config in optimization_ranges.items():
+            # 优先使用配置中的类型定义；若缺省则按名称进行推断（仅对RSI阈值使用整数）
+            cfg_type = param_config.get('type') if isinstance(param_config, dict) else None
+            inferred_type = 'int' if (param_name.endswith('_threshold') and 'rsi' in param_name) else 'float'
+            final_type = cfg_type if cfg_type in ('int', 'float') else inferred_type
+            precision = param_config.get('precision', 0 if final_type == 'int' else 4) if isinstance(param_config, dict) else (0 if final_type == 'int' else 4)
+
             enhanced_ranges[param_name] = {
                 'min': param_config.get('min', 0),
                 'max': param_config.get('max', 1),
-                'type': 'float',
-                'precision': 4
+                'type': final_type,
+                'precision': precision
             }
+            # 保留 step 信息，便于遗传算法或网格搜索使用
+            if isinstance(param_config, dict) and 'step' in param_config:
+                enhanced_ranges[param_name]['step'] = param_config['step']
 
         # 合并用户配置的范围（但排除固定参数）
         for param_name, param_config in base_ranges.items():
@@ -1841,7 +2036,7 @@ class AIOptimizerImproved:
 
         self.logger.info(f"🎯 参数搜索空间: {len(enhanced_ranges)} 个参数")
         self.logger.info(f"🔒 固定参数: {', '.join(FIXED_PARAMS)} (不参与优化)")
-        self.logger.info(f"🔧 可优化参数: {len(get_all_optimizable_params())} 个（14个有效参数）")
+        self.logger.info(f"🔧 可优化参数: {len(get_all_optimizable_params())} 个（14个有效参数，已移除final_threshold）")
 
         # 记录参数范围
         for param_name, param_config in enhanced_ranges.items():
@@ -1890,37 +2085,29 @@ class AIOptimizerImproved:
 
     def _calculate_unified_score(self, evaluation: Dict[str, Any]) -> float:
         """
-        统一的评分方法，与策略模块保持一致
-        
-        参数:
-        evaluation: 策略评估结果字典
-        
-        返回:
-        float: 统一评分
+        统一评分（按利润目标）：
+        使用 利润因子 × log1p(交易次数) 作为优化目标；若交易次数过少则强惩罚。
+        若evaluation已包含符合规则的score，则直接使用以保持一致性。
         """
-        success_rate = evaluation.get('success_rate', 0)
-        avg_rise = evaluation.get('avg_rise', 0)
-        avg_days = evaluation.get('avg_days', 0)
+        # 优先使用evaluation中的score（允许为负，按利润直接优化）
+        if isinstance(evaluation, dict):
+            existing_score = evaluation.get('score', None)
+            if isinstance(existing_score, (int, float)) and np.isfinite(existing_score):
+                return float(existing_score)
         
-        # 从配置文件获取统一的评分参数（与策略模块保持一致）
-        scoring_config = self.config.get('strategy_scoring', {})
-        
-        # 成功率权重：50%
-        success_weight = scoring_config.get('success_weight', 0.5)
-        success_score = success_rate * success_weight
-        
-        # 平均涨幅权重：30%（相对于基准涨幅）
-        rise_weight = scoring_config.get('rise_weight', 0.3)
-        rise_benchmark = scoring_config.get('rise_benchmark', 0.1)  # 10%基准
-        rise_score = min(avg_rise / rise_benchmark, 1.0) * rise_weight
-        
-        # 平均天数权重：20%（天数越少越好，以基准天数为准）
-        days_weight = scoring_config.get('days_weight', 0.2)
-        days_benchmark = scoring_config.get('days_benchmark', 10.0)  # 10天基准
-        if avg_days > 0:
-            days_score = min(days_benchmark / avg_days, 1.0) * days_weight
-        else:
-            days_score = 0.0
-            
-        total_score = success_score + rise_score + days_score
-        return total_score
+        # 否则按PF与交易次数计算参考分
+        profit_factor = float(evaluation.get('profit_factor', 0.0) or 0.0)
+        num_trades = int(evaluation.get('total_trades', evaluation.get('total_points', 0)) or 0)
+
+        # 最少交易次数门槛（可由配置覆盖）
+        min_trades_threshold = int(self.config.get('optimization_constraints', {}).get('min_trades_threshold', 10))
+
+        # 交易过少返回0（参考）
+        if num_trades < min_trades_threshold:
+            return 0.0
+
+        # 计算复合分数：PF * log1p(N)
+        score = profit_factor * float(np.log1p(num_trades))
+        if not np.isfinite(score):
+            return 0.0
+        return float(score)

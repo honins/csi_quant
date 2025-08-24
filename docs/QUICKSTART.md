@@ -53,6 +53,9 @@ python run.py basic
 ```bash
 # 运行AI参数优化（需要5-10分钟）
 python run.py ai
+
+# 若时间紧张，可使用快速验证模式（约1-3分钟）
+python run.py ai --quick
 ```
 
 系统将：
@@ -60,6 +63,11 @@ python run.py ai
 - 训练AI模型
 - 优化策略参数
 - 保存最优配置
+
+快速验证模式会：
+- 将数据时间范围缩短至最近约180天
+- 按比例减少贝叶斯优化迭代（n_calls）与初始点（n_initial_points），并做合理下限保护
+- 强制启用 bayesian_optimization，以便更快收敛
 
 ### 第三步：查看结果
 
@@ -78,6 +86,7 @@ python run.py backtest
 | `python run.py help` | 查看帮助 | 即时 |
 | `python run.py basic` | 基础策略测试 | 1-2分钟 |
 | `python run.py ai` | AI优化训练 | 5-10分钟 |
+| `python run.py ai --quick` | AI优化（快速验证） | 1-3分钟 |
 | `python run.py predict` | 单日预测 | 10-30秒 |
 | `python run.py backtest` | 滚动回测 | 2-5分钟 |
 | `python run.py config` | 查看配置 | 即时 |

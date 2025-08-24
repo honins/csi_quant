@@ -7,10 +7,16 @@
 """
 
 import os
+import sys
+import time
 import logging
+import json
 import yaml
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
+import pandas as pd
+import numpy as np
 
 def setup_logging(level='INFO', log_file='logs/system.log'):
     """
@@ -177,7 +183,7 @@ def calculate_volatility(returns: list, annualize: bool = True) -> float:
         
     return volatility
 
-def calculate_sharpe_ratio(returns: list, risk_free_rate: float = 0.03) -> float:
+def calculate_sharpe_ratio(returns: list, risk_free_rate: float = 0.015) -> float:
     """
     计算夏普比率
     
@@ -291,6 +297,38 @@ def ensure_directory(directory: str) -> bool:
     except Exception as e:
         logging.error("创建目录失败 %s: %s", directory, str(e))
         return False
+
+def resolve_confidence_param(config: Dict[str, Any], param_name: str, default_value: Any = None) -> Any:
+    """
+    统一的置信度参数解析函数
+    
+    从多个配置层级中解析置信度相关参数，按优先级顺序：
+    1. 顶层 confidence_weights
+    2. strategy.confidence_weights  
+    3. default_strategy.confidence_weights
+    4. 顶层直接配置
+    
+    参数:
+    config: 配置字典
+    param_name: 参数名称（如 'final_threshold'）
+    default_value: 默认值
+    
+    返回:
+    Any: 解析到的参数值
+    """
+    candidates = [
+        config.get('confidence_weights', {}).get(param_name),
+        (config.get('strategy', {}) or {}).get('confidence_weights', {}).get(param_name) if config.get('strategy') else None,
+        (config.get('default_strategy', {}) or {}).get('confidence_weights', {}).get(param_name),
+        config.get(param_name)
+    ]
+    
+    # 返回第一个非None且为数值类型的值
+    for value in candidates:
+        if isinstance(value, (int, float)):
+            return value
+    
+    return default_value
 
 class Timer:
     """简单的计时器类"""

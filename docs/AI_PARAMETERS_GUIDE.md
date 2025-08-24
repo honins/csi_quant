@@ -495,7 +495,7 @@ if daily_return <= price_decline_threshold:  # 如-0.018即-1.8%
 **原因**：平衡资金效率和成功率的最优值
 
 ### final_threshold (最终置信度阈值)
-**固定值**：0.25
+**固定值**：0.5
 **作用**：判断为相对低点的最低置信度要求
 **原因**：避免循环依赖，由其他参数优化间接影响
 
@@ -544,7 +544,7 @@ score = (success_rate * 0.5 +          # 成功率权重50%
 rsi_oversold_threshold: 28        # 更严格的超卖标准
 ma_all_below: 0.4                 # 重视技术破位
 volume_panic_threshold: 1.5       # 更严格的恐慌标准
-final_threshold: 0.3              # 提高置信度要求
+final_threshold: 0.5              # 提高置信度要求
 ```
 
 ### 提高收益率
@@ -562,7 +562,7 @@ recent_decline: 0.25                 # 重视短期超跌
 rsi_oversold_threshold: 25           # 极严格超卖标准
 volume_panic_threshold: 1.8          # 极严格恐慌标准
 bb_near_threshold: 1.005             # 更接近布林带下轨
-final_threshold: 0.35                # 高置信度要求
+final_threshold: 0.5                # 高置信度要求
 ```
 
 ---

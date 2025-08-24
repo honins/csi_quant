@@ -88,7 +88,8 @@ class OptimizationReporter:
 - **最终得分**: {optimization_result.get('best_score', 0):.4f}
 - **准确率**: {optimization_result.get('accuracy', 0) * 100:.2f}%
 - **成功率**: {optimization_result.get('success_rate', 0) * 100:.2f}%
-- **平均涨幅**: {optimization_result.get('avg_rise', 0) * 100:.2f}%
+- **平均收益**: {optimization_result.get('avg_return', optimization_result.get('avg_rise', 0)) * 100:.2f}%
+- **总利润**: {optimization_result.get('total_profit', 0):.4f}
 
 ---
 
@@ -290,11 +291,11 @@ class OptimizationReporter:
                 ax1.set_title('优化历史', fontsize=14, fontweight='bold')
             
             # 图表2: 关键指标
-            metrics = ['准确率', '成功率', '平均涨幅', '最终得分']
+            metrics = ['准确率', '成功率', '平均收益', '最终得分']
             values = [
                 optimization_result.get('accuracy', 0) * 100,
                 optimization_result.get('success_rate', 0) * 100,
-                optimization_result.get('avg_rise', 0) * 100,
+                optimization_result.get('avg_return', optimization_result.get('avg_rise', 0)) * 100,
                 optimization_result.get('best_score', 0) * 100
             ]
             

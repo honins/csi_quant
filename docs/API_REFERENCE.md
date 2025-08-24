@@ -19,6 +19,7 @@ python run.py <command> [options]
 | `--no-timer` | 无 | 禁用执行时间统计 | False |
 | `--config` | 无 | 指定配置文件路径 | config/system.yaml |
 | `--log-level` | 无 | 设置日志级别 | INFO |
+| `--quick` | 无 | 快速验证模式：缩小数据范围、减少优化迭代 | False |
 
 ## 📋 命令详细说明
 
@@ -47,17 +48,24 @@ python run.py ai [options]
   - `full`：完全重训练
   - `demo`：演示预测
 - `--iter` / `-i`：迭代次数（默认：20）
+- `--quick`：启用快速验证模式（缩小数据时间范围至最近约180天、按比例减少贝叶斯优化 n_calls 与 n_initial_points，并强制启用 bayesian_optimization），用于节省时间快速验证环境与配置。
 
 **示例**：
 ```bash
 # 标准AI优化
 python run.py ai
 
+# 快速验证（约1-3分钟）
+python run.py ai --quick
+
 # 增量训练模式
 python run.py ai -m incremental
 
 # 指定迭代次数
 python run.py ai -i 50
+
+# 叠加使用：快速且增量
+python run.py ai --quick -m incremental
 ```
 
 **输出**：
@@ -272,7 +280,7 @@ confidence_weights:
   recent_decline: 0.2
   macd_negative: 0.1
   price_decline_threshold: -0.018
-  final_threshold: 0.25
+  final_threshold: 0.5
 ```
 
 #### 优化范围

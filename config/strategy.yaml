@@ -12,7 +12,7 @@ ai_scoring:
   speed_weight: 0.15
   success_weight: 0.5
 bayesian_optimization:
-  acq_func: LCB
+  acq_func: EI
   enabled: true
   kappa: 1.96
   n_calls: 150
@@ -27,7 +27,19 @@ confidence_weights:
   consolidation_breakout: 0.2
   decline_threshold: -0.05
   dynamic_confidence_adjustment: 0.1
-  final_threshold: 0.5
+  # 可选：动态阈值（基于RSI/波动率）
+  dynamic_threshold:
+    enabled: false
+    rsi_adjust:
+      enabled: true
+      low_threshold: 35
+      delta: 0.08
+    volatility_adjust:
+      enabled: false
+      high_threshold: 0.02
+      delta: 0.03
+    min_threshold: 0.22
+    max_threshold: 0.70
   ma_all_below: 0.4
   ma_partial_below: 0.2
   macd_negative: 0.15
@@ -64,6 +76,16 @@ confidence_weights:
   volume_surge_threshold: 1.2
   volume_weight: 0.3
 
+strategy:
+  bb_near_threshold: 1.02
+  volume_panic_threshold: 1.5
+  volume_surge_threshold: 1.2
+  volume_shrink_threshold: 0.8
+  volume_weight: 0.3
+  price_momentum_weight: 0.2
+  rise_threshold: 0.04
+  max_days: 20
+
 early_stopping:
   enabled: true
   min_delta: 0.001
@@ -91,67 +113,89 @@ optimization:
   incremental_iterations: 1000
   max_history_records: 100
 optimization_ranges:
-  bb_near_threshold:
-    max: 1.03
-    min: 1.01
-    step: 0.005
-  dynamic_confidence_adjustment:
-    max: 0.25
-    min: 0.05
-    step: 0.02
-  ma_all_below:
-    max: 0.4
-    min: 0.2
-    step: 0.02
-  macd_negative:
-    max: 0.15
-    min: 0.05
-    step: 0.02
-  market_sentiment_weight:
-    max: 0.25
-    min: 0.08
-    step: 0.02
-  price_decline_threshold:
-    max: -0.01
-    min: -0.06
-    step: 0.005
-  recent_decline:
-    max: 0.3
-    min: 0.1
-    step: 0.02
-  rsi_low_threshold:
-    max: 50
-    min: 40
-    step: 1
+  # 🔥 核心决策参数（2个）- 每次预测都使用的关键阈值
   rsi_oversold_threshold:
-    max: 32
     min: 25
+    max: 35
     step: 1
-  trend_strength_weight:
-    max: 0.25
-    min: 0.1
+    type: int
+  rsi_low_threshold:
+    min: 40
+    max: 50
+    step: 1
+    type: int
+  
+  # 🔥 基础权重参数（4个）- 高频使用的重要逻辑权重
+  ma_all_below:
+    min: 0.2
+    max: 0.4
     step: 0.02
-  volume_panic_bonus:
-    max: 0.2
+    type: float
+  dynamic_confidence_adjustment:
     min: 0.05
-    step: 0.02
+    max: 0.25
+    step: 0.01
+    type: float
+  market_sentiment_weight:
+    min: 0.08
+    max: 0.25
+    step: 0.01
+    type: float
+  trend_strength_weight:
+    min: 0.08
+    max: 0.25
+    step: 0.01
+    type: float
+  
+  # 🔥 成交量逻辑参数（4个）- 成交量分析的核心参数
   volume_panic_threshold:
-    max: 1.8
-    min: 1.3
-    step: 0.05
-  volume_shrink_penalty:
-    max: 0.8
-    min: 0.5
-    step: 0.05
+    min: 1.2
+    max: 2.0
+    step: 0.1
+    type: float
+  volume_panic_bonus:
+    min: 0.08
+    max: 0.20
+    step: 0.01
+    type: float
   volume_surge_bonus:
+    min: 0.05
     max: 0.15
-    min: 0.02
+    step: 0.01
+    type: float
+  volume_shrink_penalty:
+    min: 0.5
+    max: 0.8
     step: 0.02
+    type: float
+  
+  # 🔥 技术指标参数（4个）- 基础但重要的技术指标
+  bb_near_threshold:
+    min: 1.000
+    max: 1.020
+    step: 0.002
+    type: float
+  recent_decline:
+    min: 0.15
+    max: 0.50
+    step: 0.02
+    type: float
+  macd_negative:
+    min: 0.08
+    max: 0.25
+    step: 0.01
+    type: float
+  price_decline_threshold:
+    min: -0.030
+    max: -0.010
+    step: 0.002
+    type: float
+  
+# final_threshold: 已移除，作为固定参数不参与优化
 overfitting_threshold: 0.9
 default_strategy:
   confidence_weights:
     dynamic_confidence_adjustment: 0.1
-    final_threshold: 0.5
     market_sentiment_weight: 0.15
     rsi_low_threshold: 40
     rsi_oversold_threshold: 30

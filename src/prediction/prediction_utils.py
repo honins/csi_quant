@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Optional
 import numpy as np
+from src.utils.utils import resolve_confidence_param
 
 @dataclass
 class PredictionResult:
@@ -251,16 +252,124 @@ def predict_and_validate(
 
         # 4. 预测输入日期是否为相对低点
         predict_day_data = training_data.iloc[-1:].copy()
-        prediction_result = ai_optimizer.predict_low_point(predict_day_data, predict_date.strftime('%Y-%m-%d'))
-        is_predicted_low_point = prediction_result.get("is_low_point")
-        confidence = prediction_result.get("confidence")
-        final_confidence = prediction_result.get("final_confidence", confidence)
+        
+        # 4a. 使用AI模型预测
+        ai_prediction_result = ai_optimizer.predict_low_point(predict_day_data, predict_date.strftime('%Y-%m-%d'))
+        ai_is_predicted_low_point = ai_prediction_result.get("is_low_point")
+        ai_confidence = ai_prediction_result.get("confidence")
+        ai_final_confidence = ai_prediction_result.get("final_confidence", ai_confidence)
+        
+        # 4b. 使用策略模块预测（获取策略置信度）
+        strategy_prediction_result = strategy_module.identify_relative_low(predict_day_data)
+        strategy_is_predicted_low_point = strategy_prediction_result.get("is_low_point")
+        strategy_confidence = strategy_prediction_result.get("confidence")
 
-        logger.info(f"预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if is_predicted_low_point else '否'} 相对低点，原始置信度: {confidence:.2f}, 最终置信度: {final_confidence:.2f}")
+        # === 置信度融合：AI 与 策略 ===
+        # 读取权重与阈值（优先顶层confidence_weights，其次strategy.confidence_weights，最后default_strategy）
+        conf_top = config.get('confidence_weights', {}) or {}
+        conf_strategy = (config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}
+        conf_default = (config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}
+
+        ai_w = conf_top.get('ai_weight', conf_strategy.get('ai_weight', conf_default.get('ai_weight', 0.5)))
+        stg_w = conf_top.get('strategy_weight', conf_strategy.get('strategy_weight', conf_default.get('strategy_weight', 0.5)))
+        denom = (ai_w or 0) + (stg_w or 0)
+        if denom <= 0:
+            ai_w, stg_w = 0.5, 0.5
+            denom = 1.0
+
+        fused_final_confidence = (ai_final_confidence * ai_w + strategy_confidence * stg_w) / denom
+
+        # 门槛读取：从配置读取固定阈值（不进行动态调整）
+        final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
+        used_threshold = final_threshold
+
+        # 基于RSI与20日波动率的“谨慎型”动态阈值（小幅、可控、尊重市场）
+        try:
+            # 读取动态阈值配置（优先级：顶层 -> strategy -> default_strategy）
+            dyn_top = (config.get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
+            dyn_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
+            dyn_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
+            dyn_cfg = dyn_top if dyn_top else (dyn_stg if dyn_stg else dyn_def)
+
+            enabled = dyn_cfg.get('enabled', True)
+            if enabled:
+                max_adjust = float(dyn_cfg.get('max_adjust', 0.03))  # 单侧最多±0.03
+                # 读取当前RSI与波动率
+                latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
+                current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
+                current_vol = float(latest_row.get('volatility')) if (latest_row is not None and 'volatility' in latest_row and not pd.isna(latest_row.get('volatility'))) else None
+
+                adj = 0.0
+
+                # RSI调整（默认：RSI<=oversold 小幅放宽阈值；RSI>=upper 小幅收紧阈值）
+                rsi_cfg = dyn_cfg.get('rsi', {}) or {}
+                # 使用策略层的RSI阈值作为基准，若未配置则回退到默认值
+                conf_top = config.get('confidence_weights', {}) or {}
+                oversold_base = conf_top.get('rsi_oversold_threshold', 30)
+                rsi_oversold = float(rsi_cfg.get('oversold', oversold_base))
+                rsi_upper = float(rsi_cfg.get('upper', 65))
+                rsi_lower_adjust = float(rsi_cfg.get('lower_adjust', 0.015))  # 阈值下调幅度（更容易触发）
+                rsi_upper_adjust = float(rsi_cfg.get('upper_adjust', 0.015))  # 阈值上调幅度（更严格）
+
+                if current_rsi is not None:
+                    if current_rsi <= rsi_oversold:
+                        adj -= rsi_lower_adjust
+                    elif current_rsi >= rsi_upper:
+                        adj += rsi_upper_adjust
+
+                # 波动率调整（默认：低波动→收紧；高波动→谨慎小幅放宽）
+                vol_cfg = dyn_cfg.get('volatility', {}) or {}
+                lookback = int(vol_cfg.get('lookback_mean', 60))
+                low_ratio = float(vol_cfg.get('low_ratio', 0.90))
+                high_ratio = float(vol_cfg.get('high_ratio', 1.10))
+                vol_low_adjust = float(vol_cfg.get('low_adjust', 0.015))   # 低波动：上调阈值
+                vol_high_adjust = float(vol_cfg.get('high_adjust', -0.010)) # 高波动：下调阈值（允许更宽松，但幅度更小）
+
+                if current_vol is not None and 'volatility' in training_data.columns and training_data['volatility'].notna().any():
+                    vol_mean = float(training_data['volatility'].tail(lookback).mean()) if len(training_data) >= 1 else None
+                    if vol_mean and vol_mean > 0:
+                        vol_ratio = current_vol / vol_mean
+                        if vol_ratio <= low_ratio:
+                            adj += vol_low_adjust
+                        elif vol_ratio >= high_ratio:
+                            adj += vol_high_adjust
+
+                # 限幅并与基础阈值合成
+                if adj > max_adjust:
+                    adj = max_adjust
+                if adj < -max_adjust:
+                    adj = -max_adjust
+                used_threshold = float(final_threshold + adj)
+                # 物理边界（避免极端阈值）
+                used_threshold = max(0.10, min(0.90, used_threshold))
+
+                logger.info(f"动态阈值: base={final_threshold:.3f}, adj={adj:+.3f} -> used={used_threshold:.3f} (rsi={current_rsi if current_rsi is not None else 'N/A'}, vol={current_vol if current_vol is not None else 'N/A'})")
+        except Exception as _e:
+            # 动态阈值失败时回退到基础阈值，确保稳健
+            used_threshold = final_threshold
+            logger.warning(f"动态阈值计算失败，回退到固定阈值: {final_threshold:.3f}，原因: {_e}")
+
+        # 使用融合后的final_confidence进行门控（固定阈值）
+        is_predicted_low_point = fused_final_confidence >= used_threshold
+        confidence = strategy_confidence  # 保留策略置信度作为基础显示
+        final_confidence = fused_final_confidence
+
+        logger.info(f"AI预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if ai_is_predicted_low_point else '否'} 相对低点，AI置信度: {ai_confidence:.2f}")
+        logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点，策略置信度: {strategy_confidence:.2f}")
+        # 详细融合日志：显示各自贡献与权重
+        logger.info(f"融合细节: AI贡献={ai_final_confidence:.4f}×{ai_w:.2f}={(ai_final_confidence*ai_w):.4f}, 策略贡献={strategy_confidence:.4f}×{stg_w:.2f}={(strategy_confidence*stg_w):.4f}, 归一化分母={denom:.2f}")
+        logger.info(f"融合结果: ai_weight={ai_w:.2f}, strategy_weight={stg_w:.2f}, final_confidence={final_confidence:.2f}, 阈值={used_threshold:.2f} → 预测{'是' if is_predicted_low_point else '否'}相对低点")
 
         # 5. 验证预测结果
-        # max_days现在在strategy_params中
-        max_days = config.get("strategy_params", {}).get("max_days", 20)
+        # 统一读取策略参数自 config['strategy']，若无则回退到 default_strategy
+        strategy_section = config.get("strategy", {})
+        if not strategy_section and "default_strategy" in config:
+            # 兼容旧版配置
+            strategy_section = {
+                'max_days': config['default_strategy'].get('max_days', 20),
+                'rise_threshold': config['default_strategy'].get('rise_threshold', 0.04)
+            }
+        max_days = strategy_section.get("max_days", 20)
         end_date_for_validation = predict_date + timedelta(days=max_days + 10)
         start_date_for_validation = predict_date - timedelta(days=max_days + 10)
         
@@ -329,7 +438,9 @@ def predict_and_validate(
                 max_rise = rise_rate
                 days_to_rise = row['index'] - predict_index  # 用index相减，代表交易日天数
 
-        actual_is_low_point = max_rise >= config["default_strategy"]["rise_threshold"]
+        # 使用统一的策略段读取 rise_threshold，兼容 default_strategy
+        rise_threshold = strategy_section.get('rise_threshold', 0.04)
+        actual_is_low_point = max_rise >= rise_threshold
 
         logger.info(f"\n--- 验证结果 --- ")
         logger.info(f"日期: {predict_date.strftime('%Y-%m-%d')}")

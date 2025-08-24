@@ -335,13 +335,12 @@ class SmartOptimizer:
             max_val = param_range.get('max', 1)
             return max(min_val, min(max_val, value))
         
-        # 默认边界
+        # 默认边界 (final_threshold已移除，作为固定参数)
         bounds = {
             'rsi_oversold_threshold': (20, 35),
             'rsi_low_threshold': (35, 55),
             'volume_panic_threshold': (1.2, 2.0),
             'volume_shrink_penalty': (0.3, 0.9),
-            'final_threshold': (0.3, 0.8),
             'ma_all_below': (0.1, 0.6),
             'volume_surge_bonus': (0.01, 0.3),
             'market_sentiment_weight': (0.05, 0.4),
@@ -358,33 +357,16 @@ class SmartOptimizer:
     
     def _calculate_score(self, evaluation: Dict[str, Any]) -> float:
         """
-        计算综合评分
+        计算综合评分：直接使用总利润值
         
         参数:
         evaluation: 评估结果
         
         返回:
-        float: 综合评分
+        float: 总利润值
         """
-        success_rate = evaluation.get('success_rate', 0)
-        avg_rise = evaluation.get('avg_rise', 0)
-        avg_days = evaluation.get('avg_days', 0)
-        
-        # 使用与AI优化器相同的评分方法
-        scoring_config = self.config.get('strategy_scoring', {})
-        
-        success_weight = scoring_config.get('success_weight', 0.5)
-        rise_weight = scoring_config.get('rise_weight', 0.3)
-        days_weight = scoring_config.get('days_weight', 0.2)
-        
-        rise_benchmark = scoring_config.get('rise_benchmark', 0.1)
-        days_benchmark = scoring_config.get('days_benchmark', 10.0)
-        
-        success_score = success_rate * success_weight
-        rise_score = min(avg_rise / rise_benchmark, 1.0) * rise_weight if avg_rise > 0 else 0
-        days_score = min(days_benchmark / avg_days, 1.0) * days_weight if avg_days > 0 else 0
-        
-        return success_score + rise_score + days_score
+        total_profit = evaluation.get('total_profit', 0)
+        return float(total_profit)
     
     def _generate_final_recommendations(self, optimization_results: List[Dict[str, Any]]) -> List[str]:
         """

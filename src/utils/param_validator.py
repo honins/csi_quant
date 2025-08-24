@@ -194,7 +194,7 @@ class ParamValidator:
         # confidence_weights参数验证
         print(f"🎯 confidence_weights参数验证: {'✅ 通过' if results['confidence_weight_params']['valid'] else '❌ 失败'}")
         if results['confidence_weight_params']['found']:
-            print(f"   找到: {len(results['confidence_weight_params']['found'])}/{len(CONFIDENCE_WEIGHT_PARAMS)} 个")
+            print(f"   找到: {len(results['confidence_weight_params']['found'])}/{len(CONFIDENCE_WEIGHT_PARAMS)} 个（包含 final_threshold）")
         if results['confidence_weight_params']['missing']:
             print(f"   缺失: {', '.join(results['confidence_weight_params']['missing'])}")
         
@@ -208,14 +208,14 @@ class ParamValidator:
         # 优化范围验证
         print(f"🔧 优化范围验证: {'✅ 通过' if results['optimization_ranges']['valid'] else '❌ 失败'}")
         if results['optimization_ranges']['found']:
-            print(f"   找到: {len(results['optimization_ranges']['found'])}/{len(get_all_optimizable_params())} 个（14个有效参数）")
+            print(f"   找到: {len(results['optimization_ranges']['found'])}/{len(get_all_optimizable_params())} 个（15个有效参数）")
         if results['optimization_ranges']['missing']:
             print(f"   缺失: {', '.join(results['optimization_ranges']['missing'])}")
         
         # 总体验证
         print(f"\n🎯 总体验证: {'✅ 通过' if results['summary']['overall_valid'] else '❌ 失败'}")
         print(f"   固定参数: {results['summary']['total_fixed']} 个")
-        print(f"   可优化参数: {results['summary']['total_optimizable']} 个（14个有效参数）")
+        print(f"   可优化参数: {results['summary']['total_optimizable']} 个（15个有效参数）")
         print(f"   其他参数: {results['summary']['total_other']} 个（不参与优化）")
         print(f"   所有参数总数: {results['summary']['total_all']} 个")
         
@@ -229,4 +229,4 @@ def main():
     validator.print_validation_report()
 
 if __name__ == "__main__":
-    main() 
+    main()

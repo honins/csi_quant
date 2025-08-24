@@ -62,7 +62,7 @@ class CommentPreservingConfigSaver:
         """
         try:
             # 转换numpy类型为Python原生类型
-            converted_params = self._convert_numpy_types(optimized_params)
+            converted_params = self._to_native(optimized_params)
             
             # 自动选择目标文件
             if target_file is None:
@@ -88,6 +88,9 @@ class CommentPreservingConfigSaver:
             backup_path = target_path.with_suffix(f'.backup_{self._get_timestamp()}')
             target_path.rename(backup_path)
             logger.info(f"📁 原配置文件已备份到: {backup_path.name}")
+            
+            # 保存前再次确保都是原生类型
+            config_data = self._to_native(config_data)
             
             # 保存更新后的配置（保留注释）
             with open(target_path, 'w', encoding='utf-8') as f:
@@ -156,30 +159,28 @@ class CommentPreservingConfigSaver:
         from datetime import datetime
         return datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    def _convert_numpy_types(self, obj):
-        """
-        递归转换numpy类型为Python原生类型
-        
-        参数:
-        obj: 要转换的对象
-        
-        返回:
-        转换后的对象
-        """
-        if isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, dict):
-            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [self._convert_numpy_types(item) for item in obj]
-        elif isinstance(obj, tuple):
-            return tuple(self._convert_numpy_types(item) for item in obj)
-        else:
-            return obj
+    def _to_native(self, obj: Any) -> Any:
+        """递归转换 numpy / ruamel 标量为 Python 原生类型，避免写入不可读对象"""
+        if isinstance(obj, dict):
+            return {k: self._to_native(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._to_native(x) for x in obj]
+        if isinstance(obj, tuple):
+            return tuple(self._to_native(x) for x in obj)
+        try:
+            # 处理 numpy 类型
+            if isinstance(obj, (np.floating,)):
+                return float(obj)
+            if isinstance(obj, (np.integer,)):
+                return int(obj)
+            if isinstance(obj, np.bool_):
+                return bool(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except Exception:
+            # numpy 不可用或其他错误，忽略
+            pass
+        return obj
     
     def save_strategy_parameters(self, strategy_params: Dict[str, Any]) -> bool:
         """
@@ -218,76 +219,36 @@ class CommentPreservingConfigSaver:
         返回:
         dict: 保存结果，格式为 {'组名': 是否成功}
         """
-        results = {}
-        
+        results: Dict[str, bool] = {}
+        if target_files is None:
+            target_files = {}
         for group_name, params in parameter_groups.items():
-            try:
-                target_file = None
-                if target_files and group_name in target_files:
-                    target_file = target_files[group_name]
-                
-                success = self.save_optimized_parameters(params, target_file)
-                results[group_name] = success
-                
-                if success:
-                    logger.info(f"✅ 参数组 '{group_name}' 保存成功")
-                else:
-                    logger.error(f"❌ 参数组 '{group_name}' 保存失败")
-                    
-            except Exception as e:
-                logger.error(f"❌ 保存参数组 '{group_name}' 时发生错误: {e}")
-                results[group_name] = False
-        
+            target_file = target_files.get(group_name)
+            results[group_name] = self.save_optimized_parameters(params, target_file)
         return results
 
-# 全局配置保存器实例
+# 单例与便捷函数
 _global_saver = None
 
 def get_config_saver() -> CommentPreservingConfigSaver:
-    """获取全局配置保存器实例"""
     global _global_saver
     if _global_saver is None:
         _global_saver = CommentPreservingConfigSaver()
     return _global_saver
 
+
 def save_optimized_config(optimized_params: Dict[str, Any], 
                          target_file: str = None) -> bool:
-    """
-    便捷函数：保存优化后的配置参数（保留注释）
-    
-    参数:
-    optimized_params: 优化后的参数字典
-    target_file: 目标文件名
-    
-    返回:
-    bool: 是否保存成功
-    """
     saver = get_config_saver()
     return saver.save_optimized_parameters(optimized_params, target_file)
 
+
 def save_strategy_config(strategy_params: Dict[str, Any]) -> bool:
-    """
-    便捷函数：保存策略配置参数（保留注释）
-    
-    参数:
-    strategy_params: 策略参数字典
-    
-    返回:
-    bool: 是否保存成功
-    """
     saver = get_config_saver()
     return saver.save_strategy_parameters(strategy_params)
 
+
 def save_ai_config(ai_params: Dict[str, Any]) -> bool:
-    """
-    便捷函数：保存AI配置参数（保留注释）
-    
-    参数:
-    ai_params: AI参数字典
-    
-    返回:
-    bool: 是否保存成功
-    """
     saver = get_config_saver()
     return saver.save_ai_parameters(ai_params)
 

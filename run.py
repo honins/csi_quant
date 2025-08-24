@@ -14,6 +14,8 @@
 import sys
 import os
 from pathlib import Path
+from copy import deepcopy
+from datetime import date, timedelta
 
 # 添加src目录到Python路径
 project_root = Path(__file__).parent
@@ -134,7 +136,29 @@ class QuantSystemCommands:
             print("📋 功能说明: 完整AI优化 - 策略参数优化 + 模型训练")
             print()
             
-            return self._run_ai_optimization(config)
+            # 处理快速验证模式覆盖
+            use_quick = getattr(args, 'quick', False)
+            local_config = deepcopy(config)
+            if use_quick:
+                print("⚡ 已启用快速验证模式：缩小数据范围并减少优化迭代")
+                # 缩小数据时间范围到最近约180天
+                end_d = date.today()
+                start_d = end_d - timedelta(days=180)
+                local_config.setdefault('data', {})
+                local_config['data'].setdefault('time_range', {})
+                local_config['data']['time_range']['start_date'] = start_d.strftime('%Y-%m-%d')
+                local_config['data']['time_range']['end_date'] = end_d.strftime('%Y-%m-%d')
+                # 调小贝叶斯优化迭代次数
+                local_config.setdefault('bayesian_optimization', {})
+                local_config['bayesian_optimization']['n_calls'] = max(10, int(local_config['bayesian_optimization'].get('n_calls', 120) * 0.2))
+                calc_init = int(local_config['bayesian_optimization'].get('n_initial_points', 25) * 0.2)
+                local_config['bayesian_optimization']['n_initial_points'] = max(5, min(10, calc_init))
+                # 明确启用
+                local_config['bayesian_optimization']['enabled'] = True
+                print(f"   📅 快速数据范围: {local_config['data']['time_range']['start_date']} ~ {local_config['data']['time_range']['end_date']}")
+                print(f"   🔬 快速优化配置: n_calls={local_config['bayesian_optimization']['n_calls']}, n_initial_points={local_config['bayesian_optimization']['n_initial_points']}")
+            
+            return self._run_ai_optimization(local_config)
                 
         except ImportError as e:
             self.logger.error(f"AI模块导入失败: {e}")
@@ -272,7 +296,7 @@ class QuantSystemCommands:
                     print(f"📊 最终评估:")
                     print(f"   🎯 策略得分: {strategy_score:.4f}")
                     print(f"   📈 成功率: {strategy_success_rate:.2%}")
-                    print(f"   🔍 识别点数: {identified_points}")
+                    print(f"   🔍 交易数: {identified_points}")
                     print(f"   🤖 AI置信度: {ai_confidence:.4f}")
                 else:
                     print(f"⚠️ 最终评估: 部分失败")
@@ -351,15 +375,30 @@ class QuantSystemCommands:
         self.logger.info(f"开始滚动回测: {start_date} 到 {end_date}")
         
         try:
-            # 尝试调用真实的回测模块
+            # 使用修改后的回测模块，生成Markdown报告
             from examples.run_rolling_backtest import run_rolling_backtest
             
-            result = run_rolling_backtest(start_date, end_date)
+            result = run_rolling_backtest(start_date, end_date, generate_report=True)
             
             if result.get('success'):
-                success_rate = result.get('success_rate', 0)
-                total_signals = result.get('total_signals', 0)
-                return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 信号数 {total_signals}"
+                metrics = result.get('metrics', {})
+                success_rate = metrics.get('success_rate', 0)
+                total_predictions = metrics.get('total_predictions', 0)
+                f1_score = metrics.get('f1', 0)
+                recall = metrics.get('recall', 0)
+                precision = metrics.get('precision', 0)
+                report_path = result.get('report_path')
+                
+                # 输出关键指标
+                self.logger.info(f"回测完成: 成功率={success_rate:.2%}, 预测数={total_predictions}, F1={f1_score:.3f}, Recall={recall:.3f}, Precision={precision:.3f}")
+                
+                # 输出报告路径
+                if report_path:
+                    relative_path = os.path.relpath(report_path, project_root)
+                    self.logger.info(f"📄 回测报告已生成: {relative_path}")
+                    return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 预测数 {total_predictions}, F1 {f1_score:.3f}\n📄 报告: {relative_path}"
+                else:
+                    return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 预测数 {total_predictions}, F1 {f1_score:.3f}"
             else:
                 error_msg = result.get('error', '回测失败')
                 return f"❌ 滚动回测失败: {error_msg}"
