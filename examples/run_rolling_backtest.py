@@ -20,6 +20,10 @@ from datetime import datetime, timedelta
 import numpy as np
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss, log_loss
+# 新增：用于离线概率标定
+from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
+import json
 
 # 假设项目根目录在sys.path中，或者手动添加
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -33,7 +37,8 @@ from src.utils.trade_date import is_trading_day
 
 def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window_days: int = 365, 
                          reuse_model: bool = True, retrain_interval_days: int = None,
-                         generate_report: bool = True, report_dir: str = None):
+                         generate_report: bool = True, report_dir: str = None,
+                         override_dynamic_threshold_enabled: bool = None):
     setup_logging()
     logger = logging.getLogger("RollingBacktest")
 
@@ -41,6 +46,15 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         # 使用标准配置加载器（自动合并所有配置文件）
         from src.utils.config_loader import load_config as load_config_improved
         config = load_config_improved()
+        
+        # 覆盖动态阈值开关（A/B 实验用）
+        try:
+            if override_dynamic_threshold_enabled is not None:
+                cfg_path = config.setdefault('confidence_weights', {}).setdefault('dynamic_threshold', {})
+                cfg_path['enabled'] = bool(override_dynamic_threshold_enabled)
+                logger.info(f"[A/B] 覆盖动态阈值开关: enabled={cfg_path['enabled']}")
+        except Exception as _e:
+            logger.warning(f"无法覆盖动态阈值开关: {_e}")
         
         # 应用训练策略配置
         if retrain_interval_days is not None:
@@ -90,7 +104,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         logger.info(f"📅 回测期间: {start_date_str} 至 {end_date_str}")
         logger.info(f"🤖 只使用已训练模型: 启用")
         logger.info(f"📊 可用交易日: {len(available_dates)} 天")
-        logger.info(f"📝 将输出前 {first_n_days} 天的详细预测日志（confidence 与 final_confidence 分布）")
+        logger.info(f"📝 将输出前 {first_n_days} 天的详细预测日志（confidence 分布）")
         logger.info(f"{'='*60}")
 
         while current_date <= end_date:
@@ -116,14 +130,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 only_use_trained_model=True  # 禁止任何训练和保存
             )
 
-            # 前N天详细日志：输出 confidence 和 final_confidence 及阈值
+            # 前N天详细日志：输出 confidence 及阈值
             if result is not None and getattr(result, 'date', None) is not None and detailed_days_counter < first_n_days:
                 try:
                     # 固定阈值：从配置读取
                     final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
                     logger.info("[详细日志-阈值与置信度]")
                     logger.info(f"  阈值(final_threshold): {final_threshold:.4f}")
-                    logger.info(f"  confidence: {getattr(result, 'confidence', None):.4f}  | final_confidence: {getattr(result, 'final_confidence', None):.4f}")
+                    logger.info(f"  confidence: {getattr(result, 'confidence', None):.4f}")
                     logger.info(f"  预测结果: {'是低点' if getattr(result, 'predicted_low_point', False) else '非低点'}  | 实际: {('是低点' if getattr(result, 'actual_low_point', False) else '非/未知')}  | 是否正确: {getattr(result, 'prediction_correct', None)}")
                 except Exception as e:
                     logger.warning(f"输出详细日志时出错: {e}")
@@ -199,12 +213,12 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
             brier_value = None
             logloss_value = None
             ece_value = None
-            calib_bin_rows = []
-            reliability_points = []
+            calib_compare = []
+            calib_bins_map = {}
         
-            # 新增：置信度分布诊断（confidence 与 final_confidence）
+            # 新增：置信度分布诊断（confidence）
             try:
-                final_series = results_df['final_confidence'].astype(float).dropna()
+                final_series = results_df['confidence'].astype(float).dropna()
                 conf_series = results_df['confidence'].astype(float).dropna()
 
                 def _safe_stat(s: pd.Series):
@@ -229,7 +243,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 conf_stat = _safe_stat(conf_series)
                 final_stat = _safe_stat(final_series)
 
-                # 直方分布（final_confidence）：含阈值附近的细分
+                # 直方分布（confidence）：含阈值附近的细分
                 final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
                 bins = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
                 bin_labels = ["[0.0,0.2)", "[0.2,0.4)", "[0.4,0.5)", "[0.5,0.6)", "[0.6,0.8)", "[0.8,1.0]"]
@@ -244,43 +258,43 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 gray_width = 0.05
                 gray_lower = max(0.0, final_threshold - gray_width)
                 gray_upper = min(1.0, final_threshold + gray_width)
-                gray_mask = (results_df['final_confidence'] >= gray_lower) & (results_df['final_confidence'] <= gray_upper)
+                gray_mask = (results_df['confidence'] >= gray_lower) & (results_df['confidence'] <= gray_upper)
                 gray_df = results_df[gray_mask]
                 gray_total = len(gray_df)
                 gray_pos = int((gray_df['predicted_low_point'] == True).sum()) if gray_total > 0 else 0
                 gray_correct = int((gray_df['prediction_correct'] == True).sum()) if gray_total > 0 else 0
 
-                # 相关性：final_confidence 与 future_max_rise、prediction_correct
+                # 相关性：confidence 与 future_max_rise、prediction_correct
                 corr_final_rise = 0.0
                 corr_final_correct = 0.0
                 try:
-                    tmp = results_df[['final_confidence', 'future_max_rise']].dropna()
-                    if not tmp.empty and tmp['final_confidence'].nunique() > 1 and tmp['future_max_rise'].nunique() > 1:
-                        corr_final_rise = float(tmp['final_confidence'].corr(tmp['future_max_rise']))
+                    tmp = results_df[['confidence', 'future_max_rise']].dropna()
+                    if not tmp.empty and tmp['confidence'].nunique() > 1 and tmp['future_max_rise'].nunique() > 1:
+                        corr_final_rise = float(tmp['confidence'].corr(tmp['future_max_rise']))
                 except Exception:
                     pass
                 try:
-                    tmp2 = results_df[['final_confidence', 'prediction_correct']].dropna()
-                    if not tmp2.empty and tmp2['final_confidence'].nunique() > 1 and tmp2['prediction_correct'].nunique() > 1:
-                        corr_final_correct = float(tmp2['final_confidence'].corr(tmp2['prediction_correct'].astype(float)))
+                    tmp2 = results_df[['confidence', 'prediction_correct']].dropna()
+                    if not tmp2.empty and tmp2['confidence'].nunique() > 1 and tmp2['prediction_correct'].nunique() > 1:
+                        corr_final_correct = float(tmp2['confidence'].corr(tmp2['prediction_correct'].astype(float)))
                 except Exception:
                     pass
 
                 logger.info("\n--- 置信度分布诊断 ---")
-                logger.info(f"final_confidence: mean={final_stat['mean']:.4f}, std={final_stat['std']:.4f}, min={final_stat['min']:.4f}, max={final_stat['max']:.4f}")
-                logger.info(f"quantiles(10/25/50/75/90): {final_stat['q10']:.4f}/{final_stat['q25']:.4f}/{final_stat['q50']:.4f}/{final_stat['q75']:.4f}/{final_stat['q90']:.4f}")
+                logger.info(f"confidence: mean={final_stat['mean']:.4f}, std={final_stat['std']:.4f}, min={final_stat['min']:.4f}, max={final_stat['max']:.4f}")
+                logger.info(f"quantiles(10/25/50/75/90): {final_stat['q10']:.4f} / {final_stat['q25']:.4f} / {final_stat['q50']:.4f} / {final_stat['q75']:.4f} / {final_stat['q90']:.4f}")
                 logger.info(f"confidence: mean={conf_stat['mean']:.4f}, std={conf_stat['std']:.4f}, min={conf_stat['min']:.4f}, max={conf_stat['max']:.4f}")
-                logger.info(f"分箱(final_confidence)：" + ", ".join([f"{lbl}: {bin_counts[lbl]} ({bin_perc[lbl]:.2f}%)" for lbl in bin_labels]))
+                logger.info(f"分箱(confidence)：" + ", ".join([f"{lbl}: {bin_counts[lbl]} ({bin_perc[lbl]:.2f}%)" for lbl in bin_labels]))
                 logger.info(f"阈值(final_threshold)={final_threshold:.2f}，灰区[{gray_lower:.2f}, {gray_upper:.2f}] 覆盖: {gray_total} 条，占比 {(gray_total/len(results_df)*100 if len(results_df)>0 else 0):.2f}%；灰区中预测正类 {gray_pos} 条，正确 {gray_correct} 条")
-                logger.info(f"相关性：final_confidence vs future_max_rise = {corr_final_rise:.3f}，final_confidence vs prediction_correct = {corr_final_correct:.3f}")
+                logger.info(f"相关性：confidence vs future_max_rise = {corr_final_rise:.3f}，confidence vs prediction_correct = {corr_final_correct:.3f}")
             except Exception as e:
                 logger.warning(f"置信度分布诊断失败: {e}")
 
             # 新增：概率校准评估（Brier / LogLoss / ECE & 可靠性表）
             try:
-                if not results_df_validated.empty and 'final_confidence' in results_df_validated.columns and 'actual_low_point' in results_df_validated.columns:
+                if not results_df_validated.empty and 'confidence' in results_df_validated.columns and 'actual_low_point' in results_df_validated.columns:
                     y_true_arr = results_df_validated['actual_low_point'].astype(int).values
-                    y_prob_arr = results_df_validated['final_confidence'].astype(float).values
+                    y_prob_arr = results_df_validated['confidence'].astype(float).values
                     mask = ~np.isnan(y_prob_arr)
                     y_true_f = y_true_arr[mask]
                     y_prob_f = np.clip(y_prob_arr[mask], 1e-6, 1 - 1e-6)
@@ -290,42 +304,80 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         logloss_value = float(log_loss(y_true_f, y_prob_f))
 
                         # 计算 ECE 与可靠性表（10 等宽分箱）
-                        n_bins = 10
-                        bins = np.linspace(0.0, 1.0, n_bins + 1)
-                        # 将 1.0 放入最后一个箱
-                        bin_ids = np.digitize(y_prob_f, bins, right=True) - 1
-                        bin_ids = np.clip(bin_ids, 0, n_bins - 1)
+                        def _ece_and_bins(probs: np.ndarray, truths: np.ndarray, n_bins: int = 10):
+                            probs = np.clip(np.asarray(probs, dtype=float), 1e-6, 1 - 1e-6)
+                            truths = np.asarray(truths, dtype=int)
+                            bins = np.linspace(0.0, 1.0, n_bins + 1)
+                            bin_ids = np.digitize(probs, bins, right=True) - 1
+                            bin_ids = np.clip(bin_ids, 0, n_bins - 1)
 
-                        calib_bin_rows = []
-                        reliability_points = []
-                        ece_sum = 0.0
-                        total_cnt = y_prob_f.size
-                        for k in range(n_bins):
-                            lo, hi = bins[k], bins[k+1]
-                            idx = (bin_ids == k)
-                            cnt = int(idx.sum())
-                            if cnt > 0:
-                                avg_conf = float(y_prob_f[idx].mean())
-                                acc = float(y_true_f[idx].mean())
-                                gap = abs(acc - avg_conf)
-                                weight = cnt / max(total_cnt, 1)
-                                ece_sum += weight * gap
-                                # 区间右开（最后一段右闭）
-                                right_bracket = ')' if k < n_bins - 1 else ']'
-                                calib_bin_rows.append({
-                                    'range': f"[{lo:.1f},{hi:.1f}{right_bracket}",
-                                    'count': cnt,
-                                    'avg_conf': avg_conf,
-                                    'acc': acc,
-                                    'gap': gap,
-                                })
-                                reliability_points.append({'mean_pred': avg_conf, 'frac_pos': acc})
-                        ece_value = float(ece_sum)
-                        logger.info(f"概率校准评估：Brier={brier_value:.4f}, LogLoss={logloss_value:.4f}, ECE(10)={ece_value:.4f}")
+                            total_cnt = probs.size
+                            ece_sum = 0.0
+                            bins_rows = []
+                            for k in range(n_bins):
+                                lo, hi = bins[k], bins[k+1]
+                                idx = (bin_ids == k)
+                                cnt = int(idx.sum())
+                                if cnt > 0:
+                                    avg_conf = float(probs[idx].mean())
+                                    acc = float(truths[idx].mean())
+                                    gap = abs(acc - avg_conf)
+                                    weight = cnt / max(total_cnt, 1)
+                                    ece_sum += weight * gap
+                                    right_bracket = ')' if k < n_bins - 1 else ']'
+                                    bins_rows.append({
+                                        'range': f"[{lo:.1f},{hi:.1f}{right_bracket}",
+                                        'count': cnt,
+                                        'avg_conf': avg_conf,
+                                        'acc': acc,
+                                        'gap': gap,
+                                    })
+                                else:
+                                    right_bracket = ')' if k < n_bins - 1 else ']'
+                                    bins_rows.append({
+                                        'range': f"[{lo:.1f},{hi:.1f}{right_bracket}",
+                                        'count': 0,
+                                        'avg_conf': 0.0,
+                                        'acc': 0.0,
+                                        'gap': 0.0,
+                                    })
+                            return float(ece_sum), bins_rows
+
+                        # Original 直接作为基线
+                        ece_orig2, bins_orig2 = _ece_and_bins(y_prob_f, y_true_f)
+                        ece_value = ece_orig2
+                        calib_compare.append({'method': '原始(Original)', 'brier': brier_value, 'logloss': logloss_value, 'ece': ece_orig2})
+                        calib_bins_map['original'] = bins_orig2
+
+                        # Platt scaling（用概率作为单特征进行逻辑回归校准）
+                        try:
+                            X = y_prob_f.reshape(-1, 1)
+                            lr = LogisticRegression(solver='lbfgs', max_iter=1000)
+                            lr.fit(X, y_true_f)
+                            p_platt = lr.predict_proba(X)[:, 1]
+                            brier_platt = float(brier_score_loss(y_true_f, p_platt))
+                            logloss_platt = float(log_loss(y_true_f, p_platt))
+                            ece_platt, bins_platt = _ece_and_bins(p_platt, y_true_f)
+                            calib_compare.append({'method': 'Platt(逻辑回归)', 'brier': brier_platt, 'logloss': logloss_platt, 'ece': ece_platt})
+                            calib_bins_map['platt'] = bins_platt
+                            logger.info(f"Platt校准：Brier={brier_platt:.4f}, LogLoss={logloss_platt:.4f}, ECE(10)={ece_platt:.4f}")
+                        except Exception as ce:
+                            logger.warning(f"Platt 标定失败: {ce}")
+
+                        # Isotonic Regression
+                        try:
+                            iso = IsotonicRegression(out_of_bounds='clip')
+                            p_iso = iso.fit_transform(y_prob_f, y_true_f)
+                            brier_iso = float(brier_score_loss(y_true_f, p_iso))
+                            logloss_iso = float(log_loss(y_true_f, p_iso))
+                            ece_iso, bins_iso = _ece_and_bins(p_iso, y_true_f)
+                            calib_compare.append({'method': 'Isotonic(保序回归)', 'brier': brier_iso, 'logloss': logloss_iso, 'ece': ece_iso})
+                            calib_bins_map['isotonic'] = bins_iso
+                            logger.info(f"Isotonic校准：Brier={brier_iso:.4f}, LogLoss={logloss_iso:.4f}, ECE(10)={ece_iso:.4f}")
+                        except Exception as ie:
+                            logger.warning(f"Isotonic 标定失败: {ie}")
                     else:
                         logger.info("概率校准评估：类别单一或样本不足，跳过 Brier/LogLoss/ECE 计算")
-                else:
-                    logger.info("概率校准评估：结果为空或缺少必要列，跳过计算")
             except Exception as e:
                 logger.warning(f"概率校准评估失败: {e}")
 
@@ -346,13 +398,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 reports_dir = report_dir or os.path.join(base_results_dir, 'reports')
                 if not os.path.exists(reports_dir):
                     os.makedirs(reports_dir)
-                report_path = os.path.join(reports_dir, f"report_rolling_backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
+                ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+                report_path = os.path.join(reports_dir, f"report_rolling_backtest_{ts_str}.md")
 
-                # 选取关键信号（预测为正类）按最终置信度排序
+                # 选取关键信号（预测为正类）按置信度排序
                 pos_signals = []
                 try:
                     pos_df = results_df_validated[results_df_validated['predicted_low_point'] == True].copy()
-                    pos_df = pos_df.sort_values(by=['final_confidence', 'confidence'], ascending=False)
+                    pos_df = pos_df.sort_values(by=['confidence'], ascending=False)
                     for idx, (dt, row) in enumerate(pos_df.head(15).iterrows(), start=1):
                         pos_signals.append({
                             'index': idx,
@@ -360,7 +413,6 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             'predicted': '是' if row.get('predicted_low_point') else '否',
                             'actual': '是' if row.get('actual_low_point') else '否',
                             'confidence': row.get('confidence', 0),
-                            'final_confidence': row.get('final_confidence', 0),
                             'future_max_rise': row.get('future_max_rise', 0),
                             'actual': '是' if row.get('actual_low_point') else '否',
                             'max_rise': f"{float(row.get('future_max_rise', 0)):.2%}" if not pd.isna(row.get('future_max_rise')) else "N/A",
@@ -371,11 +423,11 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 except Exception as e:
                     pos_signals = [{'error': f"生成样例行时出现异常: {e}"}]
 
-                # 新增：全区间 Top-N（按 final_confidence 降序，包含未达阈值）
+                # 新增：全区间 Top-N（按 confidence 降序，包含未达阈值）
                 top_all_signals = []
                 try:
                     all_df = results_df.copy()
-                    all_df = all_df.sort_values(by=['final_confidence', 'confidence'], ascending=False)
+                    all_df = all_df.sort_values(by=['confidence'], ascending=False)
                     for idx, (dt, row) in enumerate(all_df.head(15).iterrows(), start=1):
                         top_all_signals.append({
                             'index': idx,
@@ -383,7 +435,6 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             'predicted': '是' if row.get('predicted_low_point') else '否',
                             'actual': '是' if row.get('actual_low_point') else '否',
                             'confidence': row.get('confidence', 0),
-                            'final_confidence': row.get('final_confidence', 0),
                             'future_max_rise': row.get('future_max_rise', 0),
                             'days_to_rise': int(row.get('days_to_rise') or 0) if row.get('days_to_rise') is not None else 0,
                             'predict_price': row.get('predict_price') if row.get('predict_price') is not None else 'N/A',
@@ -424,7 +475,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append(f"- **回测期间**: {start_date_str} 至 {end_date_str}")
                 report_lines.append(f"- **使用模型**: 已训练模型（禁止回测训练）")
                 report_lines.append(f"- **策略参数**: rise_threshold={resolve_confidence_param(config, 'rise_threshold', 0.04):.1%}, max_days={config.get('strategy', {}).get('max_days', 20)}")
-                report_lines.append(f"- **置信度阈值(final_threshold)**: {final_threshold:.2f}")
+                report_lines.append(f"- **置信度阈值**: {final_threshold:.2f}")
                 report_lines.append(f"- **训练效率**: {training_count}/{len(results)} (节省 {((len(results) - training_count) / len(results) * 100):.1f}%)")
                 report_lines.append("")
                 
@@ -442,18 +493,18 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 # 新增：置信度分布诊断（写入报告）
                 try:
                     report_lines.append("## 置信度分布诊断")
-                    report_lines.append(f"- final_confidence: 均值={final_stat['mean']:.4f}, 标准差={final_stat['std']:.4f}, 最小={final_stat['min']:.4f}, 最大={final_stat['max']:.4f}")
+                    report_lines.append(f"- confidence: 均值={final_stat['mean']:.4f}, 标准差={final_stat['std']:.4f}, 最小={final_stat['min']:.4f}, 最大={final_stat['max']:.4f}")
                     report_lines.append(f"- 分位数(10/25/50/75/90): {final_stat['q10']:.4f} / {final_stat['q25']:.4f} / {final_stat['q50']:.4f} / {final_stat['q75']:.4f} / {final_stat['q90']:.4f}")
                     report_lines.append(f"- confidence: 均值={conf_stat['mean']:.4f}, 标准差={conf_stat['std']:.4f}, 最小={conf_stat['min']:.4f}, 最大={conf_stat['max']:.4f}")
                     report_lines.append("")
-                    report_lines.append("### final_confidence 直方分布")
+                    report_lines.append("### confidence 直方分布")
                     report_lines.append("| 区间 | 数量 | 占比 |")
                     report_lines.append("|------|------|------|")
                     for lbl in bin_labels:
                         report_lines.append(f"| {lbl} | {int(bin_counts[lbl])} | {bin_perc[lbl]:.2f}% |")
                     report_lines.append("")
                     report_lines.append(f"- 阈值={final_threshold:.2f}，灰区[{gray_lower:.2f}, {gray_upper:.2f}] 覆盖: {gray_total} 条，占比 {(gray_total/len(results_df)*100 if len(results_df)>0 else 0):.2f}%；灰区中预测正类 {gray_pos} 条，正确 {gray_correct} 条")
-                    report_lines.append(f"- 相关性：final_confidence vs future_max_rise = {corr_final_rise:.3f}，final_confidence vs prediction_correct = {corr_final_correct:.3f}")
+                    report_lines.append(f"- 相关性：confidence vs future_max_rise = {corr_final_rise:.3f}，confidence vs prediction_correct = {corr_final_correct:.3f}")
                     report_lines.append("")
                 except Exception as e:
                     report_lines.append(f"(置信度分布诊断生成失败: {e})")
@@ -470,67 +521,56 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     report_lines.append(f"- Log Loss: N/A")
                 if ece_value is not None:
                     report_lines.append(f"- ECE(10 bins): {ece_value:.4f}（越低越好）")
-                    report_lines.append("")
-                    report_lines.append("### 可靠性表（分箱统计）")
-                    report_lines.append("| 置信度区间 | 数量 | 平均置信度 | 实际正率 | 偏差 |")
-                    report_lines.append("|------------|------|------------|----------|------|")
-                    for row in calib_bin_rows:
-                        report_lines.append(f"| {row['range']} | {row['count']} | {row['avg_conf']:.3f} | {row['acc']:.3f} | {row['gap']:.3f} |")
-                if len(reliability_points) > 0:
-                    report_lines.append("")
-                    report_lines.append("- 可靠性曲线点(mean_pred → frac_pos)：" + ", ".join([f"{pt['mean_pred']:.2f}→{pt['frac_pos']:.2f}" for pt in reliability_points]))
                 else:
                     report_lines.append(f"- ECE(10 bins): N/A")
                 report_lines.append("")
 
-                report_lines.append("## 预测分布与混淆矩阵")
-                report_lines.append(f"- **预测为低点(正类)**: {pred_pos} ({(pred_pos/max(total_predictions_validated,1)*100):.2f}%)")
-                report_lines.append(f"- **预测为非低点(负类)**: {pred_neg} ({(pred_neg/max(total_predictions_validated,1)*100):.2f}%)")
-                report_lines.append(f"- **实际为低点(正类)**: {actual_pos} ({(actual_pos/max(total_predictions_validated,1)*100):.2f}%)")
-                report_lines.append(f"- **实际为非低点(负类)**: {actual_neg} ({(actual_neg/max(total_predictions_validated,1)*100):.2f}%)")
-                report_lines.append("")
-                report_lines.append("### 混淆矩阵")
-                report_lines.append("|       | 预测正类 | 预测负类 |")
-                report_lines.append("|-------|---------|---------|")
-                report_lines.append(f"| **实际正类** | TP: {tp} | FN: {fn} |")
-                report_lines.append(f"| **实际负类** | FP: {fp} | TN: {tn} |")
-                report_lines.append("")
-
-                # 月度统计（按索引日期分组）
-                month_group = results_df_validated.groupby(results_df_validated.index.to_period('M').astype(str))
-                month_stats = []
-                for month, group in month_group:
-                    total = len(group)
-                    month_correct = group['prediction_correct'].sum()
-                    month_success_rate = month_correct / total if total > 0 else 0.0
-                    month_pred_pos = (group['predicted_low_point'] == True).sum()
-                    month_pos_actual = (group['actual_low_point'] == True).sum()
-                    month_stats.append({
-                        'month': month,
-                        'total': int(total),
-                        'correct': int(month_correct),
-                        'success_rate': float(month_success_rate),
-                        'pred_positive': int(month_pred_pos),
-                        'actual_positive': int(month_pos_actual)
-                    })
-
-                report_lines.append("## 月度预测分布")
-                report_lines.append("| 月份 | 总预测 | 正确数 | 成功率 | 预测正类 | 实际正类 |")
-                report_lines.append("|------|--------|--------|--------|----------|----------|")
-                for stat in month_stats:
-                    report_lines.append(f"| {stat['month']} | {stat['total']} | {stat['correct']} | {stat['success_rate']:.1%} | {stat['pred_positive']} | {stat['actual_positive']} |")
-                report_lines.append("")
+                # 离线概率标定对比实验（不改主逻辑，仅输出对比表格）
+                if calib_compare:
+                    report_lines.append("### 离线概率标定对比实验（Original vs Platt vs Isotonic）")
+                    report_lines.append("| 方法 | Brier | LogLoss | ECE(10) |")
+                    report_lines.append("|------|------:|--------:|--------:|")
+                    for row in calib_compare:
+                        report_lines.append(f"| {row['method']} | {row['brier']:.4f} | {row['logloss']:.4f} | {row['ece']:.4f} |")
+                    report_lines.append("")
+                    # 可靠性（分箱）表（仅展示每种方法的10个分箱）
+                    for key, title in [( 'original','原始(Original)' ), ( 'platt','Platt(逻辑回归)' ), ( 'isotonic','Isotonic(保序回归)' )]:
+                        bins_rows = calib_bins_map.get(key)
+                        if bins_rows:
+                            report_lines.append(f"#### 可靠性分箱 - {title}")
+                            report_lines.append("| 置信度区间 | 样本数 | 平均置信度 | 实际比例 | 绝对差 |")
+                            report_lines.append("|-----------:|------:|-----------:|--------:|------:|")
+                            for br in bins_rows:
+                                report_lines.append(f"| {br['range']} | {br['count']} | {br['avg_conf']:.3f} | {br['acc']:.3f} | {br['gap']:.3f} |")
+                            report_lines.append("")
 
                 report_lines.append("## 每日预测明细")
-                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 最终置信度 | 实际结果 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
-                report_lines.append("|------|----------|----------|--------|------------|----------|-------------|-------------|----------|")
+                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 调整(adj) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
+                report_lines.append("|------|----------|----------|--------|------------|------------|----------|------|-------------|-------------|----------|")
                 for dt, row in results_df.iterrows():
                     date_str = pd.to_datetime(dt).strftime('%Y-%m-%d') if not pd.isna(dt) else ''
                     predict_price = f"{row.get('predict_price', '')}"
                     predicted = "是" if row.get('predicted_low_point') else "否"
                     confidence = f"{row.get('confidence', 0):.2f}"
-                    final_confidence = f"{row.get('final_confidence', 0):.2f}"
+                    used_threshold = row.get('used_threshold')
+                    adj = row.get('adj')
+                    used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
+                    adj_str = f"{float(adj):+.3f}" if adj is not None and not pd.isna(adj) else "N/A"
                     actual = "是" if row.get('actual_low_point') else "否"
+                    # 新增：提取趋势状态
+                    trend_str = ''
+                    ind = row.get('strategy_indicators')
+                    if isinstance(ind, dict):
+                        trend_str = ind.get('trend_regime', '')
+                    elif isinstance(ind, str):
+                        s = ind.strip()
+                        if s.startswith('{') and s.endswith('}'):
+                            try:
+                                d = json.loads(s)
+                                if isinstance(d, dict):
+                                    trend_str = d.get('trend_regime', '')
+                            except Exception:
+                                trend_str = ''
                     max_rise = f"{float(row.get('future_max_rise', 0)):.2%}" if not pd.isna(row.get('future_max_rise')) else "N/A"
                     days_to_rise = f"{int(row.get('days_to_rise', 0))}" if not pd.isna(row.get('days_to_rise')) else "N/A"
                     prediction_correct = "是" if row.get('prediction_correct') else "否"
@@ -538,29 +578,120 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         actual = '数据不足'
                     if pd.isna(row.get('prediction_correct')):
                         prediction_correct = '数据不足'
-                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {final_confidence} | {actual} | {max_rise} | {days_to_rise} | {prediction_correct} |")
+                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {adj_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
                 report_lines.append("")
 
+                # 新增：趋势分布与命中率（含震荡区间）
+                try:
+                    if 'strategy_indicators' in results_df.columns and 'prediction_correct' in results_df.columns:
+                        def _extract_trend_for_group(v):
+                            if isinstance(v, dict):
+                                return v.get('trend_regime', '')
+                            if isinstance(v, str):
+                                s = v.strip()
+                                if s.startswith('{') and s.endswith('}'):
+                                    try:
+                                        d = json.loads(s)
+                                        if isinstance(d, dict):
+                                            return d.get('trend_regime', '')
+                                    except Exception:
+                                        return ''
+                            return ''
+                        trend_series = results_df['strategy_indicators'].apply(_extract_trend_for_group)
+                        correct_series = results_df['prediction_correct'].fillna(False).astype(bool)
+                        # 统计
+                        stats = {}
+                        for tr in ['bull', 'sideways', 'bear', '']:
+                            mask = (trend_series == tr)
+                            cnt = int(mask.sum())
+                            if cnt > 0:
+                                hit = int(correct_series[mask].sum())
+                                rate = hit / cnt if cnt > 0 else 0.0
+                                stats[tr if tr else 'unknown'] = (cnt, hit, rate)
+                        if stats:
+                            report_lines.append("## 趋势分布与命中率（含震荡区间sideways）")
+                            report_lines.append("| 趋势 | 样本数 | 命中数 | 命中率 |")
+                            report_lines.append("|------|------:|------:|------:|")
+                            for k in ['bull', 'sideways', 'bear', 'unknown']:
+                                if k in stats:
+                                    c, h, r = stats[k]
+                                    report_lines.append(f"| {k} | {c} | {h} | {r:.2%} |")
+                            report_lines.append("")
+
+                            # 震荡区间(sideways)有效性验证
+                            try:
+                                # 提取价格和MA20
+                                price_series = results_df.get('predict_price')
+                                def _extract_ma20(v):
+                                    if isinstance(v, dict):
+                                        return v.get('ma20', float('nan'))
+                                    if isinstance(v, str):
+                                        s = v.strip()
+                                        if s.startswith('{') and s.endswith('}'):
+                                            try:
+                                                d = json.loads(s)
+                                                if isinstance(d, dict):
+                                                    return d.get('ma20', float('nan'))
+                                            except Exception:
+                                                return float('nan')
+                                    return float('nan')
+                                ma20_series = results_df['strategy_indicators'].apply(_extract_ma20) if 'strategy_indicators' in results_df.columns else None
+
+                                # 计算日内波动(|收益|)与相对MA20偏离
+                                vol_series = None
+                                if isinstance(price_series, pd.Series):
+                                    # 按索引排序，避免错乱
+                                    price_series = price_series.sort_index()
+                                    vol_series = price_series.pct_change().abs()
+
+                                dev_series = None
+                                if isinstance(price_series, pd.Series) and isinstance(ma20_series, pd.Series):
+                                    with pd.option_context('mode.use_inf_as_na', True):
+                                        dev_series = ((price_series - ma20_series).abs() / ma20_series.replace(0, pd.NA)).astype(float)
+
+                                # 分组统计
+                                if isinstance(trend_series, pd.Series):
+                                    report_lines.append("## 震荡区间有效性验证")
+                                    report_lines.append("- 指标解释：|日收益|中位数用于衡量波动强度；MA20相对偏离中位数用于衡量价格是否围绕均线波动；近均线占比(|偏离|≤1%)用于判断贴近均线的天数占比。")
+                                    report_lines.append("| 趋势 | 样本数 | |日收益|中位数 | MA20相对偏离中位数 | 近均线占比(|偏离|≤1%) |")
+                                    report_lines.append("|------|------:|-------------:|--------------------:|-----------------------:|")
+                                    for k in ['bull', 'sideways', 'bear', 'unknown']:
+                                        mask = (trend_series == ('' if k=='unknown' else k))
+                                        cnt = int(mask.sum())
+                                        if cnt == 0:
+                                            continue
+                                        vol_med = float(vol_series[mask].median()) if isinstance(vol_series, pd.Series) else float('nan')
+                                        dev_med = float(dev_series[mask].median()) if isinstance(dev_series, pd.Series) else float('nan')
+                                        near_ma = None
+                                        if isinstance(dev_series, pd.Series):
+                                            near_ma = float((dev_series[mask] <= 0.01).mean())
+                                        report_lines.append(f"| {k} | {cnt} | {vol_med:.2%} | {dev_med:.2%} | {near_ma:.2%} |")
+                                    report_lines.append("")
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                report_lines.append("")
                 report_lines.append(f"**策略参数**: 涨幅阈值={resolve_confidence_param(config, 'rise_threshold', 0.04):.1%}, 最大观察天数={config.get('strategy', {}).get('max_days', 20)}, RSI超卖={config.get('strategy', {}).get('rsi_oversold', 30)}, RSI偏低={config.get('strategy', {}).get('rsi_low', 40)}, 置信度阈值={final_threshold:.2f}")
                 report_lines.append("")
 
-                report_lines.append("## 关键信号详情（按最终置信度降序，最多15条）")
-                report_lines.append("| 序号 | 日期 | 预测 | 实际 | 置信度 | 最终置信度 | 未来最大涨幅 | 用时天数 | 预测价 | 结果 |")
-                report_lines.append("|------|------|------|------|--------|------------|-------------|----------|---------|------|")
+                report_lines.append("## 关键信号详情（按置信度降序，最多15条）")
+                report_lines.append("| 序号 | 日期 | 预测 | 实际 | 置信度 | 未来最大涨幅 | 用时天数 | 预测价 | 结果 |")
+                report_lines.append("|------|------|------|------|--------|------------|----------|----------|---------|")
                 if len(pos_signals) > 0:
                     for signal in pos_signals:
-                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['final_confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
                 else:
                     report_lines.append("- (本次无正类信号或无法生成样例)")
                 report_lines.append("")
 
-                # 新增：全区间 Top-N final_confidence（包含未达阈值）
-                report_lines.append("## 全区间 Top-N final_confidence（包含未达阈值）")
-                report_lines.append("| 序号 | 日期 | 预测 | 实际 | 置信度 | 最终置信度 | 未来最大涨幅 | 用时天数 | 预测价 | 结果 |")
-                report_lines.append("|------|------|------|------|--------|------------|-------------|----------|---------|------|")
+                # 新增：全区间 Top-N confidence（包含未达阈值）
+                report_lines.append("## 全区间 Top-N confidence（包含未达阈值）")
+                report_lines.append("| 序号 | 日期 | 预测 | 实际 | 置信度 | 未来最大涨幅 | 用时天数 | 预测价 | 结果 |")
+                report_lines.append("|------|------|------|------|--------|-------------|----------|---------|------|")
                 if len(top_all_signals) > 0:
                     for signal in top_all_signals:
-                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['final_confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
                 else:
                     report_lines.append("- (无法生成Top-N列表)")
                 report_lines.append("")
@@ -579,66 +710,142 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     f.write("\n".join(report_lines))
                 logger.info(f"📄 回测报告已生成: {os.path.relpath(report_path)}")
 
-            # 返回计算好的指标（供网格测试/报告使用）
-            return {
-                'success': True,
-                'metrics': {
-                    'total_predictions': total_predictions,
-                    'correct_predictions': int(correct_predictions),
-                    'success_rate': success_rate,
-                    'pred_positive': pred_pos,
-                    'precision': precision,
-                    'recall': recall,
-                    'f1': f1,
-                    'specificity': specificity,
-                    'balanced_accuracy': balanced_acc
-                },
-                'report_path': report_path
-            }
-        else:
-            logger.warning("没有有效的预测结果用于统计分析")
-            return {
-                'success': False,
-                'error': '没有有效的预测结果'
-            }
+                # 新增：导出每日明细CSV（包含 used_threshold 与 adj）
+                try:
+                    csv_dir = os.path.join(base_results_dir, 'csv')
+                    os.makedirs(csv_dir, exist_ok=True)
+                    csv_path = os.path.join(csv_dir, f"daily_details_rolling_backtest_{ts_str}.csv")
 
+                    csv_df = results_df.copy()
+                    # 插入日期列（格式化）
+                    try:
+                        dates = pd.to_datetime(csv_df.index)
+                        csv_df.insert(0, 'date', dates.strftime('%Y-%m-%d'))
+                    except Exception:
+                        csv_df.insert(0, 'date', csv_df.index.astype(str))
+
+                    # 转换策略原因与指标为字符串，便于CSV阅读
+                    if 'strategy_reasons' in csv_df.columns:
+                        csv_df['strategy_reasons'] = csv_df['strategy_reasons'].apply(
+                            lambda x: ' | '.join(x) if isinstance(x, (list, tuple)) else ('' if x is None else str(x))
+                        )
+                    # 先从 strategy_indicators 提取 trend_regime（在转字符串之前进行展平）
+                    try:
+                        if 'strategy_indicators' in csv_df.columns:
+                            def _extract_trend_regime(v):
+                                if isinstance(v, dict):
+                                    return v.get('trend_regime', '')
+                                # 某些情况下可能已是JSON字符串
+                                if isinstance(v, str):
+                                    s = v.strip()
+                                    if s.startswith('{') and s.endswith('}'):
+                                        try:
+                                            d = json.loads(s)
+                                            if isinstance(d, dict):
+                                                return d.get('trend_regime', '')
+                                        except Exception:
+                                            return ''
+                                return ''
+                            csv_df['trend_regime'] = csv_df['strategy_indicators'].apply(_extract_trend_regime)
+                    except Exception:
+                        # 出错时保持列为空，避免中断导出
+                        csv_df['trend_regime'] = ''
+                    if 'strategy_indicators' in csv_df.columns:
+                        csv_df['strategy_indicators'] = csv_df['strategy_indicators'].apply(
+                            lambda d: json.dumps(d, ensure_ascii=False) if isinstance(d, dict) else ('' if d is None else str(d))
+                        )
+
+                    # 仅保留关心的列（若缺失则自动跳过）
+                    preferred_cols = ['date', 'predict_price', 'predicted_low_point', 'confidence',
+                                      'used_threshold', 'adj', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_rise', 'prediction_correct',
+                                      'strategy_reasons', 'strategy_indicators']
+                    cols = [c for c in preferred_cols if c in csv_df.columns]
+                    csv_df[cols].to_csv(csv_path, index=False, encoding='utf-8-sig')
+                    logger.info(f"🧾 每日明细已导出CSV: {os.path.relpath(csv_path)}")
+                except Exception as e:
+                    logger.warning(f"导出每日明细CSV失败: {e}")
+
+                # 准备返回结果与输出
+                metrics = {
+                    'success_rate': locals().get('success_rate', 0.0),
+                    'precision': locals().get('precision', 0.0),
+                    'recall': locals().get('recall', 0.0),
+                    'specificity': locals().get('specificity', 0.0),
+                    'balanced_acc': locals().get('balanced_acc', 0.0),
+                    'f1': locals().get('f1', 0.0),
+                    'tp': int(locals().get('tp', 0)),
+                    'tn': int(locals().get('tn', 0)),
+                    'fp': int(locals().get('fp', 0)),
+                    'fn': int(locals().get('fn', 0)),
+                    'total_predictions': int(locals().get('total_predictions_validated', 0)),
+                    'training_count': int(locals().get('training_count', 0))
+                }
+                return {
+                    'success': True,
+                    'metrics': metrics,
+                    'report_path': report_path
+                }
     except Exception as e:
-        logger.error(f"滚动回测过程中发生错误: {e}")
+        logger.error(f"滚动回测发生异常: {e}")
         return {
             'success': False,
             'error': str(e)
         }
 
 
-def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, training_window_days: int = 365, 
+
+def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, training_window_days: int = 365,
                                      reuse_model: bool = True, retrain_interval_days: int = None,
-                                     generate_report: bool = True, report_dir: str = None):
+                                     generate_report: bool = True, report_dir: str = None,
+                                     override_dynamic_threshold_enabled: bool = None):
     """
-    带返回值的滚动回测函数（供网格测试/报告使用）
-    
-    Args:
-        start_date_str: 开始日期字符串
-        end_date_str: 结束日期字符串
-        training_window_days: 训练窗口天数
-        reuse_model: 是否重用模型
-        retrain_interval_days: 重训练间隔天数
-        generate_report: 是否生成报告文档（Markdown）
-        report_dir: 报告输出目录（可选）
-    
-    Returns:
-        dict: 包含 success 标志和 metrics 的结果字典
+    兼容入口：与 run_rolling_backtest 相同，只是显式返回其结果，供网格测试脚本调用。
     """
-    return run_rolling_backtest(start_date_str, end_date_str, training_window_days, reuse_model, retrain_interval_days,
-                                generate_report=generate_report, report_dir=report_dir)
+    return run_rolling_backtest(
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        training_window_days=training_window_days,
+        reuse_model=reuse_model,
+        retrain_interval_days=retrain_interval_days,
+        generate_report=generate_report,
+        report_dir=report_dir,
+        override_dynamic_threshold_enabled=override_dynamic_threshold_enabled,
+    )
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("用法: python run_rolling_backtest.py <start_date> <end_date>")
-        print("示例: python run_rolling_backtest.py 2023-01-01 2023-03-31")
-        sys.exit(1)
+    import argparse
     
-    start_date = sys.argv[1]
-    end_date = sys.argv[2]
-    run_rolling_backtest(start_date, end_date)
+    parser = argparse.ArgumentParser(description='运行滚动回测')
+    parser.add_argument('--start_date', required=True, help='开始日期 (YYYY-MM-DD)')
+    parser.add_argument('--end_date', required=True, help='结束日期 (YYYY-MM-DD)')
+    parser.add_argument('--training_window_days', type=int, default=365, help='训练窗口天数')
+    parser.add_argument('--reuse_model', action='store_true', default=True, help='是否重用模型')
+    parser.add_argument('--retrain_interval_days', type=int, help='重训练间隔天数')
+    parser.add_argument('--no_report', action='store_true', help='不生成报告')
+    parser.add_argument('--report_dir', help='报告目录')
+    parser.add_argument('--override_dynamic_threshold', type=bool, help='覆盖动态阈值设置')
+    parser.add_argument('--verbose', action='store_true', help='详细输出')
+    
+    args = parser.parse_args()
+    
+    result = run_rolling_backtest(
+        start_date_str=args.start_date,
+        end_date_str=args.end_date,
+        training_window_days=args.training_window_days,
+        reuse_model=args.reuse_model,
+        retrain_interval_days=args.retrain_interval_days,
+        generate_report=not args.no_report,
+        report_dir=args.report_dir,
+        override_dynamic_threshold_enabled=args.override_dynamic_threshold
+    )
+    
+    if result['success']:
+        print(f"回测完成！成功率: {result['metrics']['success_rate']:.2%}")
+        if 'report_path' in result:
+            print(f"报告已生成: {result['report_path']}")
+    else:
+        print(f"回测失败: {result['error']}")
+        sys.exit(1)
 
 

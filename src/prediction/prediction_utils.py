@@ -10,7 +10,7 @@ import logging
 import pandas as pd
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import numpy as np
 from src.utils.utils import resolve_confidence_param
 
@@ -20,11 +20,16 @@ class PredictionResult:
     predicted_low_point: Optional[bool]
     actual_low_point: Optional[bool]
     confidence: Optional[float]
-    final_confidence: Optional[float]
     future_max_rise: Optional[float]
     days_to_rise: Optional[int]
     prediction_correct: Optional[bool]
     predict_price: Optional[float]
+    # 新增：用于诊断导出的阈值信息
+    used_threshold: Optional[float] = None
+    adj: Optional[float] = None
+    # 新增：策略明细（原因与关键指标）
+    strategy_reasons: Optional[List[str]] = None
+    strategy_indicators: Optional[Dict[str, Any]] = None
 
 def setup_logging(log_level=logging.INFO):
     """设置日志配置"""
@@ -79,11 +84,12 @@ def predict_and_validate(
                 predicted_low_point=None,
                 actual_low_point=None,
                 confidence=None,
-                final_confidence=None,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
-                predict_price=None
+                predict_price=None,
+                used_threshold=None,
+                adj=None
             )
 
         # 预处理数据
@@ -111,7 +117,6 @@ def predict_and_validate(
                     predicted_low_point=None,
                     actual_low_point=None,
                     confidence=None,
-                    final_confidence=None,
                     future_max_rise=None,
                     days_to_rise=None,
                     prediction_correct=None,
@@ -234,7 +239,6 @@ def predict_and_validate(
                         predicted_low_point=None,
                         actual_low_point=None,
                         confidence=None,
-                        final_confidence=None,
                         future_max_rise=None,
                         days_to_rise=None,
                         prediction_correct=None,
@@ -257,74 +261,58 @@ def predict_and_validate(
         ai_prediction_result = ai_optimizer.predict_low_point(predict_day_data, predict_date.strftime('%Y-%m-%d'))
         ai_is_predicted_low_point = ai_prediction_result.get("is_low_point")
         ai_confidence = ai_prediction_result.get("confidence")
-        ai_final_confidence = ai_prediction_result.get("final_confidence", ai_confidence)
         
         # 4b. 使用策略模块预测（获取策略置信度）
-        strategy_prediction_result = strategy_module.identify_relative_low(predict_day_data)
+        strategy_reasons = None
+        strategy_indicators = None
+        # 为策略评估提供足够的历史窗口（至少20根K线用于趋势判定与斜率计算）
+        try:
+            history_window = 60  # 可根据需要调整，但需>=20
+            strategy_input_data = training_data.tail(max(20, history_window)).copy()
+        except Exception:
+            # 回退：若出现异常，至少保证传入单行数据
+            strategy_input_data = predict_day_data
+        strategy_prediction_result = strategy_module.identify_relative_low(strategy_input_data)
         strategy_is_predicted_low_point = strategy_prediction_result.get("is_low_point")
         strategy_confidence = strategy_prediction_result.get("confidence")
+        # 新增：收集策略原因与指标
+        strategy_reasons = strategy_prediction_result.get("reasons")
+        strategy_indicators = strategy_prediction_result.get("technical_indicators")
 
-        # === 置信度融合：AI 与 策略 ===
-        # 读取权重与阈值（优先顶层confidence_weights，其次strategy.confidence_weights，最后default_strategy）
-        conf_top = config.get('confidence_weights', {}) or {}
-        conf_strategy = (config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}
-        conf_default = (config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}
-
-        ai_w = conf_top.get('ai_weight', conf_strategy.get('ai_weight', conf_default.get('ai_weight', 0.5)))
-        stg_w = conf_top.get('strategy_weight', conf_strategy.get('strategy_weight', conf_default.get('strategy_weight', 0.5)))
-        denom = (ai_w or 0) + (stg_w or 0)
-        if denom <= 0:
-            ai_w, stg_w = 0.5, 0.5
-            denom = 1.0
-
-        fused_final_confidence = (ai_final_confidence * ai_w + strategy_confidence * stg_w) / denom
-
-        # 门槛读取：从配置读取固定阈值（不进行动态调整）
+        # === 仅使用AI置信度进行门控 ===
+        # 门槛读取：从配置读取固定阈值，并结合谨慎型动态调整（如开启）
         final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
         used_threshold = final_threshold
-
-        # 基于RSI与20日波动率的“谨慎型”动态阈值（小幅、可控、尊重市场）
         try:
-            # 读取动态阈值配置（优先级：顶层 -> strategy -> default_strategy）
             dyn_top = (config.get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
             dyn_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
             dyn_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
             dyn_cfg = dyn_top if dyn_top else (dyn_stg if dyn_stg else dyn_def)
-
             enabled = dyn_cfg.get('enabled', True)
             if enabled:
-                max_adjust = float(dyn_cfg.get('max_adjust', 0.03))  # 单侧最多±0.03
-                # 读取当前RSI与波动率
+                max_adjust = float(dyn_cfg.get('max_adjust', 0.03))
                 latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
                 current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
                 current_vol = float(latest_row.get('volatility')) if (latest_row is not None and 'volatility' in latest_row and not pd.isna(latest_row.get('volatility'))) else None
-
                 adj = 0.0
-
-                # RSI调整（默认：RSI<=oversold 小幅放宽阈值；RSI>=upper 小幅收紧阈值）
                 rsi_cfg = dyn_cfg.get('rsi', {}) or {}
-                # 使用策略层的RSI阈值作为基准，若未配置则回退到默认值
                 conf_top = config.get('confidence_weights', {}) or {}
                 oversold_base = conf_top.get('rsi_oversold_threshold', 30)
                 rsi_oversold = float(rsi_cfg.get('oversold', oversold_base))
                 rsi_upper = float(rsi_cfg.get('upper', 65))
-                rsi_lower_adjust = float(rsi_cfg.get('lower_adjust', 0.015))  # 阈值下调幅度（更容易触发）
-                rsi_upper_adjust = float(rsi_cfg.get('upper_adjust', 0.015))  # 阈值上调幅度（更严格）
-
+                rsi_lower_adjust = float(rsi_cfg.get('lower_adjust', 0.015))
+                rsi_upper_adjust = float(rsi_cfg.get('upper_adjust', 0.015))
                 if current_rsi is not None:
                     if current_rsi <= rsi_oversold:
                         adj -= rsi_lower_adjust
                     elif current_rsi >= rsi_upper:
                         adj += rsi_upper_adjust
-
-                # 波动率调整（默认：低波动→收紧；高波动→谨慎小幅放宽）
                 vol_cfg = dyn_cfg.get('volatility', {}) or {}
                 lookback = int(vol_cfg.get('lookback_mean', 60))
                 low_ratio = float(vol_cfg.get('low_ratio', 0.90))
                 high_ratio = float(vol_cfg.get('high_ratio', 1.10))
-                vol_low_adjust = float(vol_cfg.get('low_adjust', 0.015))   # 低波动：上调阈值
-                vol_high_adjust = float(vol_cfg.get('high_adjust', -0.010)) # 高波动：下调阈值（允许更宽松，但幅度更小）
-
+                vol_low_adjust = float(vol_cfg.get('low_adjust', 0.015))
+                vol_high_adjust = float(vol_cfg.get('high_adjust', -0.010))
                 if current_vol is not None and 'volatility' in training_data.columns and training_data['volatility'].notna().any():
                     vol_mean = float(training_data['volatility'].tail(lookback).mean()) if len(training_data) >= 1 else None
                     if vol_mean and vol_mean > 0:
@@ -333,32 +321,23 @@ def predict_and_validate(
                             adj += vol_low_adjust
                         elif vol_ratio >= high_ratio:
                             adj += vol_high_adjust
-
-                # 限幅并与基础阈值合成
                 if adj > max_adjust:
                     adj = max_adjust
                 if adj < -max_adjust:
                     adj = -max_adjust
                 used_threshold = float(final_threshold + adj)
-                # 物理边界（避免极端阈值）
                 used_threshold = max(0.10, min(0.90, used_threshold))
-
                 logger.info(f"动态阈值: base={final_threshold:.3f}, adj={adj:+.3f} -> used={used_threshold:.3f} (rsi={current_rsi if current_rsi is not None else 'N/A'}, vol={current_vol if current_vol is not None else 'N/A'})")
         except Exception as _e:
-            # 动态阈值失败时回退到基础阈值，确保稳健
             used_threshold = final_threshold
             logger.warning(f"动态阈值计算失败，回退到固定阈值: {final_threshold:.3f}，原因: {_e}")
 
-        # 使用融合后的final_confidence进行门控（固定阈值）
-        is_predicted_low_point = fused_final_confidence >= used_threshold
-        confidence = strategy_confidence  # 保留策略置信度作为基础显示
-        final_confidence = fused_final_confidence
+        confidence = ai_confidence
+        is_predicted_low_point = confidence >= used_threshold
 
         logger.info(f"AI预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if ai_is_predicted_low_point else '否'} 相对低点，AI置信度: {ai_confidence:.2f}")
         logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点，策略置信度: {strategy_confidence:.2f}")
-        # 详细融合日志：显示各自贡献与权重
-        logger.info(f"融合细节: AI贡献={ai_final_confidence:.4f}×{ai_w:.2f}={(ai_final_confidence*ai_w):.4f}, 策略贡献={strategy_confidence:.4f}×{stg_w:.2f}={(strategy_confidence*stg_w):.4f}, 归一化分母={denom:.2f}")
-        logger.info(f"融合结果: ai_weight={ai_w:.2f}, strategy_weight={stg_w:.2f}, final_confidence={final_confidence:.2f}, 阈值={used_threshold:.2f} → 预测{'是' if is_predicted_low_point else '否'}相对低点")
+        logger.info(f"决策: used_threshold={used_threshold:.2f}，最终判断 → {'是' if is_predicted_low_point else '否'} 相对低点")
 
         # 5. 验证预测结果
         # 统一读取策略参数自 config['strategy']，若无则回退到 default_strategy
@@ -385,7 +364,6 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -403,7 +381,6 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -420,7 +397,6 @@ def predict_and_validate(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -453,11 +429,14 @@ def predict_and_validate(
             predicted_low_point=is_predicted_low_point,
             actual_low_point=actual_is_low_point,
             confidence=confidence,
-            final_confidence=final_confidence,
             future_max_rise=max_rise,
             days_to_rise=days_to_rise,
             prediction_correct=is_predicted_low_point == actual_is_low_point,
-            predict_price=predict_price
+            predict_price=predict_price,
+            used_threshold=used_threshold if 'used_threshold' in locals() else None,
+            adj=adj if 'adj' in locals() else None,
+            strategy_reasons=strategy_reasons,
+            strategy_indicators=strategy_indicators
         )
 
     except Exception as e:
@@ -469,9 +448,10 @@ def predict_and_validate(
             predicted_low_point=None,
             actual_low_point=None,
             confidence=None,
-            final_confidence=None,
             future_max_rise=None,
             days_to_rise=None,
             prediction_correct=None,
-            predict_price=None
+            predict_price=None,
+            used_threshold=None,
+            adj=None
         )

@@ -79,6 +79,7 @@ class StrategyModule:
             is_low_point = False
             confidence = 0.0
             reasons = []
+            trend_regime = 'sideways'
             
             # 从配置文件获取置信度权重
             strategy_config = self.config.get('strategy', {})
@@ -229,6 +230,16 @@ class StrategyModule:
                 slope_long = np.polyfit(x_long, y_long, 1)[0]
                 trend_strength_long = abs(slope_long) / y_long.mean()
 
+                # 简单趋势判别：结合斜率方向与价格相对MA20位置
+                price_above_ma20 = ma20 is not None and latest_price >= ma20
+                price_below_ma20 = ma20 is not None and latest_price < ma20
+                if slope_long > 0 and price_above_ma20:
+                    trend_regime = 'bull'
+                elif slope_long < 0 and price_below_ma20:
+                    trend_regime = 'bear'
+                else:
+                    trend_regime = 'sideways'
+
                 if trend_strength_long > 0.01:
                     if slope_long > 0:
                         # 上升趋势中不给惩罚，避免与相对低点冲突，仅轻微降低置信度
@@ -240,6 +251,49 @@ class StrategyModule:
                 elif trend_strength_long < 0.002:
                     confidence += trend_strength_weight * 0.8
                     reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.8:.3f})")
+
+            # 🟢 多头趋势的回撤买点识别（与原有相对低点逻辑兼容，可作为加分项）
+            if trend_regime == 'bull':
+                try:
+                    up_ma_support_w = confidence_config.get('uptrend_ma_support', 0.3)
+                    up_pullback_w = confidence_config.get('uptrend_pullback_bonus', 0.3)
+                    up_vol_pullback_w = confidence_config.get('uptrend_volume_pullback', 0.2)
+                    rsi_min = confidence_config.get('rsi_uptrend_min', 30)
+                    rsi_max = confidence_config.get('rsi_uptrend_max', 80)
+                    rsi_pb_th = confidence_config.get('rsi_pullback_threshold', 3)
+
+                    ma_support = False
+                    if ma10 is not None and ma20 is not None:
+                        ma_support = (ma10 >= ma20) and (latest_price >= ma20)
+                    elif ma20 is not None:
+                        ma_support = latest_price >= ma20
+
+                    if ma_support:
+                        confidence += up_ma_support_w
+                        reasons.append("多头趋势: 均线支撑(MA10≥MA20且价在MA20上方)")
+
+                    # RSI健康区间内的回撤
+                    rsi_valid = rsi is not None and not pd.isna(rsi)
+                    rsi_prev = None
+                    if 'rsi' in data.columns and len(data) >= 2:
+                        rsi_prev = data['rsi'].iloc[-2]
+                    rsi_prev_valid = rsi_prev is not None and not pd.isna(rsi_prev)
+
+                    if rsi_valid and rsi_prev_valid:
+                        rsi_in_trend = (rsi_min <= rsi <= rsi_max)
+                        rsi_drop_ok = (rsi_prev - rsi) >= rsi_pb_th
+                        if rsi_in_trend and rsi_drop_ok:
+                            confidence += up_pullback_w
+                            reasons.append(f"多头趋势: RSI健康回撤({rsi_prev:.1f}→{rsi:.1f}, -{(rsi_prev - rsi):.1f})")
+
+                    # 回撤期缩量更优
+                    vol_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else None
+                    if vol_ratio is not None and pd.notna(vol_ratio) and vol_ratio < 1.0:
+                        confidence += up_vol_pullback_w
+                        reasons.append(f"多头趋势: 回撤缩量(量比{vol_ratio:.2f})")
+                except Exception as _e:
+                    # 保守处理，出现异常不影响主流程
+                    pass
             
             # 🆕 动态置信度调整：多信号共振时额外加分
             dynamic_adj_weight = confidence_config.get('dynamic_confidence_adjustment', 0.15)
@@ -299,7 +353,8 @@ class StrategyModule:
                     'ma20': ma20,
                     'rsi': rsi,
                     'macd': macd,
-                    'bb_lower': bb_lower
+                    'bb_lower': bb_lower,
+                    'trend_regime': trend_regime
                 }
             }
             

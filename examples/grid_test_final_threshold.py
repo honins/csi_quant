@@ -37,12 +37,15 @@ def create_temp_config(base_config_dir: str, final_threshold: float) -> str:
     temp_fd, temp_config_path = tempfile.mkstemp(suffix='.yaml', prefix='grid_test_')
     
     try:
-        # 只覆盖 final_threshold，其他配置保持不变
+        # 只覆盖 final_threshold，其他配置保持不变；可选关闭动态阈值
+        disable_dynamic = os.environ.get('GRID_DISABLE_DYNAMIC', '1') == '1'
         temp_config = {
             'confidence_weights': {
                 'final_threshold': final_threshold
             }
         }
+        if disable_dynamic:
+            temp_config['confidence_weights']['dynamic_threshold'] = {'enabled': False}
         
         # 写入临时配置文件
         with open(temp_config_path, 'w', encoding='utf-8') as f:
@@ -99,7 +102,7 @@ def run_grid_test(start_date: str, end_date: str, threshold_values: list):
             from examples.run_rolling_backtest import run_rolling_backtest_with_return
             
             # 运行回测并直接获取结果（禁用报告生成，避免大量文件）
-            backtest_result = run_rolling_backtest_with_return(start_date, end_date, generate_report=False)
+            backtest_result = run_rolling_backtest_with_return(start_date, end_date, generate_report=True)
             
             if backtest_result and 'metrics' in backtest_result:
                 metrics = backtest_result['metrics']

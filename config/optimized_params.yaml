@@ -1,17 +1,17 @@
 metadata:
-  last_updated: '2025-08-24 00:53:17'
+  last_updated: '2025-08-24 22:22:57'
   optimization_version: v2.2_sharpe_optimized
-  total_params: 23
-  description: 夏普比率优化参数配置 - 专注夏普比率最大化
+  total_params: 22
+  description: 
   method: genetic_algorithm
-  timestamp: '2025-08-24T00:53:17.004456'
-  param_count: 23
+  timestamp: '2025-08-24T22:22:57.051078'
+  param_count: 22
   optimization_target: sharpe_ratio_maximization
 strategy_params:
   rise_threshold: 0.04
   max_days: 20
 confidence_weights:
-  final_threshold: 0.55
+  final_threshold: 0.50
   ai_weight: 0.5
   strategy_weight: 0.5
   ma_all_below: 0.4
@@ -24,27 +24,27 @@ confidence_weights:
   rsi_moderate_threshold: 50
   base_confidence_ratio: 0.6
   min_base_confidence: 0.1
-  rsi_oversold_threshold: 33
-  rsi_low_threshold: 40
-  dynamic_confidence_adjustment: 0.25
-  market_sentiment_weight: 0.25
-  trend_strength_weight: 0.25
+  rsi_oversold_threshold: 34
+  rsi_low_threshold: 50
+  dynamic_confidence_adjustment: 0.2215
+  market_sentiment_weight: 0.237
+  trend_strength_weight: 0.2032
 technical_indicators:
-  price_decline_threshold: -0.03
-  rsi_oversold_threshold: 33
-  rsi_low_threshold: 40
+  price_decline_threshold: -0.01
+  rsi_oversold_threshold: 34
+  rsi_low_threshold: 50
   macd_negative_threshold: -0.01
   macd_weak_negative_threshold: 0.005
   bb_near_threshold: 1.02
 volume_params:
-  volume_panic_bonus: 0.08
-  volume_surge_bonus: 0.15
-  volume_shrink_penalty: 0.5
+  volume_panic_bonus: 0.1448
+  volume_surge_bonus: 0.056
+  volume_shrink_penalty: 0.5926
   volume_panic_threshold: 1.5
 market_params:
-  market_sentiment_weight: 0.25
-  trend_strength_weight: 0.25
-  dynamic_confidence_adjustment: 0.25
+  market_sentiment_weight: 0.237
+  trend_strength_weight: 0.2032
+  dynamic_confidence_adjustment: 0.2215
   price_momentum_weight: 0.2
 strategy_level_params:
   volume_weight: 0.3
@@ -67,7 +67,7 @@ default_strategy:
   rise_threshold: 0.04
   max_days: 20
   confidence_weights:
-    final_threshold: 0.55
+    final_threshold: 0.50
     rsi_oversold_threshold: 40
     rsi_low_threshold: 45
     dynamic_confidence_adjustment: 0.2
