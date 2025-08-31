@@ -1,1 +1,1 @@
-D:\repo\csi_quant\models\improved_model_20250831_184959.pkl
+D:\repo\csi_quant\models\improved_model_20250901_015740.pkl

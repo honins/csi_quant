@@ -1,0 +1,68 @@
+{
+  "timestamp": "20250901_001112",
+  "prediction_date": "2025-07-31",
+  "prediction_time": "2025-09-01T00:11:12.064188",
+  "model_info": {
+    "model_file": "improved_model_20250831_184959.pkl",
+    "model_age_hours": 0,
+    "feature_count": 19,
+    "model_type": "RandomForestClassifier"
+  },
+  "market_data": {
+    "close_price": "6226.34",
+    "price_change": "-1.40%",
+    "volume_change": "5.70%",
+    "volatility": "0.0244"
+  },
+  "technical_indicators": {
+    "rsi": "69.46",
+    "rsi_status": "[偏强]",
+    "macd": "120.0830",
+    "signal": "111.2695",
+    "hist": "8.8135",
+    "macd_trend": "[金叉趋势]",
+    "bb_upper": "6417.84",
+    "bb_lower": "5819.89",
+    "bb_position": "67.97%",
+    "bb_status": "[偏强区域]"
+  },
+  "prediction_results": {
+    "is_predicted_low_point": true,
+    "confidence": 0.7614520582091988,
+    "actual_low_point": "True",
+    "prediction_correct": "True",
+    "future_max_rise": 0.13131287498937982,
+    "days_to_rise": "9",
+    "predict_price": 6226.343
+  },
+  "model_analysis": {
+    "model_file": "improved_model_20250831_184959.pkl",
+    "feature_importance": {
+      "dist_ma10": 0.18943166527642627,
+      "price_change_5d": 0.12995087028338617,
+      "dist_ma5": 0.11609941428870398,
+      "dist_ma20": 0.10941417302757539,
+      "macd": 0.05514133284943223,
+      "price_change_10d": 0.0495331471958047,
+      "rsi": 0.049421565498918255,
+      "trend_strength_20": 0.04583637869895224,
+      "hist": 0.03677919896679742,
+      "signal": 0.0365640832107369,
+      "ma60": 0.02876230644044464,
+      "trend_strength_60": 0.024954299073835232,
+      "bb_upper": 0.021804895454542082,
+      "ma5": 0.02105341293920767,
+      "bb_lower": 0.02068581574188352,
+      "ma10": 0.019837390479478422,
+      "ma20": 0.01823147295726092,
+      "volume_trend": 0.01606573278011143,
+      "volume_strength": 0.010432844836502475
+    },
+    "model_type": "RandomForestClassifier",
+    "feature_count": 19,
+    "prediction_proba": [
+      0.23854794179080113,
+      0.7614520582091988
+    ]
+  }
+}

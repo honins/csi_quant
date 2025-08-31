@@ -88,15 +88,19 @@ class StrategyModule:
             self._hs300_data_loaded = True
             return self._hs300_data
     
-    def _get_hs300_ma_condition(self, current_date: str) -> bool:
+    def _get_hs300_ma_condition(self, current_date: str, mode: str = 'strict') -> bool:
         """
-        检查沪深300在指定日期是否满足MA(5) > MA(20) > MA(60)条件
+        检查沪深300在指定日期是否满足牛市条件
         
         参数:
         current_date: 当前日期字符串
+        mode: 判断模式
+            - 'strict': MA(5) > MA(20) > MA(60) 严格多头排列
+            - 'moderate': Close > MA(60) 且 MA(20) > MA(60) 中等条件
+            - 'with_volume': moderate条件 + 成交量确认
         
         返回:
-        bool: 是否满足多头排列条件
+        bool: 是否满足牛市条件
         """
         try:
             hs300_data = self._load_hs300_data()
@@ -117,25 +121,59 @@ class StrategyModule:
                 self.logger.warning("沪深300数据日期差异过大: %d天", closest_row['date_diff'].days)
                 return False
             
+            close = closest_row.get('close')
             ma5 = closest_row.get('ma5')
             ma20 = closest_row.get('ma20')
             ma60 = closest_row.get('ma60')
+            volume = closest_row.get('volume')
             
-            # 检查是否有空值
-            if pd.isna(ma5) or pd.isna(ma20) or pd.isna(ma60):
+            # 检查基础数据是否有空值
+            if pd.isna(close) or pd.isna(ma20) or pd.isna(ma60):
                 return False
             
-            # 检查多头排列条件: MA(5) > MA(20) > MA(60)
-            condition_met = ma5 > ma20 > ma60
+            condition_met = False
+            condition_desc = ""
+            
+            if mode == 'strict':
+                # 严格多头排列: MA(5) > MA(20) > MA(60)
+                if pd.isna(ma5):
+                    return False
+                condition_met = ma5 > ma20 > ma60
+                condition_desc = f"严格多头排列: MA5={ma5:.2f} > MA20={ma20:.2f} > MA60={ma60:.2f}"
+                
+            elif mode == 'moderate':
+                # 中等条件: Close > MA(60) 且 MA(20) > MA(60)
+                condition_met = close > ma60 and ma20 > ma60
+                condition_desc = f"中等牛市条件: Close={close:.2f} > MA60={ma60:.2f} 且 MA20={ma20:.2f} > MA60={ma60:.2f}"
+                
+            elif mode == 'with_volume':
+                # 中等条件 + 成交量确认
+                basic_condition = close > ma60 and ma20 > ma60
+                
+                # 计算成交量移动平均线
+                volume_condition = False
+                if not pd.isna(volume):
+                    # 获取最近60天数据计算成交量均线
+                    recent_data = hs300_data[hs300_data['date'] <= current_date_dt].tail(60)
+                    if len(recent_data) >= 40:  # 至少需要40天数据
+                        vol_ma20 = recent_data['volume'].tail(20).mean()
+                        vol_ma60 = recent_data['volume'].mean()
+                        volume_condition = vol_ma20 > vol_ma60
+                        condition_desc = f"牛市+成交量: Close={close:.2f} > MA60={ma60:.2f}, MA20={ma20:.2f} > MA60={ma60:.2f}, Vol_MA20 > Vol_MA60"
+                    else:
+                        condition_desc = f"成交量数据不足，仅使用价格条件: Close={close:.2f} > MA60={ma60:.2f}, MA20={ma20:.2f} > MA60={ma60:.2f}"
+                
+                condition_met = basic_condition and (volume_condition or len(recent_data) < 40)
             
             if condition_met:
-                self.logger.debug("沪深300多头排列条件满足: MA5=%.2f > MA20=%.2f > MA60=%.2f", 
-                                ma5, ma20, ma60)
+                self.logger.debug("沪深300牛市条件满足 [%s]: %s", mode, condition_desc)
+            else:
+                self.logger.debug("沪深300牛市条件不满足 [%s]: %s", mode, condition_desc)
             
             return condition_met
             
         except Exception as e:
-            self.logger.error("检查沪深300多头排列条件失败: %s", str(e))
+            self.logger.error("检查沪深300牛市条件失败 [%s]: %s", mode, str(e))
             return False
         
     def identify_relative_low(self, data: pd.DataFrame) -> Dict[str, Any]:
@@ -341,17 +379,29 @@ class StrategyModule:
                 else:
                     base_trend = 'sideways'
                 
-                # 增强牛市判断：添加沪深300多头排列条件
+                # 增强牛市判断：使用更宽松的沪深300条件
                 if base_trend == 'bull':
-                    # 检查沪深300是否满足MA(5) > MA(20) > MA(60)条件
-                    hs300_ma_condition = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'))
-                    if hs300_ma_condition:
+                    # 优先尝试带成交量验证的条件
+                    hs300_with_volume = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'with_volume')
+                    if hs300_with_volume:
                         trend_regime = 'bull'
-                        reasons.append("沪深300多头排列确认牛市")
+                        reasons.append("沪深300牛市+成交量确认")
                     else:
-                        # 如果沪深300不满足多头排列，降级为震荡
-                        trend_regime = 'sideways'
-                        reasons.append("沪深300未满足多头排列，牛市降级为震荡")
+                        # 尝试中等条件（不要求成交量）
+                        hs300_moderate = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'moderate')
+                        if hs300_moderate:
+                            trend_regime = 'bull'
+                            reasons.append("沪深300中等牛市条件确认")
+                        else:
+                            # 最后尝试严格条件
+                            hs300_strict = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'strict')
+                            if hs300_strict:
+                                trend_regime = 'bull'
+                                reasons.append("沪深300严格多头排列确认牛市")
+                            else:
+                                # 如果所有条件都不满足，降级为震荡
+                                trend_regime = 'sideways'
+                                reasons.append("沪深300未满足牛市条件，降级为震荡")
                 else:
                     trend_regime = base_trend
 
@@ -1122,17 +1172,29 @@ class StrategyModule:
                     base_trend = 'sideways'
                     reasons.append(f"震荡趋势")
                 
-                # 增强牛市判断：添加沪深300多头排列条件
+                # 增强牛市判断：使用更宽松的沪深300条件
                 if base_trend == 'bull':
-                    # 检查沪深300是否满足MA(5) > MA(20) > MA(60)条件
-                    hs300_ma_condition = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'))
-                    if hs300_ma_condition:
+                    # 优先尝试带成交量验证的条件
+                    hs300_with_volume = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'with_volume')
+                    if hs300_with_volume:
                         trend_regime = 'bull'
-                        reasons.append("沪深300多头排列确认牛市")
+                        reasons.append("沪深300牛市+成交量确认")
                     else:
-                        # 如果沪深300不满足多头排列，降级为震荡
-                        trend_regime = 'sideways'
-                        reasons.append("沪深300未满足多头排列，牛市降级为震荡")
+                        # 尝试中等条件（不要求成交量）
+                        hs300_moderate = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'moderate')
+                        if hs300_moderate:
+                            trend_regime = 'bull'
+                            reasons.append("沪深300中等牛市条件确认")
+                        else:
+                            # 最后尝试严格条件
+                            hs300_strict = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'strict')
+                            if hs300_strict:
+                                trend_regime = 'bull'
+                                reasons.append("沪深300严格多头排列确认牛市")
+                            else:
+                                # 如果所有条件都不满足，降级为震荡
+                                trend_regime = 'sideways'
+                                reasons.append("沪深300未满足牛市条件，降级为震荡")
                 else:
                     trend_regime = base_trend
             else:

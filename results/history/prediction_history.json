@@ -1,0 +1,42 @@
+[
+  {
+    "date": "2025-08-29",
+    "timestamp": "20250901_004336",
+    "prediction_time": "2025-09-01T00:43:36.375389",
+    "predicted_low_point": false,
+    "confidence": 0.22794471254793702,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "model_file": "improved_model_20250901_001544.pkl"
+  },
+  {
+    "date": "2025-07-31",
+    "timestamp": "20250901_001112",
+    "prediction_time": "2025-09-01T00:11:12.064188",
+    "predicted_low_point": true,
+    "confidence": 0.7614520582091988,
+    "actual_low_point": "True",
+    "prediction_correct": "True",
+    "model_file": "improved_model_20250831_184959.pkl"
+  },
+  {
+    "date": "2025-06-05",
+    "timestamp": "20250901_001140",
+    "prediction_time": "2025-09-01T00:11:40.378914",
+    "predicted_low_point": false,
+    "confidence": 0.11306060182230451,
+    "actual_low_point": "False",
+    "prediction_correct": "True",
+    "model_file": "improved_model_20250831_184959.pkl"
+  },
+  {
+    "date": "2025-06-03",
+    "timestamp": "20250901_001125",
+    "prediction_time": "2025-09-01T00:11:25.981226",
+    "predicted_low_point": false,
+    "confidence": 0.48646627757625077,
+    "actual_low_point": "True",
+    "prediction_correct": "False",
+    "model_file": "improved_model_20250831_184959.pkl"
+  }
+]
