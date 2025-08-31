@@ -146,6 +146,27 @@ def save_prediction_results(prediction_result, predict_date_str, config, market_
             
             # 详细分析章节
             if detailed_analysis:
+                # 趋势分析
+                if detailed_analysis.get('trend_analysis'):
+                    f.write("## 📈 趋势判断分析\n\n")
+                    trend_analysis = detailed_analysis['trend_analysis']
+                    trend_regime = trend_analysis.get('trend_regime', 'unknown')
+                    trend_reasons = trend_analysis.get('reasons', [])
+                    
+                    # 趋势状态映射
+                    trend_status_map = {
+                        'bull': '🐂 牛市',
+                        'bear': '🐻 熊市', 
+                        'sideways': '📊 震荡',
+                        'unknown': '❓ 未知'
+                    }
+                    trend_display = trend_status_map.get(trend_regime, f'❓ {trend_regime}')
+                    
+                    f.write(f"- **当前趋势**: {trend_display}\n")
+                    if trend_reasons:
+                        f.write(f"- **判断依据**: {'; '.join(trend_reasons)}\n")
+                    f.write("\n")
+                
                 # 均线分析
                 if detailed_analysis.get('ma_analysis'):
                     f.write("## 📊 均线详细分析\n\n")
@@ -522,6 +543,31 @@ def predict_with_trained_model(
         logger.info(f"   MA20: {ma20:.2f} (距离: {((close_price - ma20) / ma20 * 100):+.2f}%)")
         logger.info(f"   MA60: {ma60:.2f} (距离: {((close_price - ma60) / ma60 * 100):+.2f}%)")
         
+        # 趋势判断分析（包含沪深300多头排列条件）
+        try:
+            trend_result = strategy_module.analyze_trend_regime(prediction_data)
+            trend_regime = trend_result.get('trend_regime', 'unknown')
+            trend_reasons = trend_result.get('reasons', [])
+            
+            logger.info(f"\n📈 趋势判断分析:")
+            logger.info(f"   当前趋势: {trend_regime}")
+            if trend_reasons:
+                logger.info(f"   判断依据: {'; '.join(trend_reasons)}")
+            
+            # 收集趋势分析数据
+            trend_analysis = {
+                'trend_regime': trend_regime,
+                'reasons': trend_reasons
+            }
+            detailed_analysis['trend_analysis'] = trend_analysis
+            
+        except Exception as e:
+            logger.warning(f"趋势判断分析失败: {str(e)}")
+            detailed_analysis['trend_analysis'] = {
+                'trend_regime': 'unknown',
+                'reasons': ['趋势判断失败']
+            }
+        
         # 布林带分析
         bb_upper = current_row.get('bb_upper', 0)
         bb_lower = current_row.get('bb_lower', 0)
@@ -720,8 +766,8 @@ def predict_with_trained_model(
         logger.info("📊 历史验证分析")
         logger.info("="*80)
         
-        end_date_for_validation = predict_date + timedelta(days=config["default_strategy"]["max_days"] + 10)
-        start_date_for_validation = predict_date - timedelta(days=config["default_strategy"]["max_days"] + 10)
+        end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
+        start_date_for_validation = predict_date - timedelta(days=config["strategy"]["max_days"] + 10)
         
         validation_data = data_module.get_history_data(
             start_date=start_date_for_validation.strftime('%Y-%m-%d'),
@@ -734,7 +780,6 @@ def predict_with_trained_model(
                 date=predict_date,
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
-                confidence=confidence,
                 confidence=confidence,
                 future_max_rise=None,
                 days_to_rise=None,
@@ -766,7 +811,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -796,7 +840,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -820,8 +863,8 @@ def predict_with_trained_model(
         predict_index = predict_date_data.iloc[0]['index']
         max_rise = 0.0
         days_to_rise = 0
-        rise_threshold = config["default_strategy"]["rise_threshold"]
-        max_days = config["default_strategy"]["max_days"]
+        rise_threshold = config["strategy"]["rise_threshold"]
+        max_days = config["strategy"]["max_days"]
         
         logger.info(f"📈 未来{max_days}天表现追踪:")
         logger.info(f"   预测日价格: {predict_price:.2f}")

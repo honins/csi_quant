@@ -71,24 +71,25 @@ class QuantSystemCommands:
         # 单日预测命令
         self.processor.register_command(
             name='predict',
-            aliases=['s'],
+            aliases=['p'],
             description='单日预测功能',
             handler=self.run_single_prediction,
             require_config=True,
             args_spec=[
-                {'name': 'params', 'type': list, 'required': True}
+                {'name': 'date', 'type': str, 'required': False}
             ]
         )
         
         # 滚动回测命令
         self.processor.register_command(
             name='backtest',
-            aliases=['r'],
+            aliases=['bt'],
             description='运行滚动回测',
             handler=self.run_rolling_backtest,
             require_config=True,
             args_spec=[
-                {'name': 'params', 'type': list, 'required': True}
+                {'name': 'start_date', 'type': str, 'required': False},
+                {'name': 'end_date', 'type': str, 'required': False}
             ]
         )
         
@@ -327,10 +328,13 @@ class QuantSystemCommands:
     
     def run_single_prediction(self, args, config):
         """运行单日预测"""
-        if not args.params:
-            return "❌ 请提供预测日期，格式: YYYY-MM-DD"
-        
-        predict_date = args.params[0]
+        # 获取日期参数
+        if hasattr(args, 'date') and args.date:
+            predict_date = args.date
+        else:
+            # 使用最新交易日
+            from src.utils.common import TimeUtils
+            predict_date = TimeUtils.get_latest_trading_day().strftime('%Y-%m-%d')
         
         # 验证日期格式
         from src.utils.common import DataValidator
@@ -360,11 +364,16 @@ class QuantSystemCommands:
     
     def run_rolling_backtest(self, args, config):
         """运行滚动回测"""
-        if len(args.params) < 2:
-            return "❌ 请提供开始和结束日期，格式: YYYY-MM-DD YYYY-MM-DD"
-        
-        start_date = args.params[0]
-        end_date = args.params[1]
+        # 获取日期参数
+        if hasattr(args, 'start_date') and args.start_date:
+            start_date = args.start_date
+        else:
+            return "❌ 请提供开始日期，使用 -s 或 --start-date 参数"
+            
+        if hasattr(args, 'end_date') and args.end_date:
+            end_date = args.end_date
+        else:
+            return "❌ 请提供结束日期，使用 -e 或 --end-date 参数"
         
         # 验证日期格式和范围
         from src.utils.common import DataValidator

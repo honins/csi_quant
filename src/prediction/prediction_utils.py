@@ -26,7 +26,6 @@ class PredictionResult:
     predict_price: Optional[float]
     # 新增：用于诊断导出的阈值信息
     used_threshold: Optional[float] = None
-    adj: Optional[float] = None
     # 新增：策略明细（原因与关键指标）
     strategy_reasons: Optional[List[str]] = None
     strategy_indicators: Optional[Dict[str, Any]] = None
@@ -88,8 +87,7 @@ def predict_and_validate(
                 days_to_rise=None,
                 prediction_correct=None,
                 predict_price=None,
-                used_threshold=None,
-                adj=None
+                used_threshold=None
             )
 
         # 预处理数据
@@ -280,57 +278,11 @@ def predict_and_validate(
         strategy_indicators = strategy_prediction_result.get("technical_indicators")
 
         # === 仅使用AI置信度进行门控 ===
-        # 门槛读取：从配置读取固定阈值，并结合谨慎型动态调整（如开启）
+        # 使用固定阈值，不进行任何动态调整，尊重市场
         final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
         used_threshold = final_threshold
-        try:
-            dyn_top = (config.get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_cfg = dyn_top if dyn_top else (dyn_stg if dyn_stg else dyn_def)
-            enabled = dyn_cfg.get('enabled', True)
-            if enabled:
-                max_adjust = float(dyn_cfg.get('max_adjust', 0.03))
-                latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
-                current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
-                current_vol = float(latest_row.get('volatility')) if (latest_row is not None and 'volatility' in latest_row and not pd.isna(latest_row.get('volatility'))) else None
-                adj = 0.0
-                rsi_cfg = dyn_cfg.get('rsi', {}) or {}
-                conf_top = config.get('confidence_weights', {}) or {}
-                oversold_base = conf_top.get('rsi_oversold_threshold', 30)
-                rsi_oversold = float(rsi_cfg.get('oversold', oversold_base))
-                rsi_upper = float(rsi_cfg.get('upper', 65))
-                rsi_lower_adjust = float(rsi_cfg.get('lower_adjust', 0.015))
-                rsi_upper_adjust = float(rsi_cfg.get('upper_adjust', 0.015))
-                if current_rsi is not None:
-                    if current_rsi <= rsi_oversold:
-                        adj -= rsi_lower_adjust
-                    elif current_rsi >= rsi_upper:
-                        adj += rsi_upper_adjust
-                vol_cfg = dyn_cfg.get('volatility', {}) or {}
-                lookback = int(vol_cfg.get('lookback_mean', 60))
-                low_ratio = float(vol_cfg.get('low_ratio', 0.90))
-                high_ratio = float(vol_cfg.get('high_ratio', 1.10))
-                vol_low_adjust = float(vol_cfg.get('low_adjust', 0.015))
-                vol_high_adjust = float(vol_cfg.get('high_adjust', -0.010))
-                if current_vol is not None and 'volatility' in training_data.columns and training_data['volatility'].notna().any():
-                    vol_mean = float(training_data['volatility'].tail(lookback).mean()) if len(training_data) >= 1 else None
-                    if vol_mean and vol_mean > 0:
-                        vol_ratio = current_vol / vol_mean
-                        if vol_ratio <= low_ratio:
-                            adj += vol_low_adjust
-                        elif vol_ratio >= high_ratio:
-                            adj += vol_high_adjust
-                if adj > max_adjust:
-                    adj = max_adjust
-                if adj < -max_adjust:
-                    adj = -max_adjust
-                used_threshold = float(final_threshold + adj)
-                used_threshold = max(0.10, min(0.90, used_threshold))
-                logger.info(f"动态阈值: base={final_threshold:.3f}, adj={adj:+.3f} -> used={used_threshold:.3f} (rsi={current_rsi if current_rsi is not None else 'N/A'}, vol={current_vol if current_vol is not None else 'N/A'})")
-        except Exception as _e:
-            used_threshold = final_threshold
-            logger.warning(f"动态阈值计算失败，回退到固定阈值: {final_threshold:.3f}，原因: {_e}")
+        
+        logger.info(f"使用固定阈值: {final_threshold:.3f} (无动态调整)")
 
         confidence = ai_confidence
         is_predicted_low_point = confidence >= used_threshold
@@ -434,7 +386,6 @@ def predict_and_validate(
             prediction_correct=is_predicted_low_point == actual_is_low_point,
             predict_price=predict_price,
             used_threshold=used_threshold if 'used_threshold' in locals() else None,
-            adj=adj if 'adj' in locals() else None,
             strategy_reasons=strategy_reasons,
             strategy_indicators=strategy_indicators
         )
@@ -452,6 +403,5 @@ def predict_and_validate(
             days_to_rise=None,
             prediction_correct=None,
             predict_price=None,
-            used_threshold=None,
-            adj=None
+            used_threshold=None
         )

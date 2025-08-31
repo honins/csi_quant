@@ -250,6 +250,25 @@ class CommandProcessor:
             help='迭代次数'
         )
         
+        # 日期相关参数
+        parser.add_argument(
+            '-d', '--date',
+            type=str,
+            help='指定日期 (格式: YYYY-MM-DD)，用于单日预测'
+        )
+        
+        parser.add_argument(
+            '-s', '--start-date',
+            type=str,
+            help='开始日期 (格式: YYYY-MM-DD)，用于回测'
+        )
+        
+        parser.add_argument(
+            '-e', '--end-date',
+            type=str,
+            help='结束日期 (格式: YYYY-MM-DD)，用于回测'
+        )
+        
         return parser.parse_args(args)
     
     def validate_arguments(self, command: str, args: argparse.Namespace) -> Tuple[bool, List[str]]:
@@ -293,17 +312,37 @@ class CommandProcessor:
                     errors.append(f"参数 {arg_name} 类型错误，期望 {arg_type.__name__}")
         
         # 改进的日期格式验证
-        for param in args.params:
-            if re.match(r'\d{4}-\d{2}-\d{2}', param):
-                if not DataValidator.validate_date_format(param):
-                    errors.append(f"无效的日期格式: {param}")
+        if hasattr(args, 'params') and args.params:
+            for param in args.params:
+                if re.match(r'\d{4}-\d{2}-\d{2}', param):
+                    if not DataValidator.validate_date_format(param):
+                        errors.append(f"无效的日期格式: {param}")
         
-        # 验证日期范围（如果有两个日期参数）
-        date_params = [p for p in args.params if re.match(r'\d{4}-\d{2}-\d{2}', p)]
-        if len(date_params) >= 2:
-            valid, error_msg = DataValidator.validate_date_range(date_params[0], date_params[1])
-            if not valid:
-                errors.append(error_msg)
+        # 验证新的日期参数
+        if hasattr(args, 'date') and args.date:
+            if not DataValidator.validate_date_format(args.date):
+                errors.append(f"无效的日期格式: {args.date}")
+                
+        if hasattr(args, 'start_date') and args.start_date:
+            if not DataValidator.validate_date_format(args.start_date):
+                errors.append(f"无效的开始日期格式: {args.start_date}")
+                
+        if hasattr(args, 'end_date') and args.end_date:
+            if not DataValidator.validate_date_format(args.end_date):
+                errors.append(f"无效的结束日期格式: {args.end_date}")
+                
+        # 验证日期范围
+        if (hasattr(args, 'start_date') and args.start_date and 
+            hasattr(args, 'end_date') and args.end_date):
+            try:
+                start = datetime.strptime(args.start_date, '%Y-%m-%d')
+                end = datetime.strptime(args.end_date, '%Y-%m-%d')
+                if start >= end:
+                    errors.append("开始日期必须早于结束日期")
+            except ValueError:
+                pass  # 日期格式错误已在上面检查
+        
+
         
         return len(errors) == 0, errors
     
@@ -443,6 +482,9 @@ class CommandProcessor:
   python run.py config                  # 显示配置
   python run.py status                  # 显示系统状态
   python run.py basic --verbose         # 详细模式运行基础测试
+  python run.py predict -d 2024-12-30   # 预测指定日期
+  python run.py predict                 # 预测最新交易日
+  python run.py backtest -s 2025-07-01 -e 2025-07-31  # 回测指定时间范围
 
 💡 提示：
   - 使用虚拟环境运行项目
