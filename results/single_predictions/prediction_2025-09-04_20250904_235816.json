@@ -1,0 +1,68 @@
+{
+  "timestamp": "20250904_235816",
+  "prediction_date": "2025-09-04",
+  "prediction_time": "2025-09-04T23:58:16.363103",
+  "model_info": {
+    "model_file": "improved_model_20250901_015740.pkl",
+    "model_age_hours": 0,
+    "feature_count": 19,
+    "model_type": "RandomForestClassifier"
+  },
+  "market_data": {
+    "close_price": "6698.45",
+    "price_change": "-2.48%",
+    "volume_change": "4.35%",
+    "volatility": "0.0354"
+  },
+  "technical_indicators": {
+    "rsi": "55.28",
+    "rsi_status": "[中性]",
+    "macd": "170.2914",
+    "signal": "190.7023",
+    "hist": "-20.4109",
+    "macd_trend": "[死叉趋势]",
+    "bb_upper": "7210.99",
+    "bb_lower": "6258.11",
+    "bb_position": "46.21%",
+    "bb_status": "[中性区域]"
+  },
+  "prediction_results": {
+    "is_predicted_low_point": true,
+    "confidence": 0.927991571530178,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "future_max_rise": null,
+    "days_to_rise": null,
+    "predict_price": 6698.447
+  },
+  "model_analysis": {
+    "model_file": "improved_model_20250901_015740.pkl",
+    "feature_importance": {
+      "dist_ma10": 0.1868302343486921,
+      "price_change_5d": 0.12741947170812448,
+      "dist_ma5": 0.09506941925305562,
+      "dist_ma20": 0.07683788692884345,
+      "signal": 0.07633581696541131,
+      "hist": 0.06211841913596271,
+      "macd": 0.058607103376244064,
+      "rsi": 0.051012179512000266,
+      "trend_strength_20": 0.0472834671736674,
+      "price_change_10d": 0.03745891119949574,
+      "trend_strength_60": 0.03397496594478553,
+      "ma60": 0.025604343359981463,
+      "ma20": 0.02056396343112577,
+      "bb_lower": 0.020250596045892005,
+      "ma5": 0.019779712148726765,
+      "ma10": 0.017836891778708303,
+      "bb_upper": 0.015351407397704284,
+      "volume_trend": 0.015256361725842075,
+      "volume_strength": 0.0124088485657368
+    },
+    "model_type": "RandomForestClassifier",
+    "feature_count": 19,
+    "prediction_proba": [
+      0.07200842846982203,
+      0.927991571530178
+    ]
+  }
+}

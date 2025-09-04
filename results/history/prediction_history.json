@@ -1,5 +1,25 @@
 [
   {
+    "date": "2025-09-04",
+    "timestamp": "20250904_235816",
+    "prediction_time": "2025-09-04T23:58:16.363103",
+    "predicted_low_point": true,
+    "confidence": 0.927991571530178,
+    "actual_low_point": null,
+    "prediction_correct": null,
+    "model_file": "improved_model_20250901_015740.pkl"
+  },
+  {
+    "date": "2025-09-03",
+    "timestamp": "20250904_235737",
+    "prediction_time": "2025-09-04T23:57:37.224033",
+    "predicted_low_point": true,
+    "confidence": 0.7251647771258687,
+    "actual_low_point": false,
+    "prediction_correct": false,
+    "model_file": "improved_model_20250901_015740.pkl"
+  },
+  {
     "date": "2025-08-29",
     "timestamp": "20250901_004336",
     "prediction_time": "2025-09-01T00:43:36.375389",
