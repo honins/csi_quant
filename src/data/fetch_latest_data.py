@@ -111,7 +111,7 @@ class DataFetcher:
                 df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
             elif symbol == 'equal_weight':
                 # 全A等权指数 - 使用中证全指等权重指数(000985)作为替代
-                df = ak.stock_zh_index_daily(symbol="sh000985")
+                df = ak.stock_zh_index_daily_em(symbol="sh000985")
             else:
                 self.logger.error(f"不支持的指数代码: {symbol}")
                 return None
