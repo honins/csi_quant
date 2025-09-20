@@ -735,7 +735,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                confidence=confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,

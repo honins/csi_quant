@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 # plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
 # import matplotlib.dates as mdates
 import numpy as np
-from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss, log_loss
 # 新增：用于离线概率标定
 from sklearn.linear_model import LogisticRegression
