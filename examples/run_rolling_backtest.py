@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 # plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
 # import matplotlib.dates as mdates
 import numpy as np
-from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss, log_loss
 # 新增：用于离线概率标定
 from sklearn.linear_model import LogisticRegression
@@ -533,28 +532,6 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     for row in calib_compare:
                         report_lines.append(f"| {row['method']} | {row['brier']:.4f} | {row['logloss']:.4f} | {row['ece']:.4f} |")
                     report_lines.append("")
-                    # 可靠性分箱解释说明
-                    report_lines.append("### 可靠性分箱说明")
-                    report_lines.append("**可靠性分箱（Reliability Binning）**是评估概率预测校准程度的重要工具：")
-                    report_lines.append("")
-                    report_lines.append("**核心概念：**")
-                    report_lines.append("- 将所有预测样本按置信度分成10个等宽区间（如[0.0,0.1), [0.1,0.2), ..., [0.9,1.0]）")
-                    report_lines.append("- 对每个区间计算：平均置信度 vs 实际正确率")
-                    report_lines.append("- 理想情况下，两者应该相等（完美校准）")
-                    report_lines.append("")
-                    report_lines.append("**表格字段解释：**")
-                    report_lines.append("- **置信度区间**：该分箱覆盖的置信度范围")
-                    report_lines.append("- **样本数**：落在该区间的预测样本数量")
-                    report_lines.append("- **平均置信度**：该区间内所有样本的平均置信度")
-                    report_lines.append("- **实际比例**：该区间内实际为正类的样本比例")
-                    report_lines.append("- **绝对差**：|平均置信度 - 实际比例|，越小表示校准越好")
-                    report_lines.append("")
-                    report_lines.append("**如何解读：**")
-                    report_lines.append("- 绝对差接近0：该区间校准良好，置信度与实际准确率匹配")
-                    report_lines.append("- 绝对差较大：存在过度自信（置信度>实际比例）或过度保守（置信度<实际比例）")
-                    report_lines.append("- 样本数为0的区间：模型在该置信度范围内没有预测样本")
-                    report_lines.append("")
-                    
                     # 可靠性（分箱）表（仅展示每种方法的10个分箱）
                     for key, title in [( 'original','原始(Original)' ), ( 'platt','Platt(逻辑回归)' ), ( 'isotonic','Isotonic(保序回归)' )]:
                         bins_rows = calib_bins_map.get(key)
@@ -567,15 +544,17 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             report_lines.append("")
 
                 report_lines.append("## 每日预测明细")
-                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
-                report_lines.append("|------|----------|----------|--------|------------|----------|------|-------------|-------------|----------|")
+                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 调整(adj) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
+                report_lines.append("|------|----------|----------|--------|------------|------------|----------|------|-------------|-------------|----------|")
                 for dt, row in results_df.iterrows():
                     date_str = pd.to_datetime(dt).strftime('%Y-%m-%d') if not pd.isna(dt) else ''
                     predict_price = f"{row.get('predict_price', '')}"
                     predicted = "是" if row.get('predicted_low_point') else "否"
                     confidence = f"{row.get('confidence', 0):.2f}"
                     used_threshold = row.get('used_threshold')
+                    adj = row.get('adj')
                     used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
+                    adj_str = f"{float(adj):+.3f}" if adj is not None and not pd.isna(adj) else "N/A"
                     actual = "是" if row.get('actual_low_point') else "否"
                     # 新增：提取趋势状态
                     trend_str = ''
@@ -598,7 +577,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         actual = '数据不足'
                     if pd.isna(row.get('prediction_correct')):
                         prediction_correct = '数据不足'
-                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
+                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {adj_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
                 report_lines.append("")
 
                 # 新增：趋势分布与命中率（含震荡区间）

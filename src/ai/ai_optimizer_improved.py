@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, precision_recall_curve
 from typing import Dict, Any, Tuple, List, Optional
@@ -544,71 +543,6 @@ class AIOptimizerImproved:
             self.logger.info(f"✅ 模型训练完成 (耗时: {model_time:.2f}s)")
             self.logger.info("-" * 60)
 
-            # === 概率校准（Calibration）开始 ===
-            try:
-                calib_cfg = {}
-                if isinstance(self.config, dict):
-                    calib_cfg = (self.config.get('calibration')
-                                 or self.config.get('ai', {}).get('calibration')
-                                 or {})
-                calib_enabled = bool(calib_cfg.get('enabled', True))
-                calib_method = calib_cfg.get('method', 'isotonic')
-                calib_cv = calib_cfg.get('cv', 'prefit')
-                holdout_size = int(calib_cfg.get('holdout_size', max(30, int(len(features) * 0.2))))
-                holdout_size = min(holdout_size, 120)
-
-                if calib_enabled:
-                    self.logger.info("📏 启用概率校准: method=%s, cv=%s", calib_method, str(calib_cv))
-                    if calib_cv == 'prefit':
-                        if len(features) - holdout_size < 50:
-                            self.logger.warning("样本较少，prefit 留出集不足，自动退化为 cv=3")
-                            calib_cv = 3
-                        else:
-                            split_idx = len(features) - holdout_size
-                            X_train_base = features[:split_idx]
-                            y_train_base = labels[:split_idx]
-                            X_calib = features[split_idx:]
-                            y_calib = labels[split_idx:]
-                            w_train_base = sample_weights[:split_idx] if sample_weights is not None else None
-
-                            base_model = Pipeline([
-                                ('scaler', StandardScaler()),
-                                ('classifier', RandomForestClassifier(
-                                    n_estimators=100,
-                                    max_depth=8,
-                                    min_samples_split=15,
-                                    min_samples_leaf=8,
-                                    class_weight='balanced',
-                                    n_jobs=-1,
-                                    random_state=42,
-                                    verbose=1
-                                ))
-                            ])
-                            base_model.fit(X_train_base, y_train_base,
-                                           classifier__sample_weight=w_train_base)
-
-                            calibrated = CalibratedClassifierCV(
-                                estimator=base_model, method=calib_method, cv='prefit'
-                            )
-                            calibrated.fit(X_calib, y_calib)
-
-                            self.model = calibrated
-                            self.logger.info("✅ 概率校准完成（prefit + 留出集=%d）", len(X_calib))
-                    if isinstance(calib_cv, int) and calib_cv >= 2:
-                        calibrated = CalibratedClassifierCV(
-                            estimator=self.model, method=calib_method, cv=calib_cv
-                        )
-                        try:
-                            calibrated.fit(features, labels, sample_weight=sample_weights)
-                        except TypeError:
-                            self.logger.warning("CalibratedClassifierCV.fit 不支持 sample_weight，已回退为无权重拟合")
-                            calibrated.fit(features, labels)
-                        self.model = calibrated
-                        self.logger.info("✅ 概率校准完成（%d 折CV）", calib_cv)
-            except Exception as e_calib:
-                self.logger.warning(f"概率校准阶段出现问题，已跳过校准: {e_calib}")
-            # === 概率校准结束 ===
-
             # 步骤5: 模型保存
             self.logger.info("💾 步骤5: 模型保存...")
             save_start_time = time.time()
@@ -728,18 +662,11 @@ class AIOptimizerImproved:
             # 基于原始置信度和配置阈值进行预测
             is_low_point = final_confidence >= final_threshold
 
-            # 安全获取模型类型（兼容 Pipeline 或 CalibratedClassifierCV）
+            # 获取模型类型
             model_type = type(self.model).__name__
             try:
                 if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
                     model_type = type(self.model.named_steps['classifier']).__name__
-                else:
-                    base_est = getattr(self.model, 'base_estimator', getattr(self.model, 'estimator', None))
-                    if base_est is not None:
-                        if hasattr(base_est, 'named_steps') and 'classifier' in getattr(base_est, 'named_steps', {}):
-                            model_type = type(base_est.named_steps['classifier']).__name__
-                        else:
-                            model_type = type(base_est).__name__
             except Exception:
                 pass
 
@@ -952,13 +879,8 @@ class AIOptimizerImproved:
                 self.logger.error("特征名称未设置，无法获取特征重要性")
                 return {}
 
-            # 兼容 CalibratedClassifierCV，优先提取底层基学习器
-            model_obj = self.model
-            base_est = getattr(model_obj, 'base_estimator', getattr(model_obj, 'estimator', None))
-            if base_est is not None:
-                model_obj = base_est
-
             # 从Pipeline中获取分类器
+            model_obj = self.model
             if hasattr(model_obj, 'named_steps') and 'classifier' in getattr(model_obj, 'named_steps', {}):
                 classifier = model_obj.named_steps['classifier']
             else:

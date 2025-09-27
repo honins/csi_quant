@@ -80,15 +80,15 @@ class DataFetcher:
         获取指数数据
         
         参数:
-        symbol: 指数代码 (如 '000300', '000852', '000905', 'equal_weight')
-        start_date: 开始日期 (YYYY-MM-DD)，默认为2015年1月1日
+        symbol: 指数代码 (如 '000852', '000905')
+        start_date: 开始日期 (YYYY-MM-DD)，默认为一年前
         end_date: 结束日期 (YYYY-MM-DD)，默认为今天
         
         返回:
         pandas.DataFrame: 指数数据
         """
         if start_date is None:
-            start_date = '2015-01-01'  # 从2015年开始获取数据
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
             
@@ -96,22 +96,14 @@ class DataFetcher:
         
         try:
             # 使用akshare获取指数数据
-            # 000300: 沪深300指数
             # 000852: 中证1000指数
             # 000905: 中证500指数
-            # equal_weight: 全A等权指数
-            if symbol == '000300':
-                # 沪深300指数
-                df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
-            elif symbol == '000852':
+            if symbol == '000852':
                 # 中证1000指数
                 df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
             elif symbol == '000905':
                 # 中证500指数
                 df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
-            elif symbol == 'equal_weight':
-                # 全A等权指数 - 使用中证全指等权重指数(000985)作为替代
-                df = ak.stock_zh_index_daily_em(symbol="sh000985")
             else:
                 self.logger.error(f"不支持的指数代码: {symbol}")
                 return None
@@ -171,10 +163,7 @@ class DataFetcher:
         """
         try:
             # 生成文件名
-            if symbol == 'equal_weight':
-                filename = "SHSE.equal_weight_1d.csv"
-            else:
-                filename = f"SHSE.{symbol}_1d.csv"
+            filename = f"SHSE.{symbol}_1d.csv"
             filepath = os.path.join(self.data_dir, filename)
             
             # 检查现有文件是否存在
@@ -244,8 +233,8 @@ class DataFetcher:
         """
         results = {}
         
-        # 获取沪深300、中证1000、中证500和全A等权指数的数据
-        symbols = ['000300', '000852', '000905', 'equal_weight']
+        # 获取000852和000905的数据
+        symbols = ['000852', '000905']
         
         for symbol in symbols:
             self.logger.info(f"开始处理指数: {symbol}")
@@ -258,10 +247,7 @@ class DataFetcher:
                 success = self.save_to_csv(df, symbol)
                 
                 # 获取文件信息用于统计
-                if symbol == 'equal_weight':
-                    filename = "SHSE.equal_weight_1d.csv"
-                else:
-                    filename = f"SHSE.{symbol}_1d.csv"
+                filename = f"SHSE.{symbol}_1d.csv"
                 filepath = os.path.join(self.data_dir, filename)
                 
                 if os.path.exists(filepath):
@@ -336,4 +322,4 @@ def main():
     return response
 
 if __name__ == "__main__":
-    main()
+    main() 

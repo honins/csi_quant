@@ -37,144 +37,8 @@ class StrategyModule:
         if not os.path.exists(self.results_dir):
             os.makedirs(self.results_dir)
             
-        # 缓存沪深300数据
-        self._hs300_data = None
-        self._hs300_data_loaded = False
-            
         self.logger.info("策略模块初始化完成，参数: rise_threshold=%.4f, max_days=%d", 
                         self.rise_threshold, self.max_days)
-    
-    def _load_hs300_data(self) -> pd.DataFrame:
-        """
-        加载沪深300指数数据
-        
-        返回:
-        pandas.DataFrame: 沪深300数据
-        """
-        if self._hs300_data_loaded:
-            return self._hs300_data
-            
-        try:
-            # 获取沪深300数据文件路径
-            data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
-            hs300_file = os.path.join(data_dir, 'SHSE.000300_1d.csv')
-            
-            if not os.path.exists(hs300_file):
-                self.logger.warning("沪深300数据文件不存在: %s", hs300_file)
-                self._hs300_data = pd.DataFrame()
-                self._hs300_data_loaded = True
-                return self._hs300_data
-            
-            # 读取沪深300数据
-            df = pd.read_csv(hs300_file, parse_dates=['date'])
-            
-            # 计算移动平均线
-            df['ma5'] = df['close'].rolling(5).mean()
-            df['ma20'] = df['close'].rolling(20).mean()
-            df['ma60'] = df['close'].rolling(60).mean()
-            
-            # 按日期排序
-            df = df.sort_values('date').reset_index(drop=True)
-            
-            self._hs300_data = df
-            self._hs300_data_loaded = True
-            
-            self.logger.info("成功加载沪深300数据，共 %d 条记录", len(df))
-            return self._hs300_data
-            
-        except Exception as e:
-            self.logger.error("加载沪深300数据失败: %s", str(e))
-            self._hs300_data = pd.DataFrame()
-            self._hs300_data_loaded = True
-            return self._hs300_data
-    
-    def _get_hs300_ma_condition(self, current_date: str, mode: str = 'strict') -> bool:
-        """
-        检查沪深300在指定日期是否满足牛市条件
-        
-        参数:
-        current_date: 当前日期字符串
-        mode: 判断模式
-            - 'strict': MA(5) > MA(20) > MA(60) 严格多头排列
-            - 'moderate': Close > MA(60) 且 MA(20) > MA(60) 中等条件
-            - 'with_volume': moderate条件 + 成交量确认
-        
-        返回:
-        bool: 是否满足牛市条件
-        """
-        try:
-            hs300_data = self._load_hs300_data()
-            
-            if hs300_data.empty:
-                return False
-            
-            # 转换日期格式进行匹配
-            current_date_dt = pd.to_datetime(current_date)
-            
-            # 找到最接近的日期数据
-            hs300_data['date_diff'] = abs(hs300_data['date'] - current_date_dt)
-            closest_idx = hs300_data['date_diff'].idxmin()
-            closest_row = hs300_data.loc[closest_idx]
-            
-            # 检查日期差异是否在合理范围内（不超过5天）
-            if closest_row['date_diff'].days > 5:
-                self.logger.warning("沪深300数据日期差异过大: %d天", closest_row['date_diff'].days)
-                return False
-            
-            close = closest_row.get('close')
-            ma5 = closest_row.get('ma5')
-            ma20 = closest_row.get('ma20')
-            ma60 = closest_row.get('ma60')
-            volume = closest_row.get('volume')
-            
-            # 检查基础数据是否有空值
-            if pd.isna(close) or pd.isna(ma20) or pd.isna(ma60):
-                return False
-            
-            condition_met = False
-            condition_desc = ""
-            
-            if mode == 'strict':
-                # 严格多头排列: MA(5) > MA(20) > MA(60)
-                if pd.isna(ma5):
-                    return False
-                condition_met = ma5 > ma20 > ma60
-                condition_desc = f"严格多头排列: MA5={ma5:.2f} > MA20={ma20:.2f} > MA60={ma60:.2f}"
-                
-            elif mode == 'moderate':
-                # 中等条件: Close > MA(60) 且 MA(20) > MA(60)
-                condition_met = close > ma60 and ma20 > ma60
-                condition_desc = f"中等牛市条件: Close={close:.2f} > MA60={ma60:.2f} 且 MA20={ma20:.2f} > MA60={ma60:.2f}"
-                
-            elif mode == 'with_volume':
-                # 中等条件 + 成交量确认
-                basic_condition = close > ma60 and ma20 > ma60
-                
-                # 计算成交量移动平均线
-                volume_condition = False
-                if not pd.isna(volume):
-                    # 获取最近60天数据计算成交量均线
-                    recent_data = hs300_data[hs300_data['date'] <= current_date_dt].tail(60)
-                    if len(recent_data) >= 40:  # 至少需要40天数据
-                        vol_ma20 = recent_data['volume'].tail(20).mean()
-                        vol_ma60 = recent_data['volume'].mean()
-                        volume_condition = vol_ma20 > vol_ma60
-                        condition_desc = f"牛市+成交量: Close={close:.2f} > MA60={ma60:.2f}, MA20={ma20:.2f} > MA60={ma60:.2f}, Vol_MA20 > Vol_MA60"
-                    else:
-                        condition_desc = f"成交量数据不足，仅使用价格条件: Close={close:.2f} > MA60={ma60:.2f}, MA20={ma20:.2f} > MA60={ma60:.2f}"
-                
-                condition_met = basic_condition and (volume_condition or len(recent_data) < 40)
-            
-            if condition_met:
-                self.logger.debug("沪深300牛市条件满足 [%s]: %s", mode, condition_desc)
-            else:
-                self.logger.debug("沪深300牛市条件不满足 [%s]: %s", mode, condition_desc)
-            
-            return condition_met
-            
-        except Exception as e:
-            self.logger.error("检查沪深300牛市条件失败 [%s]: %s", mode, str(e))
-            return False
         
     def identify_relative_low(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -369,92 +233,34 @@ class StrategyModule:
                 # 简单趋势判别：结合斜率方向与价格相对MA20位置
                 price_above_ma20 = ma20 is not None and latest_price >= ma20
                 price_below_ma20 = ma20 is not None and latest_price < ma20
-                
-                # 基础趋势判断
-                base_trend = None
                 if slope_long > 0 and price_above_ma20:
-                    base_trend = 'bull'
+                    trend_regime = 'bull'
                 elif slope_long < 0 and price_below_ma20:
-                    base_trend = 'bear'
+                    trend_regime = 'bear'
                 else:
-                    base_trend = 'sideways'
-                
-                # 增强牛市判断：使用更宽松的沪深300条件
-                if base_trend == 'bull':
-                    # 优先尝试带成交量验证的条件
-                    hs300_with_volume = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'with_volume')
-                    if hs300_with_volume:
-                        trend_regime = 'bull'
-                        reasons.append("沪深300牛市+成交量确认")
-                    else:
-                        # 尝试中等条件（不要求成交量）
-                        hs300_moderate = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'moderate')
-                        if hs300_moderate:
-                            trend_regime = 'bull'
-                            reasons.append("沪深300中等牛市条件确认")
-                        else:
-                            # 最后尝试严格条件
-                            hs300_strict = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'strict')
-                            if hs300_strict:
-                                trend_regime = 'bull'
-                                reasons.append("沪深300严格多头排列确认牛市")
-                            else:
-                                # 如果所有条件都不满足，降级为震荡
-                                trend_regime = 'sideways'
-                                reasons.append("沪深300未满足牛市条件，降级为震荡")
-                else:
-                    trend_regime = base_trend
+                    trend_regime = 'sideways'
 
-                # 获取牛市趋势调整参数
-                bull_config = self.config.get('bull_market_adjustments', {})
-                bull_penalty_reduction = bull_config.get('bull_trend_penalty_reduction', 0.8)
-                bull_weak_bonus = bull_config.get('bull_weak_trend_bonus', 0.15)
-                
                 if trend_strength_long > 0.01:
                     if slope_long > 0:
-                        # 牛市环境下大幅减少上升趋势惩罚
-                        if trend_regime == 'bull':
-                            penalty = trend_strength_weight * 0.03 * (1 - bull_penalty_reduction)
-                            confidence -= penalty
-                            reasons.append(f"牛市上涨趋势微调(-{penalty:.3f})")
-                        else:
-                            confidence -= trend_strength_weight * 0.03
-                            reasons.append(f"强上涨趋势轻微扣分(-{trend_strength_weight * 0.03:.3f})")
+                        # 上升趋势中不给惩罚，避免与相对低点冲突，仅轻微降低置信度
+                        confidence -= trend_strength_weight * 0.03
+                        reasons.append(f"强上涨趋势轻微扣分(-{trend_strength_weight * 0.03:.3f})")
                     else:
                         confidence += trend_strength_weight * 2.0
                         reasons.append(f"强下跌趋势加分(+{trend_strength_weight * 2.0:.3f})")
                 elif trend_strength_long < 0.002:
-                    base_weak_bonus = trend_strength_weight * 0.8
-                    if trend_regime == 'bull':
-                        # 牛市弱趋势额外奖励
-                        total_bonus = base_weak_bonus + bull_weak_bonus
-                        confidence += total_bonus
-                        reasons.append(f"牛市弱趋势调整(+{total_bonus:.3f})")
-                    else:
-                        confidence += base_weak_bonus
-                        reasons.append(f"弱趋势调整(+{base_weak_bonus:.3f})")
+                    confidence += trend_strength_weight * 0.8
+                    reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.8:.3f})")
 
-            # 🟢 多头趋势的回撤买点识别（优化版）
+            # 🟢 多头趋势的回撤买点识别（与原有相对低点逻辑兼容，可作为加分项）
             if trend_regime == 'bull':
                 try:
-                    # 获取牛市特殊调整参数
-                    bull_config = self.config.get('bull_market_adjustments', {})
-                    bull_ma_multiplier = bull_config.get('bull_ma_support_multiplier', 1.5)
-                    bull_base_bonus = bull_config.get('bull_base_confidence_bonus', 0.1)
-                    bull_rsi_tolerance = bull_config.get('bull_rsi_tolerance', 10)
-                    bull_vol_bonus = bull_config.get('bull_volume_pullback_bonus', 0.2)
-                    
-                    # 基础权重（应用牛市倍数）
-                    up_ma_support_w = confidence_config.get('uptrend_ma_support', 0.8) * bull_ma_multiplier
-                    up_pullback_w = confidence_config.get('uptrend_pullback_bonus', 0.6)
-                    up_vol_pullback_w = confidence_config.get('uptrend_volume_pullback', 0.4)
+                    up_ma_support_w = confidence_config.get('uptrend_ma_support', 0.3)
+                    up_pullback_w = confidence_config.get('uptrend_pullback_bonus', 0.3)
+                    up_vol_pullback_w = confidence_config.get('uptrend_volume_pullback', 0.2)
                     rsi_min = confidence_config.get('rsi_uptrend_min', 30)
-                    rsi_max = confidence_config.get('rsi_uptrend_max', 85) + bull_rsi_tolerance
-                    rsi_pb_th = confidence_config.get('rsi_pullback_threshold', 2)
-
-                    # 牛市基础置信度奖励
-                    confidence += bull_base_bonus
-                    reasons.append(f"牛市环境基础奖励(+{bull_base_bonus:.3f})")
+                    rsi_max = confidence_config.get('rsi_uptrend_max', 80)
+                    rsi_pb_th = confidence_config.get('rsi_pullback_threshold', 3)
 
                     ma_support = False
                     if ma10 is not None and ma20 is not None:
@@ -464,9 +270,9 @@ class StrategyModule:
 
                     if ma_support:
                         confidence += up_ma_support_w
-                        reasons.append(f"多头趋势: 均线支撑(+{up_ma_support_w:.3f})")
+                        reasons.append("多头趋势: 均线支撑(MA10≥MA20且价在MA20上方)")
 
-                    # RSI健康区间内的回撤（扩大容忍范围）
+                    # RSI健康区间内的回撤
                     rsi_valid = rsi is not None and not pd.isna(rsi)
                     rsi_prev = None
                     if 'rsi' in data.columns and len(data) >= 2:
@@ -478,21 +284,13 @@ class StrategyModule:
                         rsi_drop_ok = (rsi_prev - rsi) >= rsi_pb_th
                         if rsi_in_trend and rsi_drop_ok:
                             confidence += up_pullback_w
-                            reasons.append(f"多头趋势: RSI健康回撤({rsi_prev:.1f}→{rsi:.1f}, +{up_pullback_w:.3f})")
-                        elif rsi_in_trend:  # 即使没有明显回撤，RSI在健康区间也给予奖励
-                            confidence += up_pullback_w * 0.5
-                            reasons.append(f"多头趋势: RSI健康区间({rsi:.1f}, +{up_pullback_w * 0.5:.3f})")
+                            reasons.append(f"多头趋势: RSI健康回撤({rsi_prev:.1f}→{rsi:.1f}, -{(rsi_prev - rsi):.1f})")
 
-                    # 回撤期缩量更优（增加额外奖励）
+                    # 回撤期缩量更优
                     vol_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else None
-                    if vol_ratio is not None and pd.notna(vol_ratio):
-                        if vol_ratio < 1.0:  # 缩量
-                            total_vol_bonus = up_vol_pullback_w + bull_vol_bonus
-                            confidence += total_vol_bonus
-                            reasons.append(f"多头趋势: 回撤缩量(量比{vol_ratio:.2f}, +{total_vol_bonus:.3f})")
-                        elif vol_ratio < 1.3:  # 温和放量也给予小幅奖励
-                            confidence += up_vol_pullback_w * 0.3
-                            reasons.append(f"多头趋势: 温和放量(量比{vol_ratio:.2f}, +{up_vol_pullback_w * 0.3:.3f})")
+                    if vol_ratio is not None and pd.notna(vol_ratio) and vol_ratio < 1.0:
+                        confidence += up_vol_pullback_w
+                        reasons.append(f"多头趋势: 回撤缩量(量比{vol_ratio:.2f})")
                 except Exception as _e:
                     # 保守处理，出现异常不影响主流程
                     pass
@@ -517,24 +315,19 @@ class StrategyModule:
                     reasons.append(f"门控未通过: 置信度不足(置信度{confidence:.2f}/{confidence_threshold:.2f})")
                 is_low_point = False
             
-            # 基础置信度调整：优化版，牛市环境下更宽松
-            min_base_confidence = confidence_config.get('min_base_confidence', 0.15)
-            base_confidence_ratio = confidence_config.get('base_confidence_ratio', 0.85)
+            # 基础置信度调整：确保即使没有明显信号也有最小置信度
+            min_base_confidence = confidence_config.get('min_base_confidence', 0.10)
+            base_confidence_ratio = confidence_config.get('base_confidence_ratio', 0.6)
             
-            # 牛市环境下的特殊处理
-            if trend_regime == 'bull':
-                bull_config = self.config.get('bull_market_adjustments', {})
-                bull_base_bonus = bull_config.get('bull_base_confidence_bonus', 0.1)
-                # 牛市环境下提高最小置信度和保留比例
-                min_base_confidence = max(min_base_confidence, 0.2)
-                base_confidence_ratio = max(base_confidence_ratio, 0.9)
+            # 调试信息：检查参数是否正确读取
+            # self.logger.debug(f"min_base_confidence: {min_base_confidence}, confidence before adjustment: {confidence}")
             
             if confidence <= 0.01:  # 几乎没有信号
                 # 给予最小基础置信度
                 confidence = min_base_confidence
                 reasons.append(f"最小基础置信度({min_base_confidence:.2f})")
             elif confidence > 0 and not is_low_point:
-                # 对于有一定信号但未达到交易阈值的情况，保留更多置信度
+                # 对于有一定信号但未达到交易阈值的情况，保留部分置信度
                 confidence = max(confidence * base_confidence_ratio, min_base_confidence)
                 reasons.append(f"基础置信度保留({base_confidence_ratio:.1f}倍)")
             
@@ -1121,94 +914,4 @@ class StrategyModule:
         dict: 当前参数
         """
         return self.get_params()
-    
-    def analyze_trend_regime(self, data: pd.DataFrame) -> Dict[str, Any]:
-        """
-        分析趋势状态（包含沪深300多头排列条件）
-        
-        参数:
-        data: 市场数据
-        
-        返回:
-        dict: 趋势分析结果
-        """
-        try:
-            if len(data) == 0:
-                return {
-                    'trend_regime': 'unknown',
-                    'reasons': ['数据为空']
-                }
-            
-            # 获取最新日期的数据
-            latest_data = data.iloc[-1]
-            latest_date = latest_data['date']
-            latest_price = latest_data['close']
-            
-            # 获取技术指标
-            ma20 = latest_data.get('ma20', None)
-            
-            reasons = []
-            trend_regime = 'sideways'
-            
-            # 趋势强度分析
-            if len(data) >= 20:
-                x_long = np.arange(20)
-                y_long = data['close'].tail(20).values
-                slope_long = np.polyfit(x_long, y_long, 1)[0]
-                
-                # 简单趋势判别：结合斜率方向与价格相对MA20位置
-                price_above_ma20 = ma20 is not None and latest_price >= ma20
-                price_below_ma20 = ma20 is not None and latest_price < ma20
-                
-                # 基础趋势判断
-                base_trend = None
-                if slope_long > 0 and price_above_ma20:
-                    base_trend = 'bull'
-                    reasons.append(f"价格上升趋势且高于MA20")
-                elif slope_long < 0 and price_below_ma20:
-                    base_trend = 'bear'
-                    reasons.append(f"价格下降趋势且低于MA20")
-                else:
-                    base_trend = 'sideways'
-                    reasons.append(f"震荡趋势")
-                
-                # 增强牛市判断：使用更宽松的沪深300条件
-                if base_trend == 'bull':
-                    # 优先尝试带成交量验证的条件
-                    hs300_with_volume = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'with_volume')
-                    if hs300_with_volume:
-                        trend_regime = 'bull'
-                        reasons.append("沪深300牛市+成交量确认")
-                    else:
-                        # 尝试中等条件（不要求成交量）
-                        hs300_moderate = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'moderate')
-                        if hs300_moderate:
-                            trend_regime = 'bull'
-                            reasons.append("沪深300中等牛市条件确认")
-                        else:
-                            # 最后尝试严格条件
-                            hs300_strict = self._get_hs300_ma_condition(latest_date.strftime('%Y-%m-%d'), 'strict')
-                            if hs300_strict:
-                                trend_regime = 'bull'
-                                reasons.append("沪深300严格多头排列确认牛市")
-                            else:
-                                # 如果所有条件都不满足，降级为震荡
-                                trend_regime = 'sideways'
-                                reasons.append("沪深300未满足牛市条件，降级为震荡")
-                else:
-                    trend_regime = base_trend
-            else:
-                reasons.append("数据不足20天，无法判断趋势")
-            
-            return {
-                'trend_regime': trend_regime,
-                'reasons': reasons
-            }
-            
-        except Exception as e:
-            self.logger.error(f"趋势分析失败: {str(e)}")
-            return {
-                'trend_regime': 'unknown',
-                'reasons': [f'趋势分析异常: {str(e)}']
-            }
 

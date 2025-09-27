@@ -1,8 +1,8 @@
-# 多指数量化交易系统
+# 中证500指数量化交易系统
 
 ## 📋 项目简介
 
-这是一个支持多个A股指数的量化交易系统，包括沪深300、中证500、中证1000和全A等权指数。系统采用AI优化策略参数，通过技术指标分析识别相对低点，实现智能化投资决策。
+这是一个基于中证500指数的量化交易系统，采用AI优化策略参数，通过技术指标分析识别相对低点，实现智能化投资决策。
 
 ## ✨ 核心特性
 
@@ -44,74 +44,21 @@ pip install -r requirements.txt
 # 查看帮助
 python run.py help
 
-# 获取最新数据
-python run.py fetch
-
 # 运行AI优化
 python run.py ai
 
 # 基础策略测试
 python run.py basic
 
-# 单日预测
-python run.py predict                    # 预测最新交易日
-python run.py predict -d 2024-12-30      # 预测指定日期
-python run.py p -d 2024-12-30            # 使用别名
-
 # 滚动回测
-python run.py backtest -s 2025-07-01 -e 2025-07-31  # 回测指定时间范围
-python run.py bt -s 2025-07-01 -e 2025-07-31        # 使用别名
+python run.py backtest
 
-# 全局选项
-python run.py predict -d 2024-12-30 --verbose       # 详细输出
-python run.py backtest -s 2025-07-01 -e 2025-07-31 --quick  # 快速验证模式
+# 单日预测
+python run.py predict
 
 # 直接运行滚动回测（支持更多参数）
 python examples/run_rolling_backtest.py --start_date 2025-02-01 --end_date 2025-08-31 --verbose
 ```
-
-## 📊 数据文件说明
-
-### 指数数据文件
-
-系统包含以下指数的历史数据文件（2015年至今）：
-
-- **SHSE.000300_1d.csv** - 沪深300指数日线数据
-  - 涵盖沪深两市市值最大、流动性最好的300只股票
-  - 反映A股市场整体表现的重要指标
-  
-- **SHSE.000905_1d.csv** - 中证500指数日线数据
-  - 中小盘股票代表，系统主要分析对象
-  - 剔除沪深300后市值排名前500的股票
-  
-- **SHSE.000852_1d.csv** - 中证1000指数日线数据
-  - 小盘股代表，反映中小企业成长性
-  - 剔除沪深300和中证500后的1000只股票
-  
-- **SHSE.equal_weight_1d.csv** - 全A等权指数日线数据
-  - 全市场等权重指数，消除市值偏向
-  - 更好反映市场整体情绪和趋势
-
-### 数据字段说明
-
-每个数据文件包含以下字段：
-- `index`: 序号
-- `open`: 开盘价
-- `high`: 最高价  
-- `low`: 最低价
-- `close`: 收盘价
-- `volume`: 成交量
-- `amount`: 成交额
-- `date`: 交易日期
-
-### 数据更新
-
-```bash
-# 获取最新数据
-python run.py fetch
-```
-
-该命令会自动获取所有指数的最新数据并更新到对应的CSV文件中。
 
 ## 📊 主要功能
 
@@ -156,10 +103,6 @@ csi_quant/
 │   └── utils/              # 工具模块
 ├── models/                 # 训练好的模型
 ├── data/                   # 历史数据
-│   ├── SHSE.000300_1d.csv  # 沪深300指数日线数据
-│   ├── SHSE.000852_1d.csv  # 中证1000指数日线数据
-│   ├── SHSE.000905_1d.csv  # 中证500指数日线数据
-│   └── SHSE.equal_weight_1d.csv # 全A等权指数日线数据
 ├── results/                # 结果输出
 └── examples/               # 示例代码
     ├── run_rolling_backtest.py  # 滚动回测脚本
@@ -200,93 +143,6 @@ ai_optimization:
   generations: 20
 ```
 
-## 🚀 run.py 脚本详细使用说明
-
-### 命令概览
-
-`run.py` 是系统的主要入口脚本，提供了简洁统一的命令行接口：
-
-| 命令 | 别名 | 描述 | 示例 |
-|------|------|------|------|
-| `help` | `h` | 显示帮助信息 | `python run.py help` |
-| `config` | `cfg` | 显示配置信息 | `python run.py config` |
-| `status` | `st` | 显示系统状态 | `python run.py status` |
-| `basic` | `b` | 基础策略测试 | `python run.py basic` |
-| `ai` | `a` | AI参数优化 | `python run.py ai` |
-| `predict` | `p` | 单日预测 | `python run.py predict -d 2024-12-30` |
-| `backtest` | `bt` | 滚动回测 | `python run.py backtest -s 2025-07-01 -e 2025-07-31` |
-| `fetch` | `f` | 数据获取 | `python run.py fetch` |
-| `test` | `t` | 单元测试 | `python run.py test` |
-
-### 全局选项
-
-所有命令都支持以下全局选项：
-
-- `-v, --verbose`: 详细输出模式
-- `-q, --quiet`: 静默模式
-- `--no-timer`: 禁用性能计时器
-- `--config FILE`: 指定配置文件路径
-- `--log-level LEVEL`: 设置日志级别 (DEBUG/INFO/WARNING/ERROR)
-- `--quick`: 快速验证模式，缩小数据范围、减少优化迭代
-
-### 单日预测命令详解
-
-```bash
-# 基本用法
-python run.py predict                    # 预测最新交易日
-python run.py predict -d 2024-12-30      # 预测指定日期
-python run.py predict --date 2024-12-30  # 完整参数名
-
-# 使用别名
-python run.py p -d 2024-12-30
-
-# 结合全局选项
-python run.py predict -d 2024-12-30 --verbose  # 详细输出
-python run.py predict -d 2024-12-30 --quick    # 快速模式
-```
-
-**参数说明：**
-- `-d, --date`: 指定预测日期，格式为 YYYY-MM-DD
-- 如果不指定日期，系统会自动使用最新交易日
-
-### 滚动回测命令详解
-
-```bash
-# 基本用法
-python run.py backtest -s 2025-07-01 -e 2025-07-31
-python run.py backtest --start-date 2025-07-01 --end-date 2025-07-31
-
-# 使用别名
-python run.py bt -s 2025-07-01 -e 2025-07-31
-
-# 结合全局选项
-python run.py backtest -s 2025-07-01 -e 2025-07-31 --verbose  # 详细输出
-python run.py backtest -s 2025-07-01 -e 2025-07-31 --quick    # 快速模式
-```
-
-**参数说明：**
-- `-s, --start-date`: 回测开始日期，格式为 YYYY-MM-DD（必需）
-- `-e, --end-date`: 回测结束日期，格式为 YYYY-MM-DD（必需）
-- 系统会自动验证日期格式和范围
-
-### 错误处理
-
-系统提供了完善的错误处理和提示：
-
-```bash
-# 日期格式错误
-$ python run.py predict -d 2024/12/30
-❌ 无效的日期格式: 2024/12/30
-
-# 缺少必需参数
-$ python run.py backtest -s 2025-07-01
-❌ 请提供结束日期，使用 -e 或 --end-date 参数
-
-# 日期范围错误
-$ python run.py backtest -s 2025-07-31 -e 2025-07-01
-❌ 开始日期必须早于结束日期
-```
-
 ## 📈 使用示例
 
 ### 完整的优化流程
@@ -309,14 +165,10 @@ python run.py backtest
 
 ```bash
 # 预测指定日期
-python run.py predict -d 2024-01-15
 python run.py predict --date 2024-01-15
 
 # 预测最新交易日
 python run.py predict
-
-# 使用别名
-python run.py p -d 2024-01-15
 ```
 
 ### 滚动回测
