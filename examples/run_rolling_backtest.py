@@ -542,13 +542,22 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             report_lines.append("")
 
                 report_lines.append("## 每日预测明细")
-                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
-                report_lines.append("|------|----------|----------|--------|------------|----------|------|-------------|-------------|----------|")
+                report_lines.append("")
+                report_lines.append("**字段说明：**")
+                report_lines.append("- **置信度**: AI模型输出的预测概率 (0-1)")
+                report_lines.append("- **策略置信度**: 策略模块基于技术指标计算的内部置信度 (0-1)")
+                report_lines.append("- **阈值(used)**: 实际使用的决策阈值，当AI置信度≥此值时做出正向预测")
+                report_lines.append("")
+                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 策略置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
+                report_lines.append("|------|----------|----------|--------|------------|------------|------|-------------|-------------|----------|----------|")
                 for dt, row in results_df.iterrows():
                     date_str = pd.to_datetime(dt).strftime('%Y-%m-%d') if not pd.isna(dt) else ''
                     predict_price = f"{row.get('predict_price', '')}"
                     predicted = "是" if row.get('predicted_low_point') else "否"
                     confidence = f"{row.get('confidence', 0):.2f}"
+                    # 新增：策略置信度
+                    strategy_conf = row.get('strategy_confidence')
+                    strategy_conf_str = f"{float(strategy_conf):.2f}" if strategy_conf is not None and not pd.isna(strategy_conf) else "N/A"
                     used_threshold = row.get('used_threshold')
                     used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
                     actual = "是" if row.get('actual_low_point') else "否"
@@ -573,7 +582,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         actual = '数据不足'
                     if pd.isna(row.get('prediction_correct')):
                         prediction_correct = '数据不足'
-                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
+                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {strategy_conf_str} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
                 report_lines.append("")
 
                 # 新增：趋势分布与命中率（含震荡区间）
@@ -612,6 +621,31 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                                     c, h, r = stats[k]
                                     report_lines.append(f"| {k} | {c} | {h} | {r:.2%} |")
                             report_lines.append("")
+
+                            # 新增：分趋势的置信度分布统计
+                            try:
+                                if 'confidence' in results_df.columns and 'strategy_confidence' in results_df.columns:
+                                    report_lines.append("### 分趋势置信度分布统计")
+                                    report_lines.append("| 趋势 | 样本数 | AI置信度均值 | AI置信度标准差 | 策略置信度均值 | 策略置信度标准差 | 命中率 |")
+                                    report_lines.append("|------|------:|------------:|-------------:|---------------:|----------------:|------:|")
+                                    
+                                    ai_conf_series = pd.to_numeric(results_df['confidence'], errors='coerce')
+                                    strategy_conf_series = pd.to_numeric(results_df['strategy_confidence'], errors='coerce')
+                                    
+                                    for k in ['bull', 'sideways', 'bear', 'unknown']:
+                                        if k in stats:
+                                            mask = (trend_series == ('' if k=='unknown' else k))
+                                            cnt = int(mask.sum())
+                                            if cnt > 0:
+                                                ai_mean = float(ai_conf_series[mask].mean()) if not ai_conf_series[mask].isna().all() else 0.0
+                                                ai_std = float(ai_conf_series[mask].std()) if not ai_conf_series[mask].isna().all() else 0.0
+                                                strategy_mean = float(strategy_conf_series[mask].mean()) if not strategy_conf_series[mask].isna().all() else 0.0
+                                                strategy_std = float(strategy_conf_series[mask].std()) if not strategy_conf_series[mask].isna().all() else 0.0
+                                                _, _, hit_rate = stats[k]
+                                                report_lines.append(f"| {k} | {cnt} | {ai_mean:.3f} | {ai_std:.3f} | {strategy_mean:.3f} | {strategy_std:.3f} | {hit_rate:.2%} |")
+                                    report_lines.append("")
+                            except Exception:
+                                pass
 
                             # 震荡区间(sideways)有效性验证
                             try:
@@ -758,7 +792,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
                     # 仅保留关心的列（若缺失则自动跳过）
                     preferred_cols = ['date', 'predict_price', 'predicted_low_point', 'confidence',
-                                      'used_threshold', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_rise', 'prediction_correct',
+                                      'strategy_confidence', 'used_threshold', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_rise', 'prediction_correct',
                                       'strategy_reasons', 'strategy_indicators']
                     cols = [c for c in preferred_cols if c in csv_df.columns]
                     
@@ -768,6 +802,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         'predict_price': '预测价格',
                         'predicted_low_point': '预测低点',
                         'confidence': '置信度',
+                        'strategy_confidence': '策略置信度',
                         'used_threshold': '使用阈值',
                         'actual_low_point': '实际低点',
                         'trend_regime': '趋势状态',

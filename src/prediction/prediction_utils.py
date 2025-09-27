@@ -27,6 +27,8 @@ class PredictionResult:
     # 新增：用于诊断导出的阈值信息
     used_threshold: Optional[float] = None
     adj: Optional[float] = None
+    # 新增：策略置信度
+    strategy_confidence: Optional[float] = None
     # 新增：策略明细（原因与关键指标）
     strategy_reasons: Optional[List[str]] = None
     strategy_indicators: Optional[Dict[str, Any]] = None
@@ -435,6 +437,8 @@ def predict_and_validate(
             predict_price=predict_price,
             used_threshold=used_threshold if 'used_threshold' in locals() else None,
             adj=adj if 'adj' in locals() else None,
+            # 新增：策略置信度
+            strategy_confidence=strategy_confidence,
             strategy_reasons=strategy_reasons,
             strategy_indicators=strategy_indicators
         )

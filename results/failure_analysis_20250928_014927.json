@@ -1,0 +1,895 @@
+{
+  "total_failures": 20,
+  "failure_rate": 0.2702702702702703,
+  "failure_types": {
+    "near_miss_timing": {
+      "count": 19,
+      "percentage": 95.0,
+      "cases": [
+        {
+          "date": "2025-06-04",
+          "signal_date": "2025-06-04",
+          "signal_price": 5739.006,
+          "confidence": 0.7884137026470478,
+          "strategy_confidence": 0.55,
+          "max_rise": 0.04159918982485806,
+          "max_rise_day": 24,
+          "final_rise": 0.026824331600280554,
+          "actual_rise": 0.04159918982485806,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到4.16%涨幅，超出20天观察期",
+          "analysis": "在第24天达到4.16%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.04159918982485806,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-05",
+          "signal_date": "2025-06-05",
+          "signal_price": 5769.967,
+          "confidence": 0.6533954020689307,
+          "strategy_confidence": 0.12,
+          "max_rise": 0.03601008463306637,
+          "max_rise_day": 23,
+          "final_rise": 0.026463409582758484,
+          "actual_rise": 0.03601008463306637,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第23天达到3.60%涨幅，超出20天观察期",
+          "analysis": "在第23天达到3.60%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.03601008463306637,
+            "days_to_target": 23,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-06",
+          "signal_date": "2025-06-06",
+          "signal_price": 5762.078,
+          "confidence": 0.7704043936172007,
+          "strategy_confidence": 0.18,
+          "max_rise": 0.03834953292891904,
+          "max_rise_day": 24,
+          "final_rise": 0.02592068347564888,
+          "actual_rise": 0.03834953292891904,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到3.83%涨幅，超出20天观察期",
+          "analysis": "在第24天达到3.83%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.03834953292891904,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-09",
+          "signal_date": "2025-06-09",
+          "signal_price": 5805.654,
+          "confidence": 0.6713010947095023,
+          "strategy_confidence": 0.12,
+          "max_rise": 0.03813954465767324,
+          "max_rise_day": 24,
+          "final_rise": 0.016320641912177247,
+          "actual_rise": 0.03813954465767324,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到3.81%涨幅，超出20天观察期",
+          "analysis": "在第24天达到3.81%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.03813954465767324,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-10",
+          "signal_date": "2025-06-10",
+          "signal_price": 5757.992,
+          "confidence": 0.8491809773561172,
+          "strategy_confidence": 0.6000000000000001,
+          "max_rise": 0.046732784623528395,
+          "max_rise_day": 23,
+          "final_rise": 0.0381646935251038,
+          "actual_rise": 0.046732784623528395,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第23天达到4.67%涨幅，超出20天观察期",
+          "analysis": "在第23天达到4.67%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.046732784623528395,
+            "days_to_target": 23,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-11",
+          "signal_date": "2025-06-11",
+          "signal_price": 5792.946,
+          "confidence": 0.8571749691282594,
+          "strategy_confidence": 0.5,
+          "max_rise": 0.04041691395017316,
+          "max_rise_day": 22,
+          "final_rise": 0.02771318772866175,
+          "actual_rise": 0.04041691395017316,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第22天达到4.04%涨幅，超出20天观察期",
+          "analysis": "在第22天达到4.04%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.04041691395017316,
+            "days_to_target": 22,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-12",
+          "signal_date": "2025-06-12",
+          "signal_price": 5799.932,
+          "confidence": 0.8821470601353333,
+          "strategy_confidence": 0.5,
+          "max_rise": 0.03916373502310026,
+          "max_rise_day": 21,
+          "final_rise": 0.031572611540963,
+          "actual_rise": 0.03916373502310026,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第21天达到3.92%涨幅，超出20天观察期",
+          "analysis": "在第21天达到3.92%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.03916373502310026,
+            "days_to_target": 21,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-13",
+          "signal_date": "2025-06-13",
+          "signal_price": 5740.24,
+          "confidence": 0.902503545705169,
+          "strategy_confidence": 0.8200000000000001,
+          "max_rise": 0.059618413167393726,
+          "max_rise_day": 24,
+          "final_rise": 0.04996986188730784,
+          "actual_rise": 0.059618413167393726,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到5.96%涨幅，超出20天观察期",
+          "analysis": "在第24天达到5.96%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.059618413167393726,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-16",
+          "signal_date": "2025-06-16",
+          "signal_price": 5767.808,
+          "confidence": 0.911142486378839,
+          "strategy_confidence": 0.5,
+          "max_rise": 0.057526533476842445,
+          "max_rise_day": 24,
+          "final_rise": 0.04387299299838004,
+          "actual_rise": 0.057526533476842445,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到5.75%涨幅，超出20天观察期",
+          "analysis": "在第24天达到5.75%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.057526533476842445,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-17",
+          "signal_date": "2025-06-17",
+          "signal_price": 5750.912,
+          "confidence": 0.9101212933996756,
+          "strategy_confidence": 0.6000000000000001,
+          "max_rise": 0.07136207265908431,
+          "max_rise_day": 24,
+          "final_rise": 0.0465745259186716,
+          "actual_rise": 0.07136207265908431,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到7.14%涨幅，超出20天观察期",
+          "analysis": "在第24天达到7.14%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.07136207265908431,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-18",
+          "signal_date": "2025-06-18",
+          "signal_price": 5745.872,
+          "confidence": 0.9110694236594176,
+          "strategy_confidence": 0.8,
+          "max_rise": 0.08136885054174542,
+          "max_rise_day": 24,
+          "final_rise": 0.04722050891492177,
+          "actual_rise": 0.08136885054174542,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到8.14%涨幅，超出20天观察期",
+          "analysis": "在第24天达到8.14%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.08136885054174542,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-19",
+          "signal_date": "2025-06-19",
+          "signal_price": 5676.832,
+          "confidence": 0.8873046095368496,
+          "strategy_confidence": 1.0,
+          "max_rise": 0.09452014785711463,
+          "max_rise_day": 23,
+          "final_rise": 0.07145393768918995,
+          "actual_rise": 0.09452014785711463,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第23天达到9.45%涨幅，超出20天观察期",
+          "analysis": "在第23天达到9.45%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.09452014785711463,
+            "days_to_target": 23,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-20",
+          "signal_date": "2025-06-20",
+          "signal_price": 5639.513,
+          "confidence": 0.8679011597760566,
+          "strategy_confidence": 1.0,
+          "max_rise": 0.1159825325342809,
+          "max_rise_day": 24,
+          "final_rise": 0.08158452689088574,
+          "actual_rise": 0.1159825325342809,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到11.60%涨幅，超出20天观察期",
+          "analysis": "在第24天达到11.60%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.1159825325342809,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-23",
+          "signal_date": "2025-06-23",
+          "signal_price": 5674.17,
+          "confidence": 0.8738268481419929,
+          "strategy_confidence": 1.0,
+          "max_rise": 0.11022246425468399,
+          "max_rise_day": 24,
+          "final_rise": 0.08585202769744299,
+          "actual_rise": 0.11022246425468399,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到11.02%涨幅，超出20天观察期",
+          "analysis": "在第24天达到11.02%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.11022246425468399,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-24",
+          "signal_date": "2025-06-24",
+          "signal_price": 5765.837,
+          "confidence": 0.800898459449168,
+          "strategy_confidence": 0.6499999999999999,
+          "max_rise": 0.09670460680730301,
+          "max_rise_day": 24,
+          "final_rise": 0.07762446284901908,
+          "actual_rise": 0.09670460680730301,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到9.67%涨幅，超出20天观察期",
+          "analysis": "在第24天达到9.67%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.09670460680730301,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-25",
+          "signal_date": "2025-06-25",
+          "signal_price": 5862.553,
+          "confidence": 0.7370231800302072,
+          "strategy_confidence": 0.62,
+          "max_rise": 0.08419198939438158,
+          "max_rise_day": 24,
+          "final_rise": 0.05700673409690282,
+          "actual_rise": 0.08419198939438158,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第24天达到8.42%涨幅，超出20天观察期",
+          "analysis": "在第24天达到8.42%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.08419198939438158,
+            "days_to_target": 24,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-26",
+          "signal_date": "2025-06-26",
+          "signal_price": 5838.245,
+          "confidence": 0.6880975513723407,
+          "strategy_confidence": 0.252,
+          "max_rise": 0.08870610945583818,
+          "max_rise_day": 23,
+          "final_rise": 0.07799484262822133,
+          "actual_rise": 0.08870610945583818,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第23天达到8.87%涨幅，超出20天观察期",
+          "analysis": "在第23天达到8.87%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.08870610945583818,
+            "days_to_target": 23,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-27",
+          "signal_date": "2025-06-27",
+          "signal_price": 5863.728,
+          "confidence": 0.7015608805194824,
+          "strategy_confidence": 0.62,
+          "max_rise": 0.08397473416229398,
+          "max_rise_day": 22,
+          "final_rise": 0.07433206315163328,
+          "actual_rise": 0.08397473416229398,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第22天达到8.40%涨幅，超出20天观察期",
+          "analysis": "在第22天达到8.40%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.08397473416229398,
+            "days_to_target": 22,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        },
+        {
+          "date": "2025-06-30",
+          "signal_date": "2025-06-30",
+          "signal_price": 5915.388,
+          "confidence": 0.7006896342304253,
+          "strategy_confidence": 0.62,
+          "max_rise": 0.07450821484575482,
+          "max_rise_day": 21,
+          "final_rise": 0.06897806196313752,
+          "actual_rise": 0.07450821484575482,
+          "type": "near_miss_timing",
+          "failure_type": "near_miss_timing",
+          "reason": "在第21天达到7.45%涨幅，超出20天观察期",
+          "analysis": "在第21天达到7.45%涨幅，超出20天观察期",
+          "details": {
+            "max_rise_achieved": 0.07450821484575482,
+            "days_to_target": 21,
+            "target_threshold": 0.04,
+            "observation_period": 20
+          }
+        }
+      ]
+    },
+    "near_miss_magnitude": {
+      "count": 0,
+      "percentage": 0.0,
+      "cases": []
+    },
+    "sideways_stagnation": {
+      "count": 0,
+      "percentage": 0.0,
+      "cases": []
+    },
+    "catching_falling_knife": {
+      "count": 0,
+      "percentage": 0.0,
+      "cases": []
+    },
+    "other_failure": {
+      "count": 1,
+      "percentage": 5.0,
+      "cases": [
+        {
+          "date": "2025-06-03",
+          "signal_date": "2025-06-03",
+          "signal_price": 5694.838,
+          "confidence": 0.8375855577538747,
+          "strategy_confidence": 0.8,
+          "max_rise": 0.04211392843835072,
+          "max_rise_day": 20,
+          "final_rise": 0.04211392843835072,
+          "actual_rise": 0.04211392843835072,
+          "type": "other_failure",
+          "failure_type": "other_failure",
+          "reason": "其他类型失败，最大涨幅4.21%，最终涨幅4.21%",
+          "analysis": "其他类型失败，最大涨幅4.21%，最终涨幅4.21%",
+          "details": {
+            "max_rise": 0.04211392843835072,
+            "final_rise": 0.04211392843835072,
+            "classification": "unclassified"
+          }
+        }
+      ]
+    }
+  },
+  "detailed_analysis": [
+    {
+      "date": "2025-06-03",
+      "signal_date": "2025-06-03",
+      "signal_price": 5694.838,
+      "confidence": 0.8375855577538747,
+      "strategy_confidence": 0.8,
+      "max_rise": 0.04211392843835072,
+      "max_rise_day": 20,
+      "final_rise": 0.04211392843835072,
+      "actual_rise": 0.04211392843835072,
+      "type": "other_failure",
+      "failure_type": "other_failure",
+      "reason": "其他类型失败，最大涨幅4.21%，最终涨幅4.21%",
+      "analysis": "其他类型失败，最大涨幅4.21%，最终涨幅4.21%",
+      "details": {
+        "max_rise": 0.04211392843835072,
+        "final_rise": 0.04211392843835072,
+        "classification": "unclassified"
+      }
+    },
+    {
+      "date": "2025-06-04",
+      "signal_date": "2025-06-04",
+      "signal_price": 5739.006,
+      "confidence": 0.7884137026470478,
+      "strategy_confidence": 0.55,
+      "max_rise": 0.04159918982485806,
+      "max_rise_day": 24,
+      "final_rise": 0.026824331600280554,
+      "actual_rise": 0.04159918982485806,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到4.16%涨幅，超出20天观察期",
+      "analysis": "在第24天达到4.16%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.04159918982485806,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-05",
+      "signal_date": "2025-06-05",
+      "signal_price": 5769.967,
+      "confidence": 0.6533954020689307,
+      "strategy_confidence": 0.12,
+      "max_rise": 0.03601008463306637,
+      "max_rise_day": 23,
+      "final_rise": 0.026463409582758484,
+      "actual_rise": 0.03601008463306637,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第23天达到3.60%涨幅，超出20天观察期",
+      "analysis": "在第23天达到3.60%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.03601008463306637,
+        "days_to_target": 23,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-06",
+      "signal_date": "2025-06-06",
+      "signal_price": 5762.078,
+      "confidence": 0.7704043936172007,
+      "strategy_confidence": 0.18,
+      "max_rise": 0.03834953292891904,
+      "max_rise_day": 24,
+      "final_rise": 0.02592068347564888,
+      "actual_rise": 0.03834953292891904,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到3.83%涨幅，超出20天观察期",
+      "analysis": "在第24天达到3.83%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.03834953292891904,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-09",
+      "signal_date": "2025-06-09",
+      "signal_price": 5805.654,
+      "confidence": 0.6713010947095023,
+      "strategy_confidence": 0.12,
+      "max_rise": 0.03813954465767324,
+      "max_rise_day": 24,
+      "final_rise": 0.016320641912177247,
+      "actual_rise": 0.03813954465767324,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到3.81%涨幅，超出20天观察期",
+      "analysis": "在第24天达到3.81%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.03813954465767324,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-10",
+      "signal_date": "2025-06-10",
+      "signal_price": 5757.992,
+      "confidence": 0.8491809773561172,
+      "strategy_confidence": 0.6000000000000001,
+      "max_rise": 0.046732784623528395,
+      "max_rise_day": 23,
+      "final_rise": 0.0381646935251038,
+      "actual_rise": 0.046732784623528395,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第23天达到4.67%涨幅，超出20天观察期",
+      "analysis": "在第23天达到4.67%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.046732784623528395,
+        "days_to_target": 23,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-11",
+      "signal_date": "2025-06-11",
+      "signal_price": 5792.946,
+      "confidence": 0.8571749691282594,
+      "strategy_confidence": 0.5,
+      "max_rise": 0.04041691395017316,
+      "max_rise_day": 22,
+      "final_rise": 0.02771318772866175,
+      "actual_rise": 0.04041691395017316,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第22天达到4.04%涨幅，超出20天观察期",
+      "analysis": "在第22天达到4.04%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.04041691395017316,
+        "days_to_target": 22,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-12",
+      "signal_date": "2025-06-12",
+      "signal_price": 5799.932,
+      "confidence": 0.8821470601353333,
+      "strategy_confidence": 0.5,
+      "max_rise": 0.03916373502310026,
+      "max_rise_day": 21,
+      "final_rise": 0.031572611540963,
+      "actual_rise": 0.03916373502310026,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第21天达到3.92%涨幅，超出20天观察期",
+      "analysis": "在第21天达到3.92%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.03916373502310026,
+        "days_to_target": 21,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-13",
+      "signal_date": "2025-06-13",
+      "signal_price": 5740.24,
+      "confidence": 0.902503545705169,
+      "strategy_confidence": 0.8200000000000001,
+      "max_rise": 0.059618413167393726,
+      "max_rise_day": 24,
+      "final_rise": 0.04996986188730784,
+      "actual_rise": 0.059618413167393726,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到5.96%涨幅，超出20天观察期",
+      "analysis": "在第24天达到5.96%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.059618413167393726,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-16",
+      "signal_date": "2025-06-16",
+      "signal_price": 5767.808,
+      "confidence": 0.911142486378839,
+      "strategy_confidence": 0.5,
+      "max_rise": 0.057526533476842445,
+      "max_rise_day": 24,
+      "final_rise": 0.04387299299838004,
+      "actual_rise": 0.057526533476842445,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到5.75%涨幅，超出20天观察期",
+      "analysis": "在第24天达到5.75%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.057526533476842445,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-17",
+      "signal_date": "2025-06-17",
+      "signal_price": 5750.912,
+      "confidence": 0.9101212933996756,
+      "strategy_confidence": 0.6000000000000001,
+      "max_rise": 0.07136207265908431,
+      "max_rise_day": 24,
+      "final_rise": 0.0465745259186716,
+      "actual_rise": 0.07136207265908431,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到7.14%涨幅，超出20天观察期",
+      "analysis": "在第24天达到7.14%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.07136207265908431,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-18",
+      "signal_date": "2025-06-18",
+      "signal_price": 5745.872,
+      "confidence": 0.9110694236594176,
+      "strategy_confidence": 0.8,
+      "max_rise": 0.08136885054174542,
+      "max_rise_day": 24,
+      "final_rise": 0.04722050891492177,
+      "actual_rise": 0.08136885054174542,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到8.14%涨幅，超出20天观察期",
+      "analysis": "在第24天达到8.14%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.08136885054174542,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-19",
+      "signal_date": "2025-06-19",
+      "signal_price": 5676.832,
+      "confidence": 0.8873046095368496,
+      "strategy_confidence": 1.0,
+      "max_rise": 0.09452014785711463,
+      "max_rise_day": 23,
+      "final_rise": 0.07145393768918995,
+      "actual_rise": 0.09452014785711463,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第23天达到9.45%涨幅，超出20天观察期",
+      "analysis": "在第23天达到9.45%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.09452014785711463,
+        "days_to_target": 23,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-20",
+      "signal_date": "2025-06-20",
+      "signal_price": 5639.513,
+      "confidence": 0.8679011597760566,
+      "strategy_confidence": 1.0,
+      "max_rise": 0.1159825325342809,
+      "max_rise_day": 24,
+      "final_rise": 0.08158452689088574,
+      "actual_rise": 0.1159825325342809,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到11.60%涨幅，超出20天观察期",
+      "analysis": "在第24天达到11.60%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.1159825325342809,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-23",
+      "signal_date": "2025-06-23",
+      "signal_price": 5674.17,
+      "confidence": 0.8738268481419929,
+      "strategy_confidence": 1.0,
+      "max_rise": 0.11022246425468399,
+      "max_rise_day": 24,
+      "final_rise": 0.08585202769744299,
+      "actual_rise": 0.11022246425468399,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到11.02%涨幅，超出20天观察期",
+      "analysis": "在第24天达到11.02%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.11022246425468399,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-24",
+      "signal_date": "2025-06-24",
+      "signal_price": 5765.837,
+      "confidence": 0.800898459449168,
+      "strategy_confidence": 0.6499999999999999,
+      "max_rise": 0.09670460680730301,
+      "max_rise_day": 24,
+      "final_rise": 0.07762446284901908,
+      "actual_rise": 0.09670460680730301,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到9.67%涨幅，超出20天观察期",
+      "analysis": "在第24天达到9.67%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.09670460680730301,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-25",
+      "signal_date": "2025-06-25",
+      "signal_price": 5862.553,
+      "confidence": 0.7370231800302072,
+      "strategy_confidence": 0.62,
+      "max_rise": 0.08419198939438158,
+      "max_rise_day": 24,
+      "final_rise": 0.05700673409690282,
+      "actual_rise": 0.08419198939438158,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第24天达到8.42%涨幅，超出20天观察期",
+      "analysis": "在第24天达到8.42%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.08419198939438158,
+        "days_to_target": 24,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-26",
+      "signal_date": "2025-06-26",
+      "signal_price": 5838.245,
+      "confidence": 0.6880975513723407,
+      "strategy_confidence": 0.252,
+      "max_rise": 0.08870610945583818,
+      "max_rise_day": 23,
+      "final_rise": 0.07799484262822133,
+      "actual_rise": 0.08870610945583818,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第23天达到8.87%涨幅，超出20天观察期",
+      "analysis": "在第23天达到8.87%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.08870610945583818,
+        "days_to_target": 23,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-27",
+      "signal_date": "2025-06-27",
+      "signal_price": 5863.728,
+      "confidence": 0.7015608805194824,
+      "strategy_confidence": 0.62,
+      "max_rise": 0.08397473416229398,
+      "max_rise_day": 22,
+      "final_rise": 0.07433206315163328,
+      "actual_rise": 0.08397473416229398,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第22天达到8.40%涨幅，超出20天观察期",
+      "analysis": "在第22天达到8.40%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.08397473416229398,
+        "days_to_target": 22,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    },
+    {
+      "date": "2025-06-30",
+      "signal_date": "2025-06-30",
+      "signal_price": 5915.388,
+      "confidence": 0.7006896342304253,
+      "strategy_confidence": 0.62,
+      "max_rise": 0.07450821484575482,
+      "max_rise_day": 21,
+      "final_rise": 0.06897806196313752,
+      "actual_rise": 0.07450821484575482,
+      "type": "near_miss_timing",
+      "failure_type": "near_miss_timing",
+      "reason": "在第21天达到7.45%涨幅，超出20天观察期",
+      "analysis": "在第21天达到7.45%涨幅，超出20天观察期",
+      "details": {
+        "max_rise_achieved": 0.07450821484575482,
+        "days_to_target": 21,
+        "target_threshold": 0.04,
+        "observation_period": 20
+      }
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "parameter_adjustment",
+      "priority": "high",
+      "target": "near_miss_failures",
+      "description": "针对功亏一篑型失败的优化",
+      "actions": [
+        {
+          "parameter": "rise_threshold",
+          "current_value": 0.04,
+          "suggested_value": 0.036000000000000004,
+          "reason": "降低成功阈值，将接近成功的案例转为成功"
+        },
+        {
+          "parameter": "max_days",
+          "current_value": 20,
+          "suggested_value": 25,
+          "reason": "延长观察期，给予更多时间达到目标涨幅"
+        }
+      ]
+    }
+  ]
+}

@@ -49,32 +49,68 @@ class FailureAnalyzer:
         if isinstance(backtest_results, list):
             backtest_results = pd.DataFrame(backtest_results)
         
-        # 根据实际回测结果格式筛选失败案例
-        # 失败定义：预测为相对低点但未来涨幅未达到阈值
+        # 改进的失败案例筛选逻辑
+        failed_signals = pd.DataFrame()
+        
+        # 方法1: 传统失败案例 - 预测为相对低点但未来涨幅未达到阈值
         if 'success' in backtest_results.columns:
-            failed_signals = backtest_results[backtest_results['success'] == False].copy()
+            traditional_failures = backtest_results[backtest_results['success'] == False].copy()
         else:
-            # 使用实际的回测结果字段
             rise_threshold = self.config.get('strategy', {}).get('rise_threshold', 0.04)
-            failed_signals = backtest_results[
+            traditional_failures = backtest_results[
                 (backtest_results['is_low_point'] == True) & 
                 (backtest_results['future_max_rise'] < rise_threshold)
             ].copy()
-            # 添加success字段以保持兼容性
-            failed_signals['success'] = False
         
-        if len(failed_signals) == 0:
+        # 方法2: 预测错误案例 - 包括所有预测不准确的情况
+        if 'is_correct' in backtest_results.columns:
+            prediction_errors = backtest_results[backtest_results['is_correct'] == False].copy()
+        else:
+            prediction_errors = pd.DataFrame()
+        
+        # 优先使用传统失败案例，如果没有则使用预测错误案例
+        if len(traditional_failures) > 0:
+            failed_signals = traditional_failures
+            failed_signals['failure_category'] = 'traditional_failure'
+            self.logger.info(f"使用传统失败案例: {len(failed_signals)} 个")
+        elif len(prediction_errors) > 0:
+            # 限制分析数量，避免过多
+            failed_signals = prediction_errors.head(20)
+            failed_signals['failure_category'] = 'prediction_error'
+            self.logger.info(f"使用预测错误案例: {len(failed_signals)} 个")
+        else:
+            self.logger.info("未找到失败案例")
             return {
                 'total_failures': 0,
+                'failure_rate': 0.0,
                 'failure_types': {},
+                'detailed_analysis': [],
                 'recommendations': []
             }
+        
+        # 为失败案例添加success字段以保持兼容性
+        if 'success' not in failed_signals.columns:
+            failed_signals['success'] = False
         
         # 分析每个失败案例
         failure_analysis = []
         for idx, signal in failed_signals.iterrows():
-            analysis = self._analyze_single_failure(signal, data)
-            failure_analysis.append(analysis)
+            try:
+                analysis = self._analyze_single_failure(signal, data)
+                if analysis:  # 确保分析结果不为空
+                    failure_analysis.append(analysis)
+            except Exception as e:
+                self.logger.error(f"分析失败案例时出错: {e}")
+                # 添加错误案例到分析结果中
+                failure_analysis.append({
+                    'type': 'analysis_error',
+                    'reason': f'分析过程出错: {str(e)}',
+                    'date': signal.get('date', 'unknown'),
+                    'confidence': signal.get('confidence', 0),
+                    'strategy_confidence': signal.get('strategy_confidence', 0),
+                    'actual_rise': signal.get('future_max_rise', 0),
+                    'analysis': f'分析失败: {str(e)}'
+                })
         
         # 按类型分类
         failure_types = self._categorize_failures(failure_analysis)
@@ -83,14 +119,14 @@ class FailureAnalyzer:
         recommendations = self._generate_recommendations(failure_types)
         
         result = {
-            'total_failures': len(failed_signals),
-            'failure_rate': len(failed_signals) / len(backtest_results) if len(backtest_results) > 0 else 0,
+            'total_failures': len(failure_analysis),
+            'failure_rate': len(failure_analysis) / len(backtest_results) if len(backtest_results) > 0 else 0,
             'failure_types': failure_types,
             'detailed_analysis': failure_analysis,
             'recommendations': recommendations
         }
         
-        self.logger.info(f"失败案例分析完成，共分析{len(failed_signals)}个失败案例")
+        self.logger.info(f"失败案例分析完成，共分析{len(failure_analysis)}个失败案例")
         return result
     
     def _analyze_single_failure(self, signal: pd.Series, data: pd.DataFrame) -> Dict[str, Any]:
@@ -113,28 +149,65 @@ class FailureAnalyzer:
             # 使用索引作为日期
             signal_date = signal.name if hasattr(signal, 'name') else None
             
+        # 改进价格字段匹配逻辑
+        signal_price = None
         if 'price' in signal:
             signal_price = signal['price']
         elif 'close' in signal:
             signal_price = signal['close']
+        elif 'close_price' in signal:
+            signal_price = signal['close_price']
         else:
-            return {'type': 'data_error', 'reason': '无法找到价格信息'}
+            # 尝试从数据中查找对应日期的价格
+            if signal_date is not None:
+                matching_rows = data[data['date'] == signal_date]
+                if len(matching_rows) > 0:
+                    signal_price = matching_rows.iloc[0]['close']
+                    
+        if signal_price is None or signal_price == 0:
+            return {
+                'type': 'data_error', 
+                'reason': '无法找到价格信息',
+                'date': signal_date,
+                'confidence': signal.get('confidence', 0),
+                'strategy_confidence': signal.get('strategy_confidence', 0),
+                'actual_rise': signal.get('future_max_rise', 0),
+                'analysis': f'信号日期: {signal_date}, 可用字段: {list(signal.index)}'
+            }
             
         if 'confidence' in signal:
             confidence = signal['confidence']
         else:
             confidence = 0.5  # 默认置信度
+            
+        strategy_confidence = signal.get('strategy_confidence', confidence)
         
         # 获取信号后的价格数据
         signal_idx = data[data['date'] == signal_date].index
         if len(signal_idx) == 0:
-            return {'type': 'data_error', 'reason': '无法找到信号日期对应的数据'}
+            return {
+                'type': 'data_error', 
+                'reason': '无法找到信号日期对应的数据',
+                'date': signal_date,
+                'confidence': confidence,
+                'strategy_confidence': strategy_confidence,
+                'actual_rise': signal.get('future_max_rise', 0),
+                'analysis': f'数据日期范围: {data["date"].min()} ~ {data["date"].max()}'
+            }
         
         signal_idx = signal_idx[0]
         future_data = data.iloc[signal_idx:signal_idx + self.max_days + 5]  # 多取5天用于分析
         
         if len(future_data) < 2:
-            return {'type': 'data_insufficient', 'reason': '信号后数据不足'}
+            return {
+                'type': 'data_insufficient', 
+                'reason': '信号后数据不足',
+                'date': signal_date,
+                'confidence': confidence,
+                'strategy_confidence': strategy_confidence,
+                'actual_rise': signal.get('future_max_rise', 0),
+                'analysis': f'可用数据长度: {len(future_data)}'
+            }
         
         # 计算实际表现
         max_rise = 0
@@ -155,14 +228,19 @@ class FailureAnalyzer:
         failure_type = self._classify_failure_type(max_rise, max_rise_day, final_rise, future_data, signal_price)
         
         return {
+            'date': signal_date,
             'signal_date': signal_date,
             'signal_price': signal_price,
             'confidence': confidence,
+            'strategy_confidence': strategy_confidence,
             'max_rise': max_rise,
             'max_rise_day': max_rise_day,
             'final_rise': final_rise,
+            'actual_rise': max_rise,  # 添加actual_rise字段
             'type': failure_type['type'],
+            'failure_type': failure_type['type'],  # 添加failure_type字段
             'reason': failure_type['reason'],
+            'analysis': failure_type['reason'],  # 添加analysis字段
             'details': failure_type['details']
         }
     
