@@ -413,14 +413,12 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             'actual': '是' if row.get('actual_low_point') else '否',
                             'confidence': row.get('confidence', 0),
                             'future_max_rise': row.get('future_max_rise', 0),
-                            'actual': '是' if row.get('actual_low_point') else '否',
-                            'max_rise': f"{float(row.get('future_max_rise', 0)):.2%}" if not pd.isna(row.get('future_max_rise')) else "N/A",
                             'days_to_rise': f"{int(row.get('days_to_rise', 0))}" if not pd.isna(row.get('days_to_rise')) else "N/A",
                             'predict_price': row.get('predict_price') if row.get('predict_price') is not None else 'N/A',
                             'correct': '✅' if row.get('prediction_correct') else '❌'
                         })
                 except Exception as e:
-                    pos_signals = [{'error': f"生成样例行时出现异常: {e}"}]
+                    pos_signals = [{'index': 1, 'error': f"生成样例行时出现异常: {e}"}]
 
                 # 新增：全区间 Top-N（按 confidence 降序，包含未达阈值）
                 top_all_signals = []
@@ -440,7 +438,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             'correct': ('✅' if row.get('prediction_correct') else ('❌' if row.get('prediction_correct') is not None else 'N/A'))
                         })
                 except Exception as e:
-                    top_all_signals = [{'error': f"生成Top-N时出现异常: {e}"}]
+                    top_all_signals = [{'index': 1, 'error': f"生成Top-N时出现异常: {e}"}]
 
                 # 生成预测分布表格（类似原图表的数据展示）
                 correct_dates = results_df_validated[results_df_validated['prediction_correct'] == True]
@@ -482,11 +480,11 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append(f"- **总预测日期数(可验证)**: {total_predictions_validated}")
                 report_lines.append(f"- **正确预测数**: {correct_predictions}")
                 report_lines.append(f"- **准确率(Accuracy)**: {success_rate:.2%}")
-                report_lines.append(f"- **Precision**: {precision:.2%}")
-                report_lines.append(f"- **Recall**: {recall:.2%}")
-                report_lines.append(f"- **F1 Score**: {(2*precision*recall/max(precision+recall, 1e-12)):.2%}")
-                report_lines.append(f"- **Specificity**: {specificity:.2%}")
-                report_lines.append(f"- **Balanced Accuracy**: {balanced_acc:.2%}")
+                report_lines.append(f"- **精确率(Precision)**: {precision:.2%}")
+                report_lines.append(f"- **召回率(Recall)**: {recall:.2%}")
+                report_lines.append(f"- **F1分数(F1 Score)**: {(2*precision*recall/max(precision+recall, 1e-12)):.2%}")
+                report_lines.append(f"- **特异性(Specificity)**: {specificity:.2%}")
+                report_lines.append(f"- **平衡准确率(Balanced Accuracy)**: {balanced_acc:.2%}")
                 report_lines.append("")
 
                 # 新增：置信度分布诊断（写入报告）
@@ -511,23 +509,23 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
                 report_lines.append("## 概率校准评估")
                 if brier_value is not None:
-                    report_lines.append(f"- Brier Score: {brier_value:.4f}（越低越好）")
+                    report_lines.append(f"- 布里尔分数(Brier Score): {brier_value:.4f}（越低越好）")
                 else:
-                    report_lines.append(f"- Brier Score: N/A")
+                    report_lines.append(f"- 布里尔分数(Brier Score): N/A")
                 if logloss_value is not None:
-                    report_lines.append(f"- Log Loss: {logloss_value:.4f}（越低越好）")
+                    report_lines.append(f"- 对数损失(Log Loss): {logloss_value:.4f}（越低越好）")
                 else:
-                    report_lines.append(f"- Log Loss: N/A")
+                    report_lines.append(f"- 对数损失(Log Loss): N/A")
                 if ece_value is not None:
-                    report_lines.append(f"- ECE(10 bins): {ece_value:.4f}（越低越好）")
+                    report_lines.append(f"- 期望校准误差(ECE,10 bins): {ece_value:.4f}（越低越好）")
                 else:
-                    report_lines.append(f"- ECE(10 bins): N/A")
+                    report_lines.append(f"- 期望校准误差(ECE,10 bins): N/A")
                 report_lines.append("")
 
                 # 离线概率标定对比实验（不改主逻辑，仅输出对比表格）
                 if calib_compare:
                     report_lines.append("### 离线概率标定对比实验（Original vs Platt vs Isotonic）")
-                    report_lines.append("| 方法 | Brier | LogLoss | ECE(10) |")
+                    report_lines.append("| 方法 | 布里尔分数(Brier) | 对数损失(LogLoss) | 期望校准误差(ECE,10) |")
                     report_lines.append("|------|------:|--------:|--------:|")
                     for row in calib_compare:
                         report_lines.append(f"| {row['method']} | {row['brier']:.4f} | {row['logloss']:.4f} | {row['ece']:.4f} |")
@@ -544,17 +542,15 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             report_lines.append("")
 
                 report_lines.append("## 每日预测明细")
-                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 调整(adj) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
-                report_lines.append("|------|----------|----------|--------|------------|------------|----------|------|-------------|-------------|----------|")
+                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
+                report_lines.append("|------|----------|----------|--------|------------|----------|------|-------------|-------------|----------|")
                 for dt, row in results_df.iterrows():
                     date_str = pd.to_datetime(dt).strftime('%Y-%m-%d') if not pd.isna(dt) else ''
                     predict_price = f"{row.get('predict_price', '')}"
                     predicted = "是" if row.get('predicted_low_point') else "否"
                     confidence = f"{row.get('confidence', 0):.2f}"
                     used_threshold = row.get('used_threshold')
-                    adj = row.get('adj')
                     used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
-                    adj_str = f"{float(adj):+.3f}" if adj is not None and not pd.isna(adj) else "N/A"
                     actual = "是" if row.get('actual_low_point') else "否"
                     # 新增：提取趋势状态
                     trend_str = ''
@@ -577,7 +573,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         actual = '数据不足'
                     if pd.isna(row.get('prediction_correct')):
                         prediction_correct = '数据不足'
-                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {adj_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
+                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_rise} | {prediction_correct} |")
                 report_lines.append("")
 
                 # 新增：趋势分布与命中率（含震荡区间）
@@ -679,7 +675,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append("|------|------|------|------|--------|------------|----------|----------|---------|")
                 if len(pos_signals) > 0:
                     for signal in pos_signals:
-                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                        if 'error' in signal:
+                            report_lines.append(f"| {signal.get('index', 1)} | - | - | - | - | - | - | - | {signal['error']} |")
+                        else:
+                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
                 else:
                     report_lines.append("- (本次无正类信号或无法生成样例)")
                 report_lines.append("")
@@ -690,7 +689,10 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append("|------|------|------|------|--------|-------------|----------|---------|------|")
                 if len(top_all_signals) > 0:
                     for signal in top_all_signals:
-                        report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                        if 'error' in signal:
+                            report_lines.append(f"| {signal.get('index', 1)} | - | - | - | - | - | - | - | {signal['error']} |")
+                        else:
+                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
                 else:
                     report_lines.append("- (无法生成Top-N列表)")
                 report_lines.append("")
@@ -709,7 +711,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     f.write("\n".join(report_lines))
                 logger.info(f"📄 回测报告已生成: {os.path.relpath(report_path)}")
 
-                # 新增：导出每日明细CSV（包含 used_threshold 与 adj）
+                # 新增：导出每日明细CSV（包含 used_threshold）
                 try:
                     csv_dir = os.path.join(base_results_dir, 'csv')
                     os.makedirs(csv_dir, exist_ok=True)
@@ -756,10 +758,30 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
                     # 仅保留关心的列（若缺失则自动跳过）
                     preferred_cols = ['date', 'predict_price', 'predicted_low_point', 'confidence',
-                                      'used_threshold', 'adj', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_rise', 'prediction_correct',
+                                      'used_threshold', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_rise', 'prediction_correct',
                                       'strategy_reasons', 'strategy_indicators']
                     cols = [c for c in preferred_cols if c in csv_df.columns]
-                    csv_df[cols].to_csv(csv_path, index=False, encoding='utf-8-sig')
+                    
+                    # 创建中文列名映射
+                    chinese_column_mapping = {
+                        'date': '日期',
+                        'predict_price': '预测价格',
+                        'predicted_low_point': '预测低点',
+                        'confidence': '置信度',
+                        'used_threshold': '使用阈值',
+                        'actual_low_point': '实际低点',
+                        'trend_regime': '趋势状态',
+                        'future_max_rise': '未来最大涨幅',
+                        'days_to_rise': '涨幅天数',
+                        'prediction_correct': '预测正确',
+                        'strategy_reasons': '策略原因',
+                        'strategy_indicators': '策略指标'
+                    }
+                    
+                    # 重命名列名为中文
+                    csv_df_chinese = csv_df[cols].copy()
+                    csv_df_chinese.columns = [chinese_column_mapping.get(col, col) for col in csv_df_chinese.columns]
+                    csv_df_chinese.to_csv(csv_path, index=False, encoding='utf-8-sig')
                     logger.info(f"🧾 每日明细已导出CSV: {os.path.relpath(csv_path)}")
                 except Exception as e:
                     logger.warning(f"导出每日明细CSV失败: {e}")

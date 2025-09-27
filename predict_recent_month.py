@@ -242,7 +242,7 @@ def main():
         ai_optimizer = AIOptimizer(config)
         
         # 获取最近30个交易日
-        data_file = "data/SHSE.000852_1d.csv"
+        data_file = "data/SHSE.000905_1d.csv"
         recent_days = get_recent_trading_days(data_file, 30)
         
         if not recent_days:
