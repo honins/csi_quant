@@ -73,11 +73,13 @@ def predict_single_date(predict_date_str, config, data_module, strategy_module, 
             logger.warning(f"训练数据不足 ({len(train_data)} 条)")
             return None
             
+        # 🔧 修复：获取预测日期的收盘价作为预测价格
+        predict_date_data = market_data[market_data['date'] == predict_date]
+        predict_price = predict_date_data.iloc[0]['close'] if not predict_date_data.empty else None
+        
         # 🎯 关键修复：使用包含预测日期的完整数据进行特征计算
         # 这样每个日期都会有不同的技术指标和特征
         predict_day_data = train_data.copy()
-        
-        # 进行预测
         prediction_result = ai_optimizer.predict_low_point(
             predict_day_data, predict_date_str
         )
@@ -87,7 +89,7 @@ def predict_single_date(predict_date_str, config, data_module, strategy_module, 
                 'date': predict_date_str,
                 'predicted_low_point': prediction_result.get('is_low_point', False),
                 'confidence': prediction_result.get('confidence', 0.0),
-                'predict_price': prediction_result.get('predict_price', None)
+                'predict_price': predict_price  # 使用实际的收盘价
             }
         else:
             logger.error(f"预测 {predict_date_str} 返回空结果")
@@ -181,14 +183,15 @@ def generate_prediction_report(results, start_date, end_date, config):
             report_lines.append(f"| {i} | {r['date']} | {prediction_text} | {r['confidence']:.4f} |")
         report_lines.append("")
         
-        # 每日预测明细
-        report_lines.append("## 📋 每日预测明细")
-        report_lines.append("| 日期 | 预测结果 | 置信度 | 备注 |")
-        report_lines.append("| --- | --- | --- | --- |")
+        # 每日预测明细 - 使用与历史回测报告一致的字段格式
+        report_lines.append("## 每日预测明细")
+        report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
+        report_lines.append("|------|----------|----------|--------|------------|----------|------|-------------|-------------|----------|")
         for r in results:
-            prediction_text = "相对低点" if r['predicted_low_point'] else "非相对低点"
-            confidence_level = "高" if r['confidence'] > 0.5 else "中" if r['confidence'] > 0.3 else "低"
-            report_lines.append(f"| {r['date']} | {prediction_text} | {r['confidence']:.4f} | {confidence_level}置信度 |")
+            prediction_text = "是" if r['predicted_low_point'] else "否"
+            predict_price = r.get('predict_price', 'N/A')
+            # 由于是最近预测，实际结果等字段暂时显示为待验证
+            report_lines.append(f"| {r['date']} | {predict_price} | {prediction_text} | {r['confidence']:.2f} | 0.50 | 待验证 | 待验证 | 待验证 | 待验证 | 待验证 |")
         report_lines.append("")
         
         report_lines.append("> **免责声明**: 本报告由AI模型自动生成，仅供参考，不构成投资建议。投资有风险，决策需谨慎。")
