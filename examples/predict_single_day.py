@@ -811,7 +811,7 @@ def predict_with_trained_model(
 
         # 获取预测日的index
         predict_index = predict_date_data.iloc[0]['index']
-        max_rise = 0.0
+        max_rise = float('-inf')
         days_to_rise = 0
         rise_threshold = config["default_strategy"]["rise_threshold"]
         max_days = config["default_strategy"]["max_days"]

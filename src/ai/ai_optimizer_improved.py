@@ -15,12 +15,11 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score, precision_recall_curve
+
 from typing import Dict, Any, Tuple, List, Optional
 import json
 import yaml
-from itertools import product
+
 import sys
 import time
 
@@ -815,7 +814,6 @@ class AIOptimizerImproved:
             with open(model_path, 'rb') as f:
                 # 使用受限的pickle加载器（限制可导入的模块）
                 import pickle
-                import builtins
 
                 # 创建安全的unpickler
                 logger = self.logger  # 保存logger引用

@@ -433,15 +433,15 @@ def predict_and_validate(
         future_data = full_validation_set[full_validation_set['date'] > predict_date]
         
         # 计算未来最大涨幅（仅用于报告参考，不用于判定）
-        max_rise = 0.0
+        max_rise = float('-inf')
         days_to_rise = 0
         if not future_data.empty:
-            predict_index = predict_date_data.iloc[0]['index']
+            predict_index = int(predict_date_data.iloc[0]['index'])
             for i, row in future_data.iterrows():
                 rise_rate = (row['close'] - predict_price) / predict_price
                 if rise_rate > max_rise:
                     max_rise = rise_rate
-                    days_to_rise = row['index'] - predict_index
+                    days_to_rise = int(row['index'] - predict_index)
         else:
             logger.warning(f"无法获取 {predict_date.strftime('%Y-%m-%d')} 之后的数据，仅输出参考涨幅，无法进行策略T+1验证。")
 

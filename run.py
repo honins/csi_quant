@@ -26,6 +26,7 @@ from src.utils.common import (
     LoggerManager, PerformanceMonitor, init_project_environment,
     error_context, safe_execute
 )
+from src.utils.reporting import format_backtest_summary
 
 
 class QuantSystemCommands:
@@ -381,24 +382,10 @@ class QuantSystemCommands:
             result = run_rolling_backtest(start_date, end_date, generate_report=True)
             
             if result.get('success'):
-                metrics = result.get('metrics', {})
-                success_rate = metrics.get('success_rate', 0)
-                total_predictions = metrics.get('total_predictions', 0)
-                f1_score = metrics.get('f1', 0)
-                recall = metrics.get('recall', 0)
-                precision = metrics.get('precision', 0)
-                report_path = result.get('report_path')
-                
-                # 输出关键指标
-                self.logger.info(f"回测完成: 成功率={success_rate:.2%}, 预测数={total_predictions}, F1={f1_score:.3f}, Recall={recall:.3f}, Precision={precision:.3f}")
-                
-                # 输出报告路径
-                if report_path:
-                    relative_path = os.path.relpath(report_path, project_root)
-                    self.logger.info(f"📄 回测报告已生成: {relative_path}")
-                    return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 预测数 {total_predictions}, F1 {f1_score:.3f}\n📄 报告: {relative_path}"
-                else:
-                    return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 预测数 {total_predictions}, F1 {f1_score:.3f}"
+                # 使用统一的摘要格式化方法
+                summary = format_backtest_summary(result, project_root=str(project_root))
+                self.logger.info(summary)
+                return summary
             else:
                 error_msg = result.get('error', '回测失败')
                 return f"❌ 滚动回测失败: {error_msg}"

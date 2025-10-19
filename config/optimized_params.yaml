@@ -16,8 +16,8 @@ confidence_weights:
   strategy_weight: 0.5
   decision_band:
     enabled: true
-    abstain_threshold: 0.08
-    enter_threshold: 0.12
+    abstain_threshold: 0.10
+    enter_threshold: 0.15
   gray_zone_requires:
     rsi_oversold_max: 40
     strategy_positive: true
