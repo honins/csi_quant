@@ -22,13 +22,12 @@ class PredictionResult:
     confidence: Optional[float]
     future_max_rise: Optional[float]
     days_to_rise: Optional[int]
-    prediction_correct: Optional[bool]
-    predict_price: Optional[float]
+    days_to_target: Optional[int] = None
+    prediction_correct: Optional[bool] = None
+    predict_price: Optional[float] = None
     # 新增：用于诊断导出的阈值信息
     used_threshold: Optional[float] = None
     adj: Optional[float] = None
-    # 新增：策略置信度
-    strategy_confidence: Optional[float] = None
     # 新增：策略明细（原因与关键指标）
     strategy_reasons: Optional[List[str]] = None
     strategy_indicators: Optional[Dict[str, Any]] = None
@@ -276,7 +275,6 @@ def predict_and_validate(
             strategy_input_data = predict_day_data
         strategy_prediction_result = strategy_module.identify_relative_low(strategy_input_data)
         strategy_is_predicted_low_point = strategy_prediction_result.get("is_low_point")
-        strategy_confidence = strategy_prediction_result.get("confidence")
         # 新增：收集策略原因与指标
         strategy_reasons = strategy_prediction_result.get("reasons")
         strategy_indicators = strategy_prediction_result.get("technical_indicators")
@@ -338,7 +336,7 @@ def predict_and_validate(
         is_predicted_low_point = confidence >= used_threshold
 
         logger.info(f"AI预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if ai_is_predicted_low_point else '否'} 相对低点，AI置信度: {ai_confidence:.2f}")
-        logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点，策略置信度: {strategy_confidence:.2f}")
+        logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点")
         logger.info(f"决策: used_threshold={used_threshold:.2f}，最终判断 → {'是' if is_predicted_low_point else '否'} 相对低点")
 
         # 5. 验证预测结果
@@ -368,6 +366,7 @@ def predict_and_validate(
                 confidence=confidence,
                 future_max_rise=None,
                 days_to_rise=None,
+                days_to_target=None,
                 prediction_correct=None,
                 predict_price=None
             )
@@ -385,6 +384,7 @@ def predict_and_validate(
                 confidence=confidence,
                 future_max_rise=None,
                 days_to_rise=None,
+                days_to_target=None,
                 prediction_correct=None,
                 predict_price=None
             )
@@ -392,39 +392,51 @@ def predict_and_validate(
         predict_price = predict_date_data.iloc[0]['close']
         future_data = full_validation_set[full_validation_set['date'] > predict_date]
         
-        if future_data.empty:
-            logger.warning(f"无法获取 {predict_date.strftime('%Y-%m-%d')} 之后的数据，无法验证预测结果。")
-            return PredictionResult(
-                date=predict_date,
-                predicted_low_point=is_predicted_low_point,
-                actual_low_point=None,
-                confidence=confidence,
-                future_max_rise=None,
-                days_to_rise=None,
-                prediction_correct=None,
-                predict_price=predict_price
-            )
-
-        # 获取预测日的index
-        predict_index = predict_date_data.iloc[0]['index']
+        # 计算未来最大涨幅（仅用于报告参考，不用于判定）
         max_rise = 0.0
         days_to_rise = 0
-        # 计算未来最大涨幅和达到目标涨幅所需天数
-        for i, row in future_data.iterrows():
-            rise_rate = (row['close'] - predict_price) / predict_price
-            if rise_rate > max_rise:
-                max_rise = rise_rate
-                days_to_rise = row['index'] - predict_index  # 用index相减，代表交易日天数
+        if not future_data.empty:
+            predict_index = predict_date_data.iloc[0]['index']
+            for i, row in future_data.iterrows():
+                rise_rate = (row['close'] - predict_price) / predict_price
+                if rise_rate > max_rise:
+                    max_rise = rise_rate
+                    days_to_rise = row['index'] - predict_index
+        else:
+            logger.warning(f"无法获取 {predict_date.strftime('%Y-%m-%d')} 之后的数据，仅输出参考涨幅，无法进行策略T+1验证。")
 
-        # 使用统一的策略段读取 rise_threshold，兼容 default_strategy
-        rise_threshold = strategy_section.get('rise_threshold', 0.04)
-        actual_is_low_point = max_rise >= rise_threshold
+        # 基于交易数据事实：T+1开盘买入，并检查max_days内是否达标
+        days_to_target = None
+        actual_is_low_point = None
+        rise_threshold = strategy_section.get("rise_threshold", 0.04)
+        try:
+            if not future_data.empty:
+                # 次日开盘为买入价
+                entry_open = float(future_data.iloc[0].get('open', np.nan))
+                if not pd.isna(entry_open) and entry_open > 0:
+                    days_to_target = 0
+                    for j in range(1, max_days + 1):
+                        if j >= len(future_data):
+                            break
+                        future_high = float(future_data.iloc[j].get('high', np.nan))
+                        if not pd.isna(future_high) and future_high >= entry_open * (1 + rise_threshold):
+                            days_to_target = j
+                            break
+                    actual_is_low_point = (days_to_target is not None and days_to_target > 0)
+                else:
+                    actual_is_low_point = None
+                    logger.warning("T+1验证：次日开盘价缺失或无效，无法判定实际结果")
+            else:
+                actual_is_low_point = None
+                logger.warning("T+1验证：缺少未来数据，无法判定实际结果")
+        except Exception as _e:
+            actual_is_low_point = None
+            logger.error(f"T+1验证失败: {_e}")
 
-        logger.info(f"\n--- 验证结果 --- ")
+        logger.info(f"未来最大涨幅(参考): {max_rise:.2%}")
         logger.info(f"日期: {predict_date.strftime('%Y-%m-%d')}")
-        logger.info(f"实际是否为相对低点: {'是' if actual_is_low_point else '否'}")
-        logger.info(f"未来最大涨幅: {max_rise:.2%}")
-        logger.info(f"达到目标涨幅所需天数: {days_to_rise} 天")
+        logger.info(f"实际是否为相对低点(T+1事实口径): {'是' if actual_is_low_point else '否' if actual_is_low_point is not None else '数据不足'}")
+        logger.info(f"达到目标涨幅所需天数(T+1): {days_to_target if days_to_target is not None else 'N/A'}")
 
         return PredictionResult(
             date=predict_date,
@@ -433,12 +445,11 @@ def predict_and_validate(
             confidence=confidence,
             future_max_rise=max_rise,
             days_to_rise=days_to_rise,
-            prediction_correct=is_predicted_low_point == actual_is_low_point,
+            days_to_target=days_to_target,
+            prediction_correct=(is_predicted_low_point == actual_is_low_point) if actual_is_low_point is not None else None,
             predict_price=predict_price,
             used_threshold=used_threshold if 'used_threshold' in locals() else None,
             adj=adj if 'adj' in locals() else None,
-            # 新增：策略置信度
-            strategy_confidence=strategy_confidence,
             strategy_reasons=strategy_reasons,
             strategy_indicators=strategy_indicators
         )

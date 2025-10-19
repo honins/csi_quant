@@ -59,7 +59,6 @@ def analyze_failed_predictions(backtest_df, data_df, config):
             'is_low_point': row['预测低点'] == 'True',  # 使用'True'字符串比较
             'prediction': row['预测低点'] == 'True',
             'confidence': row['置信度'],
-            'strategy_confidence': row['策略置信度'],
             'actual_return': 0,  # CSV中没有这个字段，设为0
             'future_max_rise': row['未来最大涨幅'],
             'is_correct': row['预测正确'] == 'True',  # 使用'True'字符串比较
@@ -166,7 +165,6 @@ def print_failure_analysis(failure_analysis):
             print(f"     日期: {analysis.get('date', 'N/A')}")
             print(f"     失败类型: {analysis.get('failure_type', 'N/A')}")
             print(f"     置信度: {analysis.get('confidence', 0):.3f}")
-            print(f"     策略置信度: {analysis.get('strategy_confidence', 0):.3f}")
             print(f"     实际涨幅: {analysis.get('actual_rise', 0):.2%}")
             print(f"     分析原因: {analysis.get('analysis', 'N/A')}")
     

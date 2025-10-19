@@ -107,7 +107,6 @@ class FailureAnalyzer:
                     'reason': f'分析过程出错: {str(e)}',
                     'date': signal.get('date', 'unknown'),
                     'confidence': signal.get('confidence', 0),
-                    'strategy_confidence': signal.get('strategy_confidence', 0),
                     'actual_rise': signal.get('future_max_rise', 0),
                     'analysis': f'分析失败: {str(e)}'
                 })
@@ -170,7 +169,6 @@ class FailureAnalyzer:
                 'reason': '无法找到价格信息',
                 'date': signal_date,
                 'confidence': signal.get('confidence', 0),
-                'strategy_confidence': signal.get('strategy_confidence', 0),
                 'actual_rise': signal.get('future_max_rise', 0),
                 'analysis': f'信号日期: {signal_date}, 可用字段: {list(signal.index)}'
             }
@@ -190,7 +188,6 @@ class FailureAnalyzer:
                 'reason': '无法找到信号日期对应的数据',
                 'date': signal_date,
                 'confidence': confidence,
-                'strategy_confidence': strategy_confidence,
                 'actual_rise': signal.get('future_max_rise', 0),
                 'analysis': f'数据日期范围: {data["date"].min()} ~ {data["date"].max()}'
             }
@@ -204,7 +201,6 @@ class FailureAnalyzer:
                 'reason': '信号后数据不足',
                 'date': signal_date,
                 'confidence': confidence,
-                'strategy_confidence': strategy_confidence,
                 'actual_rise': signal.get('future_max_rise', 0),
                 'analysis': f'可用数据长度: {len(future_data)}'
             }
@@ -232,7 +228,6 @@ class FailureAnalyzer:
             'signal_date': signal_date,
             'signal_price': signal_price,
             'confidence': confidence,
-            'strategy_confidence': strategy_confidence,
             'max_rise': max_rise,
             'max_rise_day': max_rise_day,
             'final_rise': final_rise,
