@@ -769,10 +769,12 @@ class AIOptimizerImproved:
                     'scaler': self.scaler
                 }, f)
 
-            # 保存最新模型路径
+            # 保存最新模型路径（相对项目根目录）
             latest_path = os.path.join(self.models_dir, 'latest_improved_model.txt')
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            relative_model_path = os.path.relpath(model_path, start=project_root)
             with open(latest_path, 'w') as f:
-                f.write(model_path)
+                f.write(relative_model_path)
 
             self.logger.info(f"改进模型保存成功: {model_path}")
             return True

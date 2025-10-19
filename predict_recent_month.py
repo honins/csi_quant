@@ -20,7 +20,7 @@ from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
 from src.utils.utils import load_config
-from src.prediction.prediction_utils import setup_logging, PredictionResult
+from src.prediction.prediction_utils import setup_logging, PredictionResult, predict_and_validate
 
 # 设置日志
 setup_logging()
@@ -41,59 +41,32 @@ def get_recent_trading_days(data_file, days=30):
         return []
 
 def predict_single_date(predict_date_str, config, data_module, strategy_module, ai_optimizer):
-    """预测单个日期"""
+    """预测单个日期（包含验证）"""
     try:
         predict_date = datetime.strptime(predict_date_str, '%Y-%m-%d')
         
-        # 获取预测所需的数据（获取最近1年数据用于预测）
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        market_data = data_module.get_history_data(start_date, end_date)
-        if market_data is None or market_data.empty:
-            logger.error("无法获取市场数据")
-            return None
-            
-        # 处理日期格式
-        market_data['date'] = pd.to_datetime(market_data['date'])
-        
-        # 🔧 修复：正确获取预测日期对应的数据
-        # 首先找到预测日期在数据中的位置
-        predict_date_data = market_data[market_data['date'] == predict_date]
-        if predict_date_data.empty:
-            logger.warning(f"无法找到 {predict_date_str} 的数据")
-            return None
-            
-        # 获取预测日期之前的数据用于构建特征（包含预测日期当天）
-        train_data = market_data[market_data['date'] <= predict_date].copy()
-        if train_data.empty:
-            logger.warning(f"无法获取 {predict_date_str} 之前的数据")
-            return None
-            
-        if len(train_data) < 100:  # 确保有足够的训练数据
-            logger.warning(f"训练数据不足 ({len(train_data)} 条)")
-            return None
-            
-        # 🔧 修复：获取预测日期的收盘价作为预测价格
-        predict_date_data = market_data[market_data['date'] == predict_date]
-        predict_price = predict_date_data.iloc[0]['close'] if not predict_date_data.empty else None
-        
-        # 🎯 关键修复：使用包含预测日期的完整数据进行特征计算
-        # 这样每个日期都会有不同的技术指标和特征
-        predict_day_data = train_data.copy()
-        prediction_result = ai_optimizer.predict_low_point(
-            predict_day_data, predict_date_str
+        # 使用统一的预测+验证流程（不在此处训练，使用已训练模型）
+        pr: PredictionResult = predict_and_validate(
+            predict_date=predict_date,
+            data_module=data_module,
+            strategy_module=strategy_module,
+            ai_optimizer=ai_optimizer,
+            config=config,
+            logger=logger,
+            force_retrain=False,
+            only_use_trained_model=True
         )
         
-        if prediction_result:
-            return {
-                'date': predict_date_str,
-                'predicted_low_point': prediction_result.get('is_low_point', False),
-                'confidence': prediction_result.get('confidence', 0.0),
-                'predict_price': predict_price  # 使用实际的收盘价
-            }
-        else:
-            logger.error(f"预测 {predict_date_str} 返回空结果")
-            return None
+        # 组装字典结果，便于后续生成报告/CSV
+        return {
+            'date': predict_date_str,
+            'predicted_low_point': bool(pr.predicted_low_point) if pr.predicted_low_point is not None else False,
+            'actual_low_point': pr.actual_low_point,
+            'prediction_correct': pr.prediction_correct,
+            'confidence': float(pr.confidence) if pr.confidence is not None else 0.0,
+            'predict_price': pr.predict_price,
+            'used_threshold': pr.used_threshold
+        }
     except Exception as e:
         logger.error(f"预测 {predict_date_str} 失败: {e}")
         return None
@@ -190,8 +163,14 @@ def generate_prediction_report(results, start_date, end_date, config):
         for r in results:
             prediction_text = "是" if r['predicted_low_point'] else "否"
             predict_price = r.get('predict_price', 'N/A')
-            # 由于是最近预测，实际结果等字段暂时显示为待验证
-            report_lines.append(f"| {r['date']} | {predict_price} | {prediction_text} | {r['confidence']:.2f} | 0.50 | 待验证 | 待验证 | 待验证 | 待验证 | 待验证 |")
+            used_thr = r.get('used_threshold')
+            used_thr = used_thr if isinstance(used_thr, (int, float)) else 0.50
+            actual_text = "是" if r.get('actual_low_point') else "否" if r.get('actual_low_point') is not None else "数据不足"
+            prediction_success_text = "是" if r.get('prediction_correct') else "否" if r.get('prediction_correct') is not None else "否"
+            max_rise_text = "待验证"  # 此脚本场景不统计该值
+            days_to_target_text = "待验证"  # 此脚本场景不统计该值
+            trend_text = "待验证"  # 暂不展示策略趋势
+            report_lines.append(f"| {r['date']} | {predict_price} | {prediction_text} | {r['confidence']:.2f} | {used_thr:.2f} | {actual_text} | {trend_text} | {max_rise_text} | {days_to_target_text} | {prediction_success_text} |")
         report_lines.append("")
         
         report_lines.append("> **免责声明**: 本报告由AI模型自动生成，仅供参考，不构成投资建议。投资有风险，决策需谨慎。")
@@ -210,7 +189,9 @@ def generate_prediction_report(results, start_date, end_date, config):
                 '预测为低点': r['predicted_low_point'],
                 '置信度': r['confidence'],
                 '预测结果': '相对低点' if r['predicted_low_point'] else '非相对低点',
-                '置信度等级': '高' if r['confidence'] > 0.5 else '中' if r['confidence'] > 0.3 else '低'
+                '置信度等级': '高' if r['confidence'] > 0.5 else '中' if r['confidence'] > 0.3 else '低',
+                '实际结果': '是' if r.get('actual_low_point') else '否',
+                '预测成功': '是' if (r.get('prediction_correct') is True) else '否'
             })
         
         csv_df = pd.DataFrame(csv_data)
@@ -244,6 +225,14 @@ def main():
         strategy_module = StrategyModule(config)
         ai_optimizer = AIOptimizer(config)
         
+        # 尝试预加载已保存模型，避免仅用已训练模型时提前返回
+        try:
+            if getattr(ai_optimizer, 'model', None) is None:
+                loaded = ai_optimizer._load_model()
+                logger.info(f"预加载模型: {'成功' if loaded else '失败'}")
+        except Exception as _e:
+            logger.warning(f"预加载模型异常: {_e}")
+        
         # 获取最近30个交易日
         data_file = "data/SHSE.000905_1d.csv"
         recent_days = get_recent_trading_days(data_file, 30)
@@ -266,7 +255,9 @@ def main():
                 # 输出预测结果
                 is_low = "是" if result['predicted_low_point'] else "否"
                 confidence = result['confidence'] * 100
-                logger.info(f"  📅 {date_str}: {is_low}相对低点 (置信度: {confidence:.2f}%)")
+                actual_text = "是" if result.get('actual_low_point') else "否" if result.get('actual_low_point') is not None else "数据不足"
+                success_text = "是" if (result.get('prediction_correct') is True) else "否"
+                logger.info(f"  📅 {date_str}: {is_low}相对低点 (置信度: {confidence:.2f}%) ｜ 实际: {actual_text} ｜ 预测成功: {success_text}")
             else:
                 logger.warning(f"  ❌ {date_str}: 预测失败")
         
