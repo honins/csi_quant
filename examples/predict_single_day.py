@@ -163,8 +163,7 @@ def save_prediction_results(prediction_result, predict_date_str, config, market_
                     ai_decision = detailed_analysis['ai_decision']
                     f.write(f"### 预测概率分布\n")
                     f.write(f"- **非低点概率**: {ai_decision.get('non_low_prob', 0):.4f} ({ai_decision.get('non_low_prob', 0):.2%})\n")
-                    f.write(f"- **低点概率**: {ai_decision.get('low_prob', 0):.4f} ({ai_decision.get('low_prob', 0):.2%})\n")
-                    f.write(f"- **置信度评级**: {ai_decision.get('confidence_level', 'N/A')}\n\n")
+                    f.write(f"- **低点概率**: {ai_decision.get('low_prob', 0):.4f} ({ai_decision.get('low_prob', 0):.2%})\n\n")
                 
                 # 决策依据分析
                 if detailed_analysis.get('decision_basis'):
@@ -568,15 +567,10 @@ def predict_with_trained_model(
             logger.info(f"   非低点概率: {prediction_proba[0]:.4f} ({prediction_proba[0]:.2%})")
             logger.info(f"   低点概率:   {prediction_proba[1]:.4f} ({prediction_proba[1]:.2%})")
         
-        # 置信度评级
-        confidence_level = "极低" if confidence < 0.3 else "较低" if confidence < 0.5 else "中等" if confidence < 0.7 else "较高" if confidence < 0.85 else "很高"
-        logger.info(f"   置信度评级: {confidence_level} ({confidence:.2%})")
-        
         # 收集AI决策分析数据
         ai_decision = {
             'non_low_prob': prediction_proba[0] if len(prediction_proba) >= 2 else 0,
             'low_prob': prediction_proba[1] if len(prediction_proba) >= 2 else 0,
-            'confidence_level': confidence_level,
             'confidence_value': confidence
         }
         detailed_analysis['ai_decision'] = ai_decision

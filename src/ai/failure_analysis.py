@@ -548,6 +548,5 @@ class FailureAnalyzer:
             'current_success_rate': current_success_rate,
             'expected_success_rate': min(expected_success_rate, 0.95),  # 最高不超过95%
             'potential_improvement': expected_success_rate - current_success_rate,
-            'recoverable_failures': int(recoverable_failures),
-            'confidence_level': 'medium'  # 基于历史经验的中等置信度
+            'recoverable_failures': int(recoverable_failures)
         }

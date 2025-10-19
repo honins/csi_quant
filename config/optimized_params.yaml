@@ -11,9 +11,16 @@ strategy_params:
   rise_threshold: 0.04
   max_days: 20
 confidence_weights:
-  final_threshold: 0.5
+  final_threshold: 0.1
   ai_weight: 0.5
   strategy_weight: 0.5
+  decision_band:
+    enabled: true
+    abstain_threshold: 0.08
+    enter_threshold: 0.12
+  gray_zone_requires:
+    rsi_oversold_max: 40
+    strategy_positive: true
   ma_all_below: 0.4
   ma_partial_below: 0.25
   rsi_oversold: 0.35
@@ -67,7 +74,14 @@ default_strategy:
   rise_threshold: 0.04
   max_days: 20
   confidence_weights:
-    final_threshold: 0.5
+    final_threshold: 0.1
+    decision_band:
+      enabled: true
+      abstain_threshold: 0.08
+      enter_threshold: 0.12
+    gray_zone_requires:
+      rsi_oversold_max: 40
+      strategy_positive: true
     rsi_oversold_threshold: 40
     rsi_low_threshold: 45
     dynamic_confidence_adjustment: 0.2

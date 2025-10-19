@@ -333,7 +333,47 @@ def predict_and_validate(
             logger.warning(f"动态阈值计算失败，回退到固定阈值: {final_threshold:.3f}，原因: {_e}")
 
         confidence = ai_confidence
-        is_predicted_low_point = confidence >= used_threshold
+        # 双阈值 + 灰区确认 规则
+        band_top = (config.get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+        band_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+        band_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+        band_cfg = band_top if band_top else (band_stg if band_stg else band_def)
+
+        gray_top = (config.get('confidence_weights', {}) or {}).get('gray_zone_requires', {}) or {}
+        gray_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('gray_zone_requires', {}) or {}
+        gray_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('gray_zone_requires', {}) or {}
+        gray_cfg = gray_top if gray_top else (gray_stg if gray_stg else gray_def)
+
+        band_enabled = bool(band_cfg.get('enabled', False))
+        if band_enabled:
+            abstain_threshold = float(band_cfg.get('abstain_threshold', max(0.0, final_threshold - 0.02)))
+            enter_threshold = float(band_cfg.get('enter_threshold', min(1.0, final_threshold + 0.02)))
+            # 限制范围到 [0,1]
+            abstain_threshold = max(0.0, min(1.0, abstain_threshold))
+            enter_threshold = max(0.0, min(1.0, enter_threshold))
+
+            latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
+            current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
+
+            rsi_max = float(gray_cfg.get('rsi_oversold_max', 40))
+            require_strategy_positive = bool(gray_cfg.get('strategy_positive', True))
+
+            if confidence >= enter_threshold:
+                is_predicted_low_point = True
+                used_threshold = enter_threshold
+            elif confidence < abstain_threshold:
+                is_predicted_low_point = False
+                used_threshold = abstain_threshold
+            else:
+                # 灰区确认：RSI 或 策略信号满足其一
+                rsi_ok = (current_rsi is not None and current_rsi < rsi_max)
+                strategy_ok = (strategy_is_predicted_low_point is True) if require_strategy_positive else False
+                is_predicted_low_point = True if (rsi_ok or strategy_ok) else False
+                # 灰区内用于报告的阈值保留为基础阈值
+                used_threshold = final_threshold
+                logger.info(f"双阈值已启用: [{abstain_threshold:.2f}, {enter_threshold:.2f}]；灰区确认: RSI<{rsi_max} 或 策略={strategy_is_predicted_low_point}")
+        else:
+            is_predicted_low_point = confidence >= used_threshold
 
         logger.info(f"AI预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if ai_is_predicted_low_point else '否'} 相对低点，AI置信度: {ai_confidence:.2f}")
         logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点")

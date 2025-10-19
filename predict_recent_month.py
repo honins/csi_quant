@@ -19,7 +19,7 @@ sys.path.insert(0, project_root)
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
-from src.utils.utils import load_config
+from src.utils.config_loader import load_config
 from src.prediction.prediction_utils import setup_logging, PredictionResult, predict_and_validate
 
 # 设置日志
@@ -65,7 +65,11 @@ def predict_single_date(predict_date_str, config, data_module, strategy_module, 
             'prediction_correct': pr.prediction_correct,
             'confidence': float(pr.confidence) if pr.confidence is not None else 0.0,
             'predict_price': pr.predict_price,
-            'used_threshold': pr.used_threshold
+            'used_threshold': pr.used_threshold,
+            'future_max_rise': pr.future_max_rise,
+            'days_to_rise': pr.days_to_rise,
+            'days_to_target': pr.days_to_target,
+            'strategy_indicators': pr.strategy_indicators
         }
     except Exception as e:
         logger.error(f"预测 {predict_date_str} 失败: {e}")
@@ -118,19 +122,6 @@ def generate_prediction_report(results, start_date, end_date, config):
         report_lines.append(f"- **使用模型**: AI优化模型")
         report_lines.append("")
         
-        report_lines.append("## 🎯 预测汇总")
-        report_lines.append(f"- **总预测天数**: {total_predictions}")
-        report_lines.append(f"- **预测为相对低点**: {low_point_predictions} 天 ({low_point_predictions/total_predictions*100:.1f}%)")
-        report_lines.append(f"- **高置信度预测**: {high_confidence_predictions} 天 ({high_confidence_predictions/total_predictions*100:.1f}%)")
-        report_lines.append(f"- **平均置信度**: {avg_confidence:.4f}")
-        report_lines.append("")
-        
-        report_lines.append("## 📈 置信度分析")
-        report_lines.append(f"- **置信度均值**: {confidence_stats['mean']:.4f}")
-        report_lines.append(f"- **置信度标准差**: {confidence_stats['std']:.4f}")
-        report_lines.append(f"- **最低置信度**: {confidence_stats['min']:.4f}")
-        report_lines.append(f"- **最高置信度**: {confidence_stats['max']:.4f}")
-        report_lines.append("")
         
         # 预测详情
         if low_point_predictions > 0:
@@ -139,7 +130,7 @@ def generate_prediction_report(results, start_date, end_date, config):
             report_lines.append("| --- | --- | --- |")
             for r in results:
                 if r['predicted_low_point']:
-                    report_lines.append(f"| {r['date']} | {r['confidence']:.4f} | 预测为相对低点 |")
+                    report_lines.append(f"| {r['date']} | {r['confidence']:.2f} | 预测为相对低点 |")
             report_lines.append("")
         else:
             report_lines.append("## 📊 预测结果")
@@ -153,7 +144,7 @@ def generate_prediction_report(results, start_date, end_date, config):
         report_lines.append("| --- | --- | --- | --- |")
         for i, r in enumerate(sorted_results[:10], 1):
             prediction_text = "相对低点" if r['predicted_low_point'] else "非相对低点"
-            report_lines.append(f"| {i} | {r['date']} | {prediction_text} | {r['confidence']:.4f} |")
+            report_lines.append(f"| {i} | {r['date']} | {prediction_text} | {r['confidence']:.2f} |")
         report_lines.append("")
         
         # 每日预测明细 - 使用与历史回测报告一致的字段格式
@@ -165,11 +156,24 @@ def generate_prediction_report(results, start_date, end_date, config):
             predict_price = r.get('predict_price', 'N/A')
             used_thr = r.get('used_threshold')
             used_thr = used_thr if isinstance(used_thr, (int, float)) else 0.50
-            actual_text = "是" if r.get('actual_low_point') else "否" if r.get('actual_low_point') is not None else "数据不足"
-            prediction_success_text = "是" if r.get('prediction_correct') else "否" if r.get('prediction_correct') is not None else "否"
-            max_rise_text = "待验证"  # 此脚本场景不统计该值
-            days_to_target_text = "待验证"  # 此脚本场景不统计该值
-            trend_text = "待验证"  # 暂不展示策略趋势
+            actual_val = r.get('actual_low_point')
+            actual_text = "是" if actual_val else "否" if actual_val is not None else "数据不足"
+            pc = r.get('prediction_correct')
+            prediction_success_text = "√" if pc is True else "×" if pc is False else "N/A"
+            ind = r.get('strategy_indicators') or {}
+            regime = ind.get('trend_regime')
+            trend_text = (
+                '上升' if regime == 'bull' else '下降' if regime == 'bear' else '横盘' if regime == 'sideways' else 'N/A'
+            )
+            max_rise = r.get('future_max_rise')
+            max_rise_text = f"{max_rise*100:.2f}%" if isinstance(max_rise, (int, float)) else "N/A"
+            dtt = r.get('days_to_target')
+            if dtt is None:
+                days_to_target_text = "N/A"
+            elif dtt == 0:
+                days_to_target_text = "未达标"
+            else:
+                days_to_target_text = str(int(dtt))
             report_lines.append(f"| {r['date']} | {predict_price} | {prediction_text} | {r['confidence']:.2f} | {used_thr:.2f} | {actual_text} | {trend_text} | {max_rise_text} | {days_to_target_text} | {prediction_success_text} |")
         report_lines.append("")
         
@@ -184,14 +188,16 @@ def generate_prediction_report(results, start_date, end_date, config):
         # 生成CSV文件
         csv_data = []
         for r in results:
+            used_threshold = r.get('used_threshold')
+            used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
+            pc = r.get('prediction_correct')
             csv_data.append({
                 '日期': r['date'],
                 '预测为低点': r['predicted_low_point'],
-                '置信度': r['confidence'],
-                '预测结果': '相对低点' if r['predicted_low_point'] else '非相对低点',
-                '置信度等级': '高' if r['confidence'] > 0.5 else '中' if r['confidence'] > 0.3 else '低',
+                '置信度': f"{r['confidence']:.2f}",
+                '置信度阈值': used_threshold_str,
                 '实际结果': '是' if r.get('actual_low_point') else '否',
-                '预测成功': '是' if (r.get('prediction_correct') is True) else '否'
+                '预测成功': '是' if pc is True else ('否' if pc is False else 'N/A')
             })
         
         csv_df = pd.DataFrame(csv_data)
@@ -216,9 +222,8 @@ def main():
     try:
         logger.info("开始最近一个月预测...")
         
-        # 加载配置
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'system.yaml')
-        config = load_config(config_path=config_path)
+        # 加载合并配置（system.yaml + strategy.yaml + optimized_params.yaml）
+        config = load_config()
         
         # 初始化模块
         data_module = DataModule(config)
