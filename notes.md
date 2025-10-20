@@ -335,3 +335,49 @@
 - 在现有图上叠加 `mean ± 95%CI` 误差带与每箱 `count` 标注。
 - 增加 `q10–q90` 风险带，观察高置信度段是否存在肥尾或非对称。
 - 生成“概率校准（Platt/Isotonic）前后”半年对比图，检验中段线性与可解释性提升，高段饱和是否被缓和。
+
+## 趋势感知门槛（Decision Band）笔记
+
+### 定义与作用阶段
+- 在推理决策阶段，根据 `trend_regime` 对入场门槛进行控制（高置信度直入/灰区确认/放弃）。
+- 属于“门控”逻辑，不参与 AI 训练标签的生成。
+
+### 与 AI 训练的关系
+- 训练标签来源：`strategy_module.identify_relative_low()` 计算置信度并用 `confidence_weights.final_threshold` 做门控；`strategy_module.backtest()` 输出的 `is_low_point` 作为训练标签。
+- 推理门控：`prediction_utils` 读取 `confidence_weights.decision_band` 并执行双阈值 + 灰区确认；该门槛不影响训练标签。
+
+### 主要代码位置
+- 推理门控与灰区确认：`src/prediction/prediction_utils.py`
+- 识别门槛（训练标签的来源）：`src/strategy/strategy_module.py`
+
+### 配置项示例（可在顶层或 strategy/default_strategy 下）
+```yaml
+confidence_weights:
+  decision_band:
+    enter_threshold: 0.22   # 示例：在多头环境提高入场门槛
+    abstain_threshold: 0.10
+  gray_zone_requires:
+    min_confirmations: 2
+    use_macd_negative: true
+    use_bb_near_lower: true
+    use_ma_below: true
+    trend_regime_allowed: ['bear','sideways']
+```
+- 读取优先级：顶层 `confidence_weights.decision_band` > `strategy.confidence_weights.decision_band` > `default_strategy.confidence_weights.decision_band`。
+
+### 灰区确认关系
+- 灰区范围通常为 `abstain_threshold` 与 `enter_threshold`之间（如 `0.10–0.15`）。
+- 灰区采用多信号确认（RSI/MACD/BB/MA + 趋势过滤），高置信度直入（≥ `enter_threshold`）不受灰区约束。
+
+### 推荐调优策略
+- 多头（bull）：提高 `enter_threshold` 至 `0.22–0.25`；灰区 `min_confirmations=3`；将 `trend_regime_allowed` 设为 `['bear','sideways']`，减少“浅回撤高开”的误入场。
+- 空头/震荡（bear/sideways）：维持或略降 `enter_threshold`（如 `0.15`），灰区 `min_confirmations=2`，提升弹性反弹捕捉。
+- 若不做分趋势门槛，也可全局调整 `enter_threshold`（影响全部环境）。
+
+### 让训练受趋势门槛影响（可选方案）
+- 方案A：把趋势感知门槛与灰区确认合并到 `identify_relative_low()`，以此生成 `is_low_point` 标签，训练目标与实盘门控一致（需重新校准样本分布）。
+- 方案B：改用交易达标标签（如 `days_to_target>0` 或 `trade_return ≥ rise_threshold`），让模型学习“能否达标”（标签更稀疏、需更强的正负样本均衡）。
+
+### 验证与诊断
+- 验证锚点为 T+1 开盘价，牛市下次日高开会提高 4% 达标难度（解释“高置信度但未达标”的常见现象）。
+- 设置 `RB_FIRST_N_DAYS` 或使用 `--verbose` 查看灰区诊断日志（阈值、命中信号、趋势过滤等），用于参数调优与定位问题。

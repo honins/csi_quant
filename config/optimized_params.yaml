@@ -11,14 +11,13 @@ strategy_params:
   rise_threshold: 0.04
   max_days: 20
 confidence_weights:
-  final_threshold: 0.1
+  final_threshold: 0.15
   ai_weight: 0.5
   strategy_weight: 0.5
-confidence_weights:
   decision_band:
     enabled: true
-    abstain_threshold: 0.10
-    enter_threshold: 0.15
+    abstain_threshold: 0.15
+    enter_threshold: 0.20
   gray_zone_requires:
     rsi_oversold_max: 40
     strategy_positive: true

@@ -240,10 +240,25 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         bin_counts[lbl] = int(counts[i])
                 bin_perc = {k: (v / len(conf_series) * 100 if len(conf_series) > 0 else 0.0) for k, v in bin_counts.items()}
 
-                # 灰区
-                gray_width = 0.05
-                gray_lower = max(0.0, final_threshold - gray_width)
-                gray_upper = min(1.0, final_threshold + gray_width)
+                # 灰区（决策带）
+                band_top = (config.get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_cfg = band_top if band_top else (band_stg if band_stg else band_def)
+                abstain_thr = band_cfg.get('abstain_threshold')
+                enter_thr = band_cfg.get('enter_threshold')
+                if isinstance(abstain_thr, (int, float)) and isinstance(enter_thr, (int, float)):
+                    gray_lower = float(abstain_thr)
+                    gray_upper = float(enter_thr)
+                else:
+                    # 回退：若未配置决策带，使用固定±0.05范围
+                    gray_width = 0.05
+                    gray_lower = max(0.0, final_threshold - gray_width)
+                    gray_upper = min(1.0, final_threshold + gray_width)
+                if gray_lower > gray_upper:
+                    gray_lower, gray_upper = gray_upper, gray_lower
+                gray_lower = max(0.0, min(gray_lower, 1.0))
+                gray_upper = max(0.0, min(gray_upper, 1.0))
                 gray_mask = (results_df['confidence'] >= gray_lower) & (results_df['confidence'] <= gray_upper)
                 gray_df = results_df[gray_mask]
                 gray_total = len(gray_df)
