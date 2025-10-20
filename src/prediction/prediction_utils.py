@@ -283,54 +283,6 @@ def predict_and_validate(
         # 门槛读取：从配置读取固定阈值，并结合谨慎型动态调整（如开启）
         final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
         used_threshold = final_threshold
-        try:
-            dyn_top = (config.get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
-            dyn_cfg = dyn_top if dyn_top else (dyn_stg if dyn_stg else dyn_def)
-            enabled = dyn_cfg.get('enabled', True)
-            if enabled:
-                max_adjust = float(dyn_cfg.get('max_adjust', 0.03))
-                latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
-                current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
-                current_vol = float(latest_row.get('volatility')) if (latest_row is not None and 'volatility' in latest_row and not pd.isna(latest_row.get('volatility'))) else None
-                adj = 0.0
-                rsi_cfg = dyn_cfg.get('rsi', {}) or {}
-                conf_top = config.get('confidence_weights', {}) or {}
-                oversold_base = conf_top.get('rsi_oversold_threshold', 30)
-                rsi_oversold = float(rsi_cfg.get('oversold', oversold_base))
-                rsi_upper = float(rsi_cfg.get('upper', 65))
-                rsi_lower_adjust = float(rsi_cfg.get('lower_adjust', 0.015))
-                rsi_upper_adjust = float(rsi_cfg.get('upper_adjust', 0.015))
-                if current_rsi is not None:
-                    if current_rsi <= rsi_oversold:
-                        adj -= rsi_lower_adjust
-                    elif current_rsi >= rsi_upper:
-                        adj += rsi_upper_adjust
-                vol_cfg = dyn_cfg.get('volatility', {}) or {}
-                lookback = int(vol_cfg.get('lookback_mean', 60))
-                low_ratio = float(vol_cfg.get('low_ratio', 0.90))
-                high_ratio = float(vol_cfg.get('high_ratio', 1.10))
-                vol_low_adjust = float(vol_cfg.get('low_adjust', 0.015))
-                vol_high_adjust = float(vol_cfg.get('high_adjust', -0.010))
-                if current_vol is not None and 'volatility' in training_data.columns and training_data['volatility'].notna().any():
-                    vol_mean = float(training_data['volatility'].tail(lookback).mean()) if len(training_data) >= 1 else None
-                    if vol_mean and vol_mean > 0:
-                        vol_ratio = current_vol / vol_mean
-                        if vol_ratio <= low_ratio:
-                            adj += vol_low_adjust
-                        elif vol_ratio >= high_ratio:
-                            adj += vol_high_adjust
-                if adj > max_adjust:
-                    adj = max_adjust
-                if adj < -max_adjust:
-                    adj = -max_adjust
-                used_threshold = float(final_threshold + adj)
-                used_threshold = max(0.10, min(0.90, used_threshold))
-                logger.info(f"动态阈值: base={final_threshold:.3f}, adj={adj:+.3f} -> used={used_threshold:.3f} (rsi={current_rsi if current_rsi is not None else 'N/A'}, vol={current_vol if current_vol is not None else 'N/A'})")
-        except Exception as _e:
-            used_threshold = final_threshold
-            logger.warning(f"动态阈值计算失败，回退到固定阈值: {final_threshold:.3f}，原因: {_e}")
 
         confidence = ai_confidence
         # 双阈值 + 灰区确认 规则
@@ -354,6 +306,7 @@ def predict_and_validate(
 
             latest_row = predict_day_data.iloc[-1] if len(predict_day_data) > 0 else None
             current_rsi = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row and not pd.isna(latest_row.get('rsi'))) else None
+            latest_close = float(latest_row.get('close')) if (latest_row is not None and 'close' in latest_row and not pd.isna(latest_row.get('close'))) else None
 
             rsi_max = float(gray_cfg.get('rsi_oversold_max', 40))
             require_strategy_positive = bool(gray_cfg.get('strategy_positive', True))
@@ -365,13 +318,78 @@ def predict_and_validate(
                 is_predicted_low_point = False
                 used_threshold = abstain_threshold
             else:
-                # 灰区确认：RSI 或 策略信号满足其一
+                # 灰区更严谨的确认：采用多信号确认机制
+                # 可配置项：最小确认数、是否使用MACD/BB/MA/趋势过滤
+                min_confirms = int(gray_cfg.get('min_confirmations', 2))
+                use_macd = bool(gray_cfg.get('use_macd_negative', True))
+                use_bb = bool(gray_cfg.get('use_bb_near_lower', True))
+                use_ma = bool(gray_cfg.get('use_ma_below', True))
+                allowed_trend = gray_cfg.get('trend_regime_allowed', []) or []
+
+                signals_met = []
+
+                # 1) RSI超卖
                 rsi_ok = (current_rsi is not None and current_rsi < rsi_max)
-                strategy_ok = (strategy_is_predicted_low_point is True) if require_strategy_positive else False
-                is_predicted_low_point = True if (rsi_ok or strategy_ok) else False
+                if rsi_ok:
+                    signals_met.append('RSI')
+
+                # 2) 策略信号为正（可选）
+                strategy_ok = (strategy_is_predicted_low_point is True)
+                if require_strategy_positive and strategy_ok:
+                    signals_met.append('Strategy')
+
+                # 3) MACD负值（更偏弱势环境的确认）
+                if use_macd:
+                    macd_val = None
+                    try:
+                        macd_val = float(strategy_indicators.get('macd')) if (strategy_indicators and 'macd' in strategy_indicators and strategy_indicators.get('macd') is not None) else None
+                    except Exception:
+                        macd_val = None
+                    macd_thr = float((config.get('confidence_weights', {}) or {}).get('macd_negative_threshold', -0.01))
+                    if macd_val is not None and macd_val < macd_thr:
+                        signals_met.append('MACD')
+
+                # 4) 接近布林带下轨
+                if use_bb:
+                    bb_lower = None
+                    try:
+                        bb_lower = float(strategy_indicators.get('bb_lower')) if (strategy_indicators and 'bb_lower' in strategy_indicators and strategy_indicators.get('bb_lower') is not None) else None
+                    except Exception:
+                        bb_lower = None
+                    bb_near_thr = float((config.get('confidence_weights', {}) or {}).get('bb_near_threshold', 1.02))
+                    if bb_lower is not None and latest_close is not None:
+                        if latest_close <= bb_lower * bb_near_thr:
+                            signals_met.append('BB')
+
+                # 5) 跌破中期均线（如MA20）
+                if use_ma:
+                    ma20 = None
+                    try:
+                        ma20 = float(strategy_indicators.get('ma20')) if (strategy_indicators and 'ma20' in strategy_indicators and strategy_indicators.get('ma20') is not None) else None
+                    except Exception:
+                        ma20 = None
+                    if ma20 is not None and latest_close is not None and latest_close < ma20:
+                        signals_met.append('MA20')
+
+                # 6) 趋势过滤（可选）：仅在允许的趋势状态下确认
+                trend_ok = True
+                if allowed_trend:
+                    trend_val = None
+                    try:
+                        trend_val = str(strategy_indicators.get('trend_regime')) if (strategy_indicators and 'trend_regime' in strategy_indicators and strategy_indicators.get('trend_regime') is not None) else None
+                    except Exception:
+                        trend_val = None
+                    trend_ok = (trend_val in set(allowed_trend)) if trend_val is not None else False
+
+                # 最终灰区确认：满足趋势过滤且达到最小确认数
+                is_predicted_low_point = (trend_ok and (len(signals_met) >= max(1, min_confirms)))
                 # 灰区内用于报告的阈值保留为基础阈值
                 used_threshold = final_threshold
-                logger.info(f"双阈值已启用: [{abstain_threshold:.2f}, {enter_threshold:.2f}]；灰区确认: RSI<{rsi_max} 或 策略={strategy_is_predicted_low_point}")
+                logger.debug(
+                    f"thresholds: final={final_threshold:.2f}, abstain={abstain_threshold:.2f}, enter={enter_threshold:.2f}; "
+                    f"gray_signals_met={signals_met if band_enabled and abstain_threshold < confidence < enter_threshold else []}"
+                )
+                logger.info(f"双阈值灰区确认: 最少{min_confirms}个信号，已命中={signals_met}，趋势允许={allowed_trend if allowed_trend else '不限'}")
         else:
             is_predicted_low_point = confidence >= used_threshold
 

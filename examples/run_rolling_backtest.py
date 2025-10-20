@@ -33,8 +33,7 @@ from src.utils.reporting import format_backtest_summary
 
 def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window_days: int = 365, 
                          reuse_model: bool = True, retrain_interval_days: int = None,
-                         generate_report: bool = True, report_dir: str = None,
-                         override_dynamic_threshold_enabled: bool = None):
+                         generate_report: bool = True, report_dir: str = None):
     setup_logging()
     logger = logging.getLogger("RollingBacktest")
 
@@ -43,14 +42,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         from src.utils.config_loader import load_config as load_config_improved
         config = load_config_improved()
         
-        # 覆盖动态阈值开关（A/B 实验用）
-        try:
-            if override_dynamic_threshold_enabled is not None:
-                cfg_path = config.setdefault('confidence_weights', {}).setdefault('dynamic_threshold', {})
-                cfg_path['enabled'] = bool(override_dynamic_threshold_enabled)
-                logger.info(f"[A/B] 覆盖动态阈值开关: enabled={cfg_path['enabled']}")
-        except Exception as _e:
-            logger.warning(f"无法覆盖动态阈值开关: {_e}")
+
         
         # 应用训练策略配置
         if retrain_interval_days is not None:
@@ -910,8 +902,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
 def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, training_window_days: int = 365,
                                      reuse_model: bool = True, retrain_interval_days: int = None,
-                                     generate_report: bool = True, report_dir: str = None,
-                                     override_dynamic_threshold_enabled: bool = None):
+                                     generate_report: bool = True, report_dir: str = None):
     """
     兼容入口：与 run_rolling_backtest 相同，只是显式返回其结果，供网格测试脚本调用。
     """
@@ -923,7 +914,6 @@ def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, tra
         retrain_interval_days=retrain_interval_days,
         generate_report=generate_report,
         report_dir=report_dir,
-        override_dynamic_threshold_enabled=override_dynamic_threshold_enabled,
     )
 
 
@@ -938,7 +928,7 @@ if __name__ == "__main__":
     parser.add_argument('--retrain_interval_days', type=int, help='重训练间隔天数')
     parser.add_argument('--no_report', action='store_true', help='不生成报告')
     parser.add_argument('--report_dir', help='报告目录')
-    parser.add_argument('--override_dynamic_threshold', type=bool, help='覆盖动态阈值设置')
+
     parser.add_argument('--verbose', action='store_true', help='详细输出')
     
     args = parser.parse_args()
@@ -951,7 +941,6 @@ if __name__ == "__main__":
         retrain_interval_days=args.retrain_interval_days,
         generate_report=not args.no_report,
         report_dir=args.report_dir,
-        override_dynamic_threshold_enabled=args.override_dynamic_threshold
     )
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if result['success']:

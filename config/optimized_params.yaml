@@ -14,6 +14,7 @@ confidence_weights:
   final_threshold: 0.1
   ai_weight: 0.5
   strategy_weight: 0.5
+confidence_weights:
   decision_band:
     enabled: true
     abstain_threshold: 0.10
@@ -21,6 +22,11 @@ confidence_weights:
   gray_zone_requires:
     rsi_oversold_max: 40
     strategy_positive: true
+    min_confirmations: 2
+    use_macd_negative: true
+    use_bb_near_lower: true
+    use_ma_below: true
+    trend_regime_allowed: ['bear', 'sideways']
   ma_all_below: 0.4
   ma_partial_below: 0.25
   rsi_oversold: 0.35
@@ -74,7 +80,7 @@ default_strategy:
   rise_threshold: 0.04
   max_days: 20
   confidence_weights:
-    final_threshold: 0.1
+    final_threshold: 0.15
     decision_band:
       enabled: true
       abstain_threshold: 0.08
@@ -82,6 +88,11 @@ default_strategy:
     gray_zone_requires:
       rsi_oversold_max: 40
       strategy_positive: true
+      min_confirmations: 2
+      use_macd_negative: true
+      use_bb_near_lower: true
+      use_ma_below: true
+      trend_regime_allowed: ['bear', 'sideways']
     rsi_oversold_threshold: 40
     rsi_low_threshold: 45
     dynamic_confidence_adjustment: 0.2

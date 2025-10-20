@@ -37,15 +37,12 @@ def create_temp_config(base_config_dir: str, final_threshold: float) -> str:
     temp_fd, temp_config_path = tempfile.mkstemp(suffix='.yaml', prefix='grid_test_')
     
     try:
-        # 只覆盖 final_threshold，其他配置保持不变；可选关闭动态阈值
-        disable_dynamic = os.environ.get('GRID_DISABLE_DYNAMIC', '1') == '1'
+        # 只覆盖 final_threshold，其他配置保持不变
         temp_config = {
             'confidence_weights': {
                 'final_threshold': final_threshold
             }
         }
-        if disable_dynamic:
-            temp_config['confidence_weights']['dynamic_threshold'] = {'enabled': False}
         
         # 写入临时配置文件
         with open(temp_config_path, 'w', encoding='utf-8') as f:
