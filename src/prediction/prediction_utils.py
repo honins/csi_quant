@@ -283,6 +283,23 @@ def predict_and_validate(
         # 门槛读取：从配置读取固定阈值，并结合谨慎型动态调整（如开启）
         final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
         used_threshold = final_threshold
+
+        # === 趋势过滤逻辑 (Trend Filter Optimization) ===
+        # 策略：放弃震荡市或行情差的时候，只有在趋势明确（牛市排列）的时候才预测
+        trend_filter_triggered = False
+        try:
+            latest_row = predict_day_data.iloc[-1]
+            ma5 = float(latest_row.get('ma5', 0))
+            ma10 = float(latest_row.get('ma10', 0))
+            ma20 = float(latest_row.get('ma20', 0))
+            
+            # 定义明确趋势：MA5 > MA10 > MA20 (牛市排列)
+            if not (ma5 > ma10 > ma20):
+                trend_filter_triggered = True
+                logger.info(f"趋势过滤触发: 非明确上升趋势 (MA5={ma5:.2f}, MA10={ma10:.2f}, MA20={ma20:.2f})")
+        except Exception as e:
+            logger.warning(f"趋势判断失败: {e}")
+
         try:
             dyn_top = (config.get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
             dyn_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('dynamic_threshold', {}) or {}
@@ -387,6 +404,13 @@ def predict_and_validate(
                 logger.info(f"双阈值灰区决策: conf={confidence:.2f}, rsi={current_rsi}, strategy={strategy_ok} -> {is_predicted_low_point}")
         else:
             is_predicted_low_point = confidence >= used_threshold
+
+        # === 应用趋势过滤 (Apply Trend Filter) ===
+        if trend_filter_triggered:
+            if is_predicted_low_point:
+                logger.info("趋势过滤生效: 原本预测为'是'，但因非明确趋势被强制修正为'否'")
+            is_predicted_low_point = False
+            used_threshold = 0.99  # 标记以便在报告中看出是被过滤的
 
         logger.info(f"AI预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if ai_is_predicted_low_point else '否'} 相对低点，AI置信度: {ai_confidence:.2f}")
         logger.info(f"策略预测结果: {predict_date.strftime('%Y-%m-%d')} {'是' if strategy_is_predicted_low_point else '否'} 相对低点")
