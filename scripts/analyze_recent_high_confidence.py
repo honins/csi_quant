@@ -29,6 +29,11 @@ def run_analysis():
     logger = logging.getLogger("Analysis")
     
     config = load_config()
+    
+    # 获取阈值 (优先从配置读取，默认0.25)
+    threshold = config.get('confidence_weights', {}).get('final_threshold', 0.25)
+    logger.info(f"使用置信度阈值: {threshold}")
+    
     data_module = DataModule(config)
     ai_optimizer = AIOptimizerImproved(config)
     
@@ -139,15 +144,23 @@ def run_analysis():
 
     # 4. 统计结果
     print("\n" + "="*40)
-    print("📊 最近3个月置信度 Top 10 信号")
+    print(f"📊 最近3个月高置信度信号 (阈值 >= {threshold})")
     print("="*40)
     
     if not signals:
-        print("未发现任何信号。")
+        print(f"未发现置信度 >= {threshold} 的信号。")
         return
 
     df = pd.DataFrame(signals)
-    df = df.sort_values('confidence', ascending=False).head(10) # 按置信度降序取Top 10
+    
+    # 过滤阈值
+    df = df[df['confidence'] >= threshold]
+    
+    if df.empty:
+        print(f"未发现置信度 >= {threshold} 的信号。")
+        return
+        
+    df = df.sort_values('date', ascending=False) # 按日期倒序
     
     # 格式化输出列
     output_df = df[['date', 'confidence', 'return_pct', 'days_held']].copy()
@@ -156,14 +169,14 @@ def run_analysis():
     # 对于未持有的（待买入），显示 --
     def format_ret(row):
         if row['days_held'] == 0:
-            return "待买入"
+            return "待买入 (最新信号)"
         return f"{row['return_pct']:+.2%}"
         
-    output_df['return_msg'] = output_df.apply(format_ret, axis=1)
+    output_df['status'] = output_df.apply(format_ret, axis=1)
     
     print("-" * 40)
-    print("详细列表:")
-    print(output_df[['date', 'confidence', 'return_msg', 'days_held']].to_string(index=False))
+    print("详细列表 (按日期倒序):")
+    print(output_df[['date', 'confidence', 'status', 'days_held']].to_string(index=False))
 
 if __name__ == "__main__":
     run_analysis()
