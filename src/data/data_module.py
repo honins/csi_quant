@@ -124,6 +124,22 @@ class DataModule:
             self.logger.error("数据预处理失败: %s", str(e))
             raise
             
+    def get_features_v2(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        使用 FeatureEngineerV2 生成增强特征 (ATR, ADX, OBV, Weekly)
+        此方法用于新版 AI 模型和回测系统
+        """
+        try:
+            from src.features.feature_engineer_v2 import FeatureEngineerV2
+            fe = FeatureEngineerV2(self.config)
+            return fe.generate_features(data)
+        except ImportError:
+            self.logger.error("无法导入 FeatureEngineerV2，请确保 src.features 模块存在")
+            return data
+        except Exception as e:
+            self.logger.error(f"特征生成失败: {e}")
+            return data
+
     def _calculate_technical_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         计算技术指标
