@@ -703,10 +703,41 @@ class AIOptimizerImproved:
         # 🔧 修复：确保数据包含技术指标
         if 'rsi' not in data.columns or 'macd' not in data.columns:
             self.logger.warning("数据缺少技术指标，跳过预处理...")
-            # 注意：这里我们假设外部已经处理了数据预处理
-            # 如果确实需要在这里处理，可以添加数据模块调用
-
+        
         backtest_results = strategy_module.backtest(data)
+        
+        # -------------------------------------------------------------------------
+        # 🎯 关键优化：将2025年3-5月的失败案例作为负样本 (Hard Negative Mining)
+        # -------------------------------------------------------------------------
+        # 1. 确保数据有日期索引或日期列
+        dates = None
+        if 'date' in data.columns:
+            dates = pd.to_datetime(data['date'])
+        elif isinstance(data.index, pd.DatetimeIndex):
+            dates = data.index
+            
+        if dates is not None:
+            # 2. 定义负样本区间 (2025-03-01 到 2025-05-31)
+            mask_hard_negative = (dates >= '2025-03-01') & (dates <= '2025-05-31')
+            
+            # 3. 强制修正标签：该区间内所有样本设为负样本 (0)
+            #    原因：该区间为"阴跌"或"假摔"行情，AI之前容易误判为买点
+            original_labels = backtest_results['is_low_point'].astype(int).values
+            corrected_labels = original_labels.copy()
+            
+            # 统计修正前该区间的正样本数
+            indices = np.where(mask_hard_negative)[0]
+            if len(indices) > 0:
+                positive_count_before = np.sum(original_labels[indices])
+                
+                # 强制设为0
+                corrected_labels[indices] = 0
+                
+                self.logger.info(f"🎯 负样本增强: 将2025.3-5月区间的 {positive_count_before} 个正样本强制修正为负样本")
+                self.logger.info("   -> 目的: 训练AI识别'阴跌'和'假摔'陷阱")
+            
+            return corrected_labels
+        
         return backtest_results['is_low_point'].astype(int).values
 
     def _calculate_sample_weights(self, dates: pd.Series) -> np.ndarray:

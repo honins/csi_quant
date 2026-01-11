@@ -133,7 +133,7 @@ class OptimizedParamsSaver:
             
             # 技术指标参数
             'technical_indicators': [
-                'bb_near_threshold', 'recent_decline', 'macd_negative',
+                'bb_near_threshold', 'price_momentum_weight', 'macd_negative',
                 'price_decline_threshold', 'rsi_oversold_threshold', 'rsi_low_threshold'
             ],
             

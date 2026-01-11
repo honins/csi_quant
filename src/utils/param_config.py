@@ -46,7 +46,7 @@ VOLUME_LOGIC_PARAMS = [
 # 🔥 技术指标参数（4个）- 基础但重要的技术指标
 TECHNICAL_INDICATOR_PARAMS = [
     'bb_near_threshold',                 # 布林带接近阈值 - 有效性：★★★☆☆
-    'recent_decline',                    # 近期下跌权重 - 有效性：★★★☆☆
+    'price_momentum_weight',             # 价格动量权重 (原recent_decline) - 有效性：★★★☆☆
     'macd_negative',                     # MACD负值权重 - 有效性：★★★☆☆
     'price_decline_threshold'            # 价格下跌阈值 - 有效性：★★★☆☆
 ]
@@ -101,7 +101,7 @@ CONFIDENCE_WEIGHT_PARAMS = [
 # 📊 strategy级别参数（参与优化，保存在strategy部分）
 STRATEGY_LEVEL_PARAMS = [
     'volume_weight',                      # 成交量权重
-    'price_momentum_weight',             # 价格动量权重
+    # 'price_momentum_weight' 已移至TECHNICAL_INDICATOR_PARAMS
     'bb_near_threshold',                 # 布林带接近阈值
     'volume_panic_threshold',            # 成交量恐慌阈值
     'volume_surge_threshold',            # 成交量激增阈值
@@ -176,7 +176,7 @@ def get_param_effectiveness(param_name: str) -> str:
         
         # 🔥 技术指标参数（4个）
         'bb_near_threshold': '★★★☆☆',
-        'recent_decline': '★★★☆☆',
+        'price_momentum_weight': '★★★☆☆',
         'macd_negative': '★★★☆☆',
         'price_decline_threshold': '★★★☆☆',
         

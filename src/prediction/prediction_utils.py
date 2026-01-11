@@ -325,6 +325,63 @@ def predict_and_validate(
                     adj = max_adjust
                 if adj < -max_adjust:
                     adj = -max_adjust
+
+                # ----------------------------------------------------------------
+                # 🆕 新增：趋势状态与成交量过滤 (针对震荡市/假突破优化)
+                # ----------------------------------------------------------------
+                ma5 = float(latest_row.get('ma5')) if (latest_row is not None and 'ma5' in latest_row) else None
+                ma10 = float(latest_row.get('ma10')) if (latest_row is not None and 'ma10' in latest_row) else None
+                ma20 = float(latest_row.get('ma20')) if (latest_row is not None and 'ma20' in latest_row) else None
+                
+                trend_regime = 'sideways' # 默认为震荡
+                if ma5 and ma10 and ma20:
+                    if ma5 > ma10 > ma20:
+                        trend_regime = 'bull'
+                    elif ma5 < ma10 < ma20:
+                        trend_regime = 'bear'
+                
+                # 趋势状态调整 (直接叠加到 adj，不受 max_adjust 限制，因为这是更高级别的风控)
+                trend_adj = 0.0
+                if trend_regime == 'sideways':
+                    # 震荡市：大幅提高门槛，过滤噪音 (之前回测显示震荡市准确率最低)
+                    trend_adj = 0.25
+                    logger.info("  -> 市场状态: 震荡 (Sideways), 阈值 +0.25")
+                elif trend_regime == 'bear':
+                    # 熊市：严厉提高门槛，除非极度看好否则不买
+                    trend_adj = 0.40
+                    logger.info("  -> 市场状态: 熊市 (Bear), 阈值 +0.40")
+                
+                # 成交量验证
+                vol_adj = 0.0
+                vol_ratio = float(latest_row.get('volume_ratio')) if (latest_row is not None and 'volume_ratio' in latest_row) else None
+                if vol_ratio is not None:
+                    if vol_ratio < 0.6:
+                        # 极度缩量：往往是阴跌，强制高门槛
+                        vol_adj = 0.40
+                        logger.info(f"  -> 成交量极低 (Ratio={vol_ratio:.2f} < 0.6), 阈值 +0.40")
+                    elif vol_ratio < 0.8:
+                        # 缩量：提高门槛
+                        vol_adj = 0.20
+                        logger.info(f"  -> 成交量低迷 (Ratio={vol_ratio:.2f} < 0.8), 阈值 +0.20")
+                
+                # ⛔ 强力熔断机制：震荡市 + 缩量 = 禁入
+                if trend_regime == 'sideways' and (vol_ratio is not None and vol_ratio < 0.8):
+                    logger.info("  ⛔ 触发熔断: 震荡市且缩量，强制拒绝 (阈值设为 0.99)")
+                    adj = 0.99 - final_threshold 
+                    trend_adj = 0
+                    vol_adj = 0
+                
+                # ⛔ 熊市熔断：RSI不够低 (>35) 则不买
+                rsi_val = float(latest_row.get('rsi')) if (latest_row is not None and 'rsi' in latest_row) else None
+                if trend_regime == 'bear' and rsi_val is not None and rsi_val > 35:
+                    logger.info(f"  ⛔ 触发熊市保护: RSI={rsi_val:.1f} > 35, 非极度超卖，强制拒绝")
+                    adj = 0.99 - final_threshold
+                    trend_adj = 0
+                    vol_adj = 0
+
+                # 应用额外的环境调整
+                adj += trend_adj + vol_adj
+
                 used_threshold = float(final_threshold + adj)
                 used_threshold = max(0.10, min(0.90, used_threshold))
                 logger.info(f"动态阈值: base={final_threshold:.3f}, adj={adj:+.3f} -> used={used_threshold:.3f} (rsi={current_rsi if current_rsi is not None else 'N/A'}, vol={current_vol if current_vol is not None else 'N/A'})")

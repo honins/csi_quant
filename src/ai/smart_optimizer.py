@@ -228,7 +228,7 @@ class SmartOptimizer:
                         'factor': 1.6,  # 大幅提高恐慌性抛售奖励
                         'reason': '极端恐慌往往伴随最强反弹'
                     },
-                    'recent_decline': {
+                    'price_momentum_weight': {
                         'adjustment': 'increase',
                         'factor': 1.4,  # 大幅提高近期下跌权重
                         'reason': '非理性暴跌往往有最快反弹'
@@ -346,7 +346,7 @@ class SmartOptimizer:
             'market_sentiment_weight': (0.05, 0.4),
             'macd_negative': (0.02, 0.3),
             'volume_panic_bonus': (0.02, 0.4),
-            'recent_decline': (0.05, 0.5)
+            'price_momentum_weight': (0.05, 0.5)
         }
         
         if param_name in bounds:

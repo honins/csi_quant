@@ -642,6 +642,9 @@ class StrategyModule:
             'bb_lower_near', 'price_decline_threshold', 'decline_threshold',
             'rsi_uptrend_min', 'rsi_uptrend_max', 'rsi_pullback_threshold',
             'rsi_uptrend_pullback', 'rsi_overbought_correction',
+            # 补全缺失的参数
+            'ma_all_below', 'ma_partial_below', 'macd_negative', 'macd_weak_negative',
+            'rsi_oversold', 'rsi_low', 'rsi_moderate',
             # 阈值与权重（在 strategy.yaml 中也位于 confidence_weights 下）
             'bb_near_threshold', 'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold',
             'volume_weight', 'price_momentum_weight'
