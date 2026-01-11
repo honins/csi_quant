@@ -19,8 +19,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
-from src.utils.common import setup_logger, load_config
-from src.prediction.prediction_utils import setup_logging, predict_and_validate
+from src.utils.config_loader import load_config
+from src.utils.common import LoggerManager
+from src.prediction.prediction_utils import predict_and_validate
 from src.utils.trade_date import is_trading_day
 
 def save_prediction_results(prediction_result, predict_date_str, config, market_data=None, technical_indicators=None, model_analysis=None, detailed_analysis=None):
@@ -286,12 +287,12 @@ def predict_single_day(predict_date_str: str, use_trained_model: bool = True):
     Returns:
         bool: 预测是否成功
     """
-    setup_logging()
-    logger = logging.getLogger("SingleDayPredictor")
+    LoggerManager.setup_logging()
+    logger = LoggerManager.get_logger("SingleDayPredictor")
 
     try:
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'system.yaml')
-        config = load_config(config_path=config_path)
+        # 使用默认配置路径加载所有配置
+        config = load_config()
         
         # 初始化模块
         data_module = DataModule(config)
@@ -759,7 +760,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -789,7 +789,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,

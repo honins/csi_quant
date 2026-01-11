@@ -133,22 +133,28 @@ class StrategyModule:
                 current_volume = data['volume'].iloc[-1]
                 volume_ratio = current_volume / avg_volume_20 if avg_volume_20 > 0 else 1
                 volume_ratio_5d = avg_volume_5 / avg_volume_20 if avg_volume_20 > 0 else 1
+                
+                # 动态判断涨跌方向，避免文案误导
+                price_change_val = 0.0
+                if len(data) >= 2:
+                    price_change_val = (data['close'].iloc[-1] - data['close'].iloc[-2]) / data['close'].iloc[-2]
+                direction_str = "下跌" if price_change_val < 0 else "上涨"
 
                 if volume_ratio > 2.5:
                     confidence += volume_panic_bonus * 2.5
-                    reasons.append(f"极度恐慌性抛售(量比{volume_ratio:.1f})")
+                    reasons.append(f"极度放量{direction_str}(量比{volume_ratio:.1f})")
                 elif volume_ratio > 2.0:
                     confidence += volume_panic_bonus * 2.0
-                    reasons.append(f"恐慌性大量抛售(量比{volume_ratio:.1f})")
+                    reasons.append(f"大幅放量{direction_str}(量比{volume_ratio:.1f})")
                 elif volume_ratio > 1.5:
                     confidence += volume_panic_bonus * 1.2
-                    reasons.append(f"放量下跌(量比{volume_ratio:.1f})")
+                    reasons.append(f"放量{direction_str}(量比{volume_ratio:.1f})")
                 elif volume_ratio > 1.2:
                     confidence += volume_panic_bonus * 0.8
-                    reasons.append(f"温和放量(量比{volume_ratio:.1f})")
+                    reasons.append(f"温和放量{direction_str}(量比{volume_ratio:.1f})")
                 elif volume_ratio < 0.5:
                     confidence += volume_panic_bonus * 0.4
-                    reasons.append(f"缩量下跌(量比{volume_ratio:.1f})")
+                    reasons.append(f"缩量{direction_str}(量比{volume_ratio:.1f})")
                 elif volume_ratio < 0.8:
                     confidence += volume_panic_bonus * 0.2
                     reasons.append(f"成交量偏低(量比{volume_ratio:.1f})")

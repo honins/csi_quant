@@ -699,17 +699,39 @@ class AIOptimizerImproved:
             }
 
     def _prepare_labels(self, data: pd.DataFrame, strategy_module) -> np.ndarray:
-        """准备标签"""
-        # 🔧 修复：确保数据包含技术指标
-        if 'rsi' not in data.columns or 'macd' not in data.columns:
-            self.logger.warning("数据缺少技术指标，跳过预处理...")
+        """
+        准备标签：基于未来收益率 (Future Return)
+        目标：预测未来10天内涨幅是否超过2%
+        """
+        self.logger.info("🏷️ 使用【未来收益率】生成训练标签 (Target: 10天涨幅>2%)")
         
-        backtest_results = strategy_module.backtest(data)
+        # 1. 计算未来10天的收益率
+        # 使用 shift(-10) 获取10个交易日后的收盘价
+        future_days = 10
+        return_threshold = 0.02
+        
+        # 确保有 close 列
+        if 'close' not in data.columns:
+            self.logger.error("数据缺少 'close' 列，无法计算未来收益")
+            return np.zeros(len(data))
+            
+        future_close = data['close'].shift(-future_days)
+        future_returns = (future_close - data['close']) / data['close']
+        
+        # 2. 生成基础标签
+        # 只有当未来收益率 > 阈值时，标记为 1 (正样本)
+        # fillna(0) 处理最后几天的 NaN
+        labels = (future_returns > return_threshold).astype(int)
+        
+        # 将最后 future_days 天的标签设为 0 (因为不知道未来)
+        labels.iloc[-future_days:] = 0
+        
+        # 转换为 numpy 数组
+        labels = labels.values
         
         # -------------------------------------------------------------------------
-        # 🎯 关键优化：将2025年3-5月的失败案例作为负样本 (Hard Negative Mining)
+        # 🎯 负样本增强 (Hard Negative Mining)
         # -------------------------------------------------------------------------
-        # 1. 确保数据有日期索引或日期列
         dates = None
         if 'date' in data.columns:
             dates = pd.to_datetime(data['date'])
@@ -717,28 +739,21 @@ class AIOptimizerImproved:
             dates = data.index
             
         if dates is not None:
-            # 2. 定义负样本区间 (2025-03-01 到 2025-05-31)
+            # 定义负样本区间 (2025-03-01 到 2025-05-31)
+            # 该区间为"阴跌"或"假摔"行情，强制设为负样本
             mask_hard_negative = (dates >= '2025-03-01') & (dates <= '2025-05-31')
             
-            # 3. 强制修正标签：该区间内所有样本设为负样本 (0)
-            #    原因：该区间为"阴跌"或"假摔"行情，AI之前容易误判为买点
-            original_labels = backtest_results['is_low_point'].astype(int).values
-            corrected_labels = original_labels.copy()
-            
-            # 统计修正前该区间的正样本数
             indices = np.where(mask_hard_negative)[0]
             if len(indices) > 0:
-                positive_count_before = np.sum(original_labels[indices])
+                positive_count_before = np.sum(labels[indices])
                 
                 # 强制设为0
-                corrected_labels[indices] = 0
+                labels[indices] = 0
                 
-                self.logger.info(f"🎯 负样本增强: 将2025.3-5月区间的 {positive_count_before} 个正样本强制修正为负样本")
-                self.logger.info("   -> 目的: 训练AI识别'阴跌'和'假摔'陷阱")
-            
-            return corrected_labels
+                if positive_count_before > 0:
+                    self.logger.info(f"🎯 负样本增强: 将2025.3-5月区间的 {positive_count_before} 个正样本强制修正为负样本")
         
-        return backtest_results['is_low_point'].astype(int).values
+        return labels
 
     def _calculate_sample_weights(self, dates: pd.Series) -> np.ndarray:
         """
