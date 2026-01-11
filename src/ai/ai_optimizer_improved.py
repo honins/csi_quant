@@ -31,7 +31,7 @@ from skopt.utils import use_named_args
 BAYESIAN_AVAILABLE = True
 
 # 导入工具函数
-from src.utils.utils import resolve_confidence_param
+from src.utils.common import resolve_confidence_param
 
 
 

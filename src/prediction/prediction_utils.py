@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 import numpy as np
-from src.utils.utils import resolve_confidence_param
+from src.utils.common import resolve_confidence_param
 
 @dataclass
 class PredictionResult:

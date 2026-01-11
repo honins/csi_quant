@@ -26,7 +26,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
 
-from src.utils.utils import resolve_confidence_param
+from src.utils.common import resolve_confidence_param
 from src.prediction.prediction_utils import setup_logging, predict_and_validate
 from src.utils.trade_date import is_trading_day
 from src.utils.reporting import format_backtest_summary

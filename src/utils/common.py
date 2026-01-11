@@ -909,5 +909,39 @@ __all__ = [
     'MathUtils',
     
     # 便捷函数
-    'init_project_environment', 'format_dict_for_display'
+    'init_project_environment', 'format_dict_for_display',
+    
+    # 参数解析
+    'resolve_confidence_param'
 ]
+
+def resolve_confidence_param(config: Dict[str, Any], key: str, default: Any = None) -> Any:
+    """
+    解析置信度参数
+    从配置中获取置信度相关的参数值，支持从 confidence_weights 嵌套字典中查找
+    
+    参数:
+        config: 配置字典
+        key: 参数键名
+        default: 默认值
+    
+    返回:
+        Any: 参数值
+    """
+    # 1. 尝试从 confidence_weights 中获取 (最高优先级)
+    if 'confidence_weights' in config and isinstance(config['confidence_weights'], dict):
+        if key in config['confidence_weights']:
+            return config['confidence_weights'][key]
+    
+    # 2. 尝试从 strategy.confidence_weights 中获取
+    if 'strategy' in config and isinstance(config['strategy'], dict):
+        strategy_conf = config['strategy'].get('confidence_weights', {})
+        if isinstance(strategy_conf, dict) and key in strategy_conf:
+            return strategy_conf[key]
+            
+    # 3. 尝试从根配置直接获取
+    if key in config:
+        return config[key]
+        
+    # 4. 返回默认值
+    return default
