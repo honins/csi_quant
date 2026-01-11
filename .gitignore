@@ -131,7 +131,9 @@ dmypy.json
 # 项目特定文件
 cache/
 logs/
-# results/
+results/
+temp/
+*.txt
 # charts/
 # models/
 # 明确排除AI优化参数文件

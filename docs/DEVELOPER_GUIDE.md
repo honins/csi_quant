@@ -32,21 +32,17 @@
 run.py (入口)
 ├── src/
 │   ├── data/
-│   │   ├── data_fetcher.py      # 数据获取
-│   │   ├── data_processor.py    # 数据处理
-│   │   └── data_validator.py    # 数据验证
+│   │   ├── fetch_latest_data.py # 数据获取接口
+│   │   ├── data_module.py       # 数据处理与验证
 │   ├── strategy/
-│   │   ├── indicators.py        # 技术指标
-│   │   ├── signal_generator.py  # 信号生成
-│   │   └── backtest_engine.py   # 回测引擎
+│   │   ├── strategy_module.py   # 策略核心模块
+│   │   ├── indicators.py        # 技术指标(集成在内部)
 │   ├── ai/
 │   │   ├── ai_optimizer_improved.py  # AI优化器
-│   │   ├── model_trainer.py     # 模型训练
-│   │   └── predictor.py         # 预测器
+│   │   ├── prediction_utils.py  # 预测工具
 │   └── utils/
 │       ├── config_loader.py     # 配置加载
-│       ├── logger.py            # 日志管理
-│       └── file_utils.py        # 文件工具
+│       ├── common.py            # 通用工具(日志/文件等)
 └── config/
     ├── system.yaml              # 系统配置
     ├── strategy.yaml            # 策略配置
@@ -61,37 +57,23 @@ run.py (入口)
 src/
 ├── data/                    # 数据处理模块
 │   ├── __init__.py
-│   ├── data_fetcher.py      # 数据获取接口
-│   ├── data_processor.py    # 数据预处理
-│   ├── data_validator.py    # 数据质量检查
-│   └── market_data.py       # 市场数据封装
+│   ├── fetch_latest_data.py # 数据获取与增量更新
+│   └── data_module.py       # 数据处理、预处理与验证
 ├── strategy/                # 策略模块
 │   ├── __init__.py
-│   ├── indicators.py        # 技术指标计算
-│   ├── signal_generator.py  # 交易信号生成
-│   ├── backtest_engine.py   # 回测引擎
-│   ├── risk_manager.py      # 风险管理
-│   └── portfolio.py         # 投资组合管理
+│   └── strategy_module.py   # 策略核心逻辑（指标/信号/回测）
 ├── ai/                      # AI模块
 │   ├── __init__.py
-│   ├── ai_optimizer_improved.py  # 主优化器
-│   ├── genetic_algorithm.py # 遗传算法
-│   ├── bayesian_optimizer.py # 贝叶斯优化
-│   ├── model_trainer.py     # 模型训练器
-│   ├── predictor.py         # 预测器
-│   └── feature_engineer.py  # 特征工程
+│   ├── ai_optimizer_improved.py  # 优化与训练核心
+│   ├── prediction_utils.py  # 预测辅助工具
+│   ├── failure_analysis.py  # 失败案例分析
+│   └── smart_optimizer.py   # 智能优化器
 ├── utils/                   # 工具模块
 │   ├── __init__.py
 │   ├── config_loader.py     # 配置文件加载
-│   ├── logger.py            # 日志系统
-│   ├── file_utils.py        # 文件操作
-│   ├── date_utils.py        # 日期工具
-│   ├── math_utils.py        # 数学工具
-│   └── visualization.py     # 可视化工具
-└── notification/            # 通知模块
-    ├── __init__.py
-    ├── email_notifier.py    # 邮件通知
-    └── console_notifier.py  # 控制台通知
+│   ├── common.py            # 通用工具(日志/验证/性能等)
+│   ├── base_module.py       # 模块基类
+│   └── command_processor.py # 命令处理
 ```
 
 ### 配置目录 (config/)

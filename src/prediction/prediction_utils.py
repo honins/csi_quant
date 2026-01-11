@@ -365,13 +365,26 @@ def predict_and_validate(
                 is_predicted_low_point = False
                 used_threshold = abstain_threshold
             else:
-                # 灰区确认：RSI 或 策略信号满足其一
-                rsi_ok = (current_rsi is not None and current_rsi < rsi_max)
-                strategy_ok = (strategy_is_predicted_low_point is True) if require_strategy_positive else False
-                is_predicted_low_point = True if (rsi_ok or strategy_ok) else False
+                # 灰区确认：需满足更严格的条件
+                # 1. RSI必须处于较低位置（不仅是小于上限，而是接近超卖区）
+                strict_rsi_limit = 35.0 
+                rsi_ok = (current_rsi is not None and current_rsi < strict_rsi_limit)
+                
+                # 2. 策略信号必须明确为True
+                strategy_ok = (strategy_is_predicted_low_point is True)
+                
+                # 3. 组合逻辑：在灰区，只有当 RSI 极低 且 策略也看多时，才放行
+                # 或者：虽然 RSI 没那么低（但在合理区间），但 AI 置信度接近上限且策略看多
+                if confidence >= (abstain_threshold + enter_threshold) / 2:
+                    # 偏高灰区：策略看多即可
+                    is_predicted_low_point = strategy_ok
+                else:
+                    # 偏低灰区：必须 RSI 极低 + 策略看多
+                    is_predicted_low_point = (rsi_ok and strategy_ok)
+                
                 # 灰区内用于报告的阈值保留为基础阈值
                 used_threshold = final_threshold
-                logger.info(f"双阈值已启用: [{abstain_threshold:.2f}, {enter_threshold:.2f}]；灰区确认: RSI<{rsi_max} 或 策略={strategy_is_predicted_low_point}")
+                logger.info(f"双阈值灰区决策: conf={confidence:.2f}, rsi={current_rsi}, strategy={strategy_ok} -> {is_predicted_low_point}")
         else:
             is_predicted_low_point = confidence >= used_threshold
 

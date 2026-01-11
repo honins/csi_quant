@@ -19,7 +19,7 @@ data:
   cache_enabled: true
   cache_dir: cache
 strategy:
-  rise_threshold: 0.04
+  rise_threshold: 0.05
   max_days: 20
   results_dir: results
   bb_period: 20
