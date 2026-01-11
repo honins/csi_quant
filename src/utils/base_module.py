@@ -14,19 +14,17 @@
 - 性能监控集成
 """
 
-import os
-import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from .common import (
-    LoggerManager, DataValidator, PerformanceMonitor,
+    LoggerManager, PerformanceMonitor,
     ensure_directory, get_project_root, error_context,
-    QuantError, ConfigError, safe_execute
+    ConfigError
 )
-from .config_loader import ConfigLoader
+# 移除未使用的 ConfigLoader 导入
 
 
 class BaseModule(ABC):
@@ -212,28 +210,7 @@ class BaseModule(ABC):
                 self.logger.error(f"操作失败 [{operation_name}]: {str(e)}")
                 return False, str(e)
     
-    def validate_data(self, 
-                     data, 
-                     validation_rules: Dict[str, Any]) -> tuple:
-        """
-        验证数据
-        
-        参数:
-            data: 要验证的数据
-            validation_rules: 验证规则
-        
-        返回:
-            tuple: (是否有效, 错误信息列表)
-        """
-        # 这里可以根据validation_rules实现具体的验证逻辑
-        # 目前提供一个基础实现
-        errors = []
-        
-        if data is None:
-            errors.append("数据为空")
-        
-        return len(errors) == 0, errors
-    
+
     def get_status(self) -> Dict[str, Any]:
         """
         获取模块状态信息
@@ -308,129 +285,19 @@ class BaseModule(ABC):
             self.logger.error(f"{self.module_name}模块执行异常: {exc_val}")
 
 
-class DataModule(BaseModule):
-    """
-    数据模块基类
-    为数据处理相关的模块提供专门的基础功能
-    """
-    
-    def __init__(self, config: Dict[str, Any], **kwargs):
-        super().__init__(config, **kwargs)
-        
-        # 数据相关的配置
-        self.data_config = self.get_config_section('data')
-        
-    def _validate_module_config(self):
-        """验证数据模块特定配置"""
-        required_keys = ['data_file_path']
-        valid, errors = DataValidator.validate_config_section(
-            self.config, 'data', required_keys
-        )
-        if not valid:
-            raise ConfigError(f"数据模块配置错误: {errors}")
-    
-    def _get_module_directories(self) -> List[Path]:
-        """数据模块特定目录"""
-        return [
-            self.project_root / 'data',
-            self.project_root / 'cache' / 'data'
-        ]
+# 已移除重复的 DataModule 基类定义（请使用 src.data.data_module.DataModule）
 
 
-class StrategyModule(BaseModule):
-    """
-    策略模块基类
-    为策略相关的模块提供专门的基础功能
-    """
-    
-    def __init__(self, config: Dict[str, Any], **kwargs):
-        super().__init__(config, **kwargs)
-        
-        # 策略相关的配置
-        self.strategy_config = self.get_config_section('strategy')
-        
-    def _validate_module_config(self):
-        """验证策略模块特定配置"""
-        required_keys = ['rise_threshold', 'max_days']
-        valid, errors = DataValidator.validate_config_section(
-            self.config, 'strategy', required_keys
-        )
-        if not valid:
-            raise ConfigError(f"策略模块配置错误: {errors}")
-    
-    def _get_module_directories(self) -> List[Path]:
-        """策略模块特定目录"""
-        return [
-            self.project_root / 'results' / 'strategy',
-            self.project_root / 'cache' / 'strategy'
-        ]
+# 已移除重复的 StrategyModule 基类定义（请使用 src.strategy.strategy_module.StrategyModule）
 
 
-class AIModule(BaseModule):
-    """
-    AI模块基类
-    为AI相关的模块提供专门的基础功能
-    """
-    
-    def __init__(self, config: Dict[str, Any], **kwargs):
-        super().__init__(config, **kwargs)
-        
-        # AI相关的配置
-        self.ai_config = self.get_config_section('ai')
-        
-    def _validate_module_config(self):
-        """验证AI模块特定配置"""
-        required_keys = ['model_type', 'models_dir']
-        valid, errors = DataValidator.validate_config_section(
-            self.config, 'ai', required_keys
-        )
-        if not valid:
-            raise ConfigError(f"AI模块配置错误: {errors}")
-    
-    def _get_module_directories(self) -> List[Path]:
-        """AI模块特定目录"""
-        models_dir = self.ai_config.get('models_dir', 'models')
-        return [
-            self.project_root / models_dir,
-            self.project_root / 'cache' / 'ai',
-            self.project_root / 'results' / 'optimization'
-        ]
+# 已移除重复的 AIModule 基类定义（请使用 src.ai.ai_optimizer_improved.AIOptimizerImproved 或相关AI模块）
 
 
-# 便捷函数
-def create_module(module_type: str, config: Dict[str, Any], **kwargs) -> BaseModule:
-    """
-    工厂函数：创建指定类型的模块
-    
-    参数:
-        module_type: 模块类型 ('data', 'strategy', 'ai', 'base')
-        config: 配置字典
-        **kwargs: 其他参数
-    
-    返回:
-        BaseModule: 对应类型的模块实例
-    """
-    module_map = {
-        'data': DataModule,
-        'strategy': StrategyModule, 
-        'ai': AIModule,
-        'base': BaseModule
-    }
-    
-    if module_type not in module_map:
-        raise ValueError(f"不支持的模块类型: {module_type}")
-    
-    module_class = module_map[module_type]
-    
-    # BaseModule是抽象类，不能直接实例化
-    if module_type == 'base':
-        raise ValueError("BaseModule是抽象类，不能直接实例化")
-    
-    return module_class(config, **kwargs)
+# 已移除 create_module 工厂函数（不再在utils层创建具体模块）
 
 
 # 模块导出
 __all__ = [
-    'BaseModule', 'DataModule', 'StrategyModule', 'AIModule',
-    'create_module'
-] 
+    'BaseModule'
+]

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import logging
 from typing import Dict, List, Tuple, Optional
-from sklearn.metrics import accuracy_score, precision_score, recall_score
+
 
 
 class OverfittingDetector:
@@ -309,4 +309,4 @@ def validate_data_split(train_data: pd.DataFrame,
             results['valid'] = False
             results['issues'].append(f"时间序列顺序错误: 验证集最新日期({val_max_date}) >= 测试集最早日期({test_min_date})")
     
-    return results 
+    return results

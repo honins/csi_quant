@@ -27,19 +27,7 @@ confidence_weights:
   consolidation_breakout: 0.2
   decline_threshold: -0.05
   dynamic_confidence_adjustment: 0.1
-  # 可选：动态阈值（基于RSI/波动率）
-  dynamic_threshold:
-    enabled: false
-    rsi_adjust:
-      enabled: true
-      low_threshold: 35
-      delta: 0.08
-    volatility_adjust:
-      enabled: false
-      high_threshold: 0.02
-      delta: 0.03
-    min_threshold: 0.22
-    max_threshold: 0.70
+
   ma_all_below: 0.4
   ma_partial_below: 0.2
   macd_negative: 0.15
@@ -191,7 +179,6 @@ optimization_ranges:
     step: 0.002
     type: float
   
-# final_threshold: 已移除，作为固定参数不参与优化
 overfitting_threshold: 0.9
 default_strategy:
   confidence_weights:

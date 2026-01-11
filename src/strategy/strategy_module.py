@@ -9,9 +9,9 @@
 import os
 import logging
 import pandas as pd
-from datetime import datetime
-from typing import Dict, Any, Optional
-import matplotlib.pyplot as plt
+
+from typing import Dict, Any
+
 import numpy as np
 
 class StrategyModule:
@@ -483,38 +483,6 @@ class StrategyModule:
             self.logger.error("T+1真实回测失败: %s", str(e))
             raise
             
-    def _calculate_unified_score_internal(self, success_rate: float, avg_return: float, total_profit: float, avg_holding_days: float) -> float:
-        """
-        内部统一评分方法，专为evaluate_strategy调用，优先利润值
-        """
-        scoring_config = self.config.get('strategy_scoring', {})
-        
-        # 权重配置，以利润值为核心
-        w_profit = scoring_config.get('profit_weight', 0.4)
-        w_success = scoring_config.get('success_weight', 0.3) 
-        w_return = scoring_config.get('return_weight', 0.3)
-        days_benchmark = scoring_config.get('days_benchmark', 10.0)
-        profit_benchmark = scoring_config.get('profit_benchmark', 1000.0)
-        
-        # 各项得分（0-1标准化）
-        profit_score = max(min(total_profit / profit_benchmark, 1.0), 0.0)  # 利润基准值标准化
-        success_score = max(min(success_rate, 1.0), 0.0) 
-        return_score = max(min(avg_return / 0.02, 1.0), 0.0)  # 2%年化约等于满分
-        
-        # 持有期调整：持有期越短越好
-        if avg_holding_days and avg_holding_days > 0:
-            days_score = max(min(days_benchmark / avg_holding_days, 1.0), 0.0)
-        else:
-            days_score = 0.0
-        
-        # 成功率得分结合持有期调整
-        success_score = 0.85 * success_score + 0.15 * days_score
-        
-        # 加权总分
-        total_score = w_profit * profit_score + w_success * success_score + w_return * return_score
-        
-        return float(total_score)
-
     def evaluate_strategy(self, backtest_data: pd.DataFrame) -> Dict[str, Any]:
         """
         评估策略性能 - 基于T+1真实交易结果
@@ -641,173 +609,8 @@ class StrategyModule:
         self._last_evaluation = result
         return result
         
-    def _calculate_score(self, success_rate: float, avg_rise: float, avg_days: float) -> float:
-        """
-        计算策略得分：直接使用总利润值作为评分
-        """
-        # 从最近的评估结果获取总利润值
-        try:
-            last_eval = getattr(self, '_last_evaluation', None)
-            if isinstance(last_eval, dict):
-                total_profit = last_eval.get('total_profit', 0.0)
-                return float(total_profit)
-        except Exception:
-            pass
-        
-        # 如果没有评估结果，返回0
-        return 0.0
-        
-    def visualize_backtest(self, backtest_results: pd.DataFrame, save_path: Optional[str] = None) -> str:
-        """
-        可视化回测结果 - 基于T+1真实交易数据
-        
-        参数:
-        backtest_results: 回测结果
-        save_path: 保存路径，如果为None则自动生成
-        
-        返回:
-        str: 图表文件路径
-        """
-        self.logger.info("可视化T+1真实回测结果")
-        
-        try:
-            # 创建图表
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-            fig.suptitle('T+1真实回测结果分析', fontsize=16, fontweight='bold')
-            
-            # 1. 价格曲线和相对低点
-            ax1 = axes[0, 0]
-            ax1.plot(backtest_results['date'], backtest_results['close'], 
-                    label='收盘价', linewidth=1, alpha=0.8)
-            
-            # 标记相对低点
-            low_points = backtest_results[backtest_results['is_low_point']]
-            if len(low_points) > 0:
-                ax1.scatter(low_points['date'], low_points['close'], 
-                          color='red', marker='^', s=50, label='相对低点', zorder=5)
-            
-            ax1.set_title(f'价格走势与相对低点\n(涨幅阈值: {self.rise_threshold:.1%}, 最大观察天数: {self.max_days}天)')
-            ax1.set_xlabel('日期')
-            ax1.set_ylabel('价格')
-            ax1.legend()
-            ax1.grid(True, alpha=0.3)
-            
-            # 2. 交易收益率分布
-            ax2 = axes[0, 1]
-            if len(low_points) > 0:
-                valid_trades = low_points[low_points['entry_price'] > 0]
-                if len(valid_trades) > 0:
-                    returns = valid_trades['trade_return'] * 100
-                    ax2.hist(returns, bins=20, alpha=0.7, color='skyblue', edgecolor='black')
-                    ax2.axvline(x=self.rise_threshold * 100, color='red', linestyle='--', 
-                              label=f'目标涨幅: {self.rise_threshold:.1%}')
-                    ax2.axvline(x=0, color='orange', linestyle='-', 
-                              label='盈亏平衡线')
-                    ax2.set_title(f'交易收益率分布\n(目标: {self.rise_threshold:.1%}, T+1开盘价买入)')
-                    ax2.set_xlabel('收益率 (%)')
-                    ax2.set_ylabel('频次')
-                    ax2.legend()
-                    ax2.grid(True, alpha=0.3)
-                else:
-                    ax2.text(0.5, 0.5, '无有效交易数据', ha='center', va='center', 
-                            transform=ax2.transAxes, fontsize=14)
-                    ax2.set_title(f'交易收益率分布\n(目标: {self.rise_threshold:.1%}, T+1开盘价买入)')
-            else:
-                ax2.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
-                        transform=ax2.transAxes, fontsize=14)
-                ax2.set_title(f'交易收益率分布\n(目标: {self.rise_threshold:.1%}, T+1开盘价买入)')
-            
-            # 3. 达到目标涨幅的天数分布
-            ax3 = axes[1, 0]
-            if len(low_points) > 0:
-                valid_trades = low_points[low_points['entry_price'] > 0]
-                successful_trades = valid_trades[valid_trades['days_to_target'] > 0]
-                if len(successful_trades) > 0:
-                    days = successful_trades['days_to_target']
-                    ax3.hist(days, bins=range(1, self.max_days + 2), alpha=0.7, 
-                           color='lightgreen', edgecolor='black')
-                    ax3.axvline(x=self.max_days, color='orange', linestyle='--', 
-                              label=f'最大观察天数: {self.max_days}天')
-                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-                    ax3.set_xlabel('天数')
-                    ax3.set_ylabel('频次')
-                    ax3.legend()
-                    ax3.grid(True, alpha=0.3)
-                else:
-                    ax3.text(0.5, 0.5, '无成功案例', ha='center', va='center', 
-                            transform=ax3.transAxes, fontsize=14)
-                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-            else:
-                ax3.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
-                        transform=ax3.transAxes, fontsize=14)
-                ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-            
-            # 4. 策略评估指标
-            ax4 = axes[1, 1]
-            evaluation = self.evaluate_strategy(backtest_results)
-            
-            metrics = ['成功率', '胜率', '夏普比率', '平均收益率']
-            values = [
-                evaluation['success_rate'],
-                evaluation['win_rate'],
-                max(0, min(evaluation['total_profit'] * 10, 1)),  # 标准化总利润显示
-                max(0, min(evaluation['avg_return'] * 10, 1))   # 标准化平均收益率显示
-            ]
-            
-            bars = ax4.bar(metrics, values, color=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99'])
-            ax4.set_title(f'T+1策略评估指标\n(涨幅阈值: {self.rise_threshold:.1%}, 最大天数: {self.max_days}天)')
-            ax4.set_ylabel('数值')
-            ax4.set_ylim(0, 1)
-            
-            # 在柱状图上添加数值标签
-            for bar, value, metric in zip(bars, values, metrics):
-                height = bar.get_height()
-                if metric == '成功率' or metric == '胜率':
-                    label = f'{evaluation[metric.replace("成功率", "success_rate").replace("胜率", "win_rate")]:.1%}'
-                elif metric == '夏普比率':
-                    label = f'{evaluation["total_profit"]:.3f}'
-                elif metric == '平均收益率':
-                    label = f'{evaluation["avg_return"]:.2%}'
-                else:
-                    label = f'{value:.3f}'
-                ax4.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                        label, ha='center', va='bottom')
-            
-            ax4.grid(True, alpha=0.3)
-            
-            # 在图表底部添加策略参数信息
-            confidence_weights = self.config.get('confidence_weights', {})
-            param_info = f"T+1策略参数: 涨幅阈值={self.rise_threshold:.1%}, 最大观察天数={self.max_days}天, RSI超卖阈值={confidence_weights.get('rsi_oversold_threshold', 30)}, RSI偏低阈值={confidence_weights.get('rsi_low_threshold', 40)}, 置信度阈值={confidence_weights.get('final_threshold', 0.5):.2f}"
-            plt.figtext(0.5, 0.02, param_info, ha='center', fontsize=10, 
-                       bbox=dict(facecolor='lightgray', alpha=0.8))
-            
-            plt.tight_layout()
-            plt.subplots_adjust(bottom=0.08)  # 为底部参数信息留出空间
-            
-            # 保存图表
-            if save_path is None:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                
-                # 创建子目录结构
-                charts_dir = os.path.join(self.results_dir, 'charts')
-                strategy_dir = os.path.join(charts_dir, 'strategy_analysis')
-                
-                for directory in [self.results_dir, charts_dir, strategy_dir]:
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
-                        
-                save_path = os.path.join(strategy_dir, f'T+1_backtest_analysis_{timestamp}.png')
-            
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            plt.close()
-            
-            self.logger.info("T+1回测结果可视化完成，保存到: %s", save_path)
-            return save_path
-            
-        except Exception as e:
-            self.logger.error("可视化T+1回测结果失败: %s", str(e))
-            raise
-            
+    # 已移除：visualize_backtest 方法（主类不再提供图表可视化）
+
     def update_params(self, params: Dict[str, Any]) -> None:
         """
         更新策略参数

@@ -11,12 +11,8 @@ AI预测模型滚动回测脚本
 import sys
 import os
 import logging
-# from matplotlib import font_manager
 import pandas as pd
 from datetime import datetime, timedelta
-# import matplotlib.pyplot as plt
-# plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
-# import matplotlib.dates as mdates
 import numpy as np
 from sklearn.metrics import brier_score_loss, log_loss
 # 新增：用于离线概率标定
@@ -29,15 +25,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data.data_module import DataModule
 from src.strategy.strategy_module import StrategyModule
-from src.ai.ai_optimizer_improved import AIOptimizerImproved as AIOptimizer
-from src.utils.utils import load_config, resolve_confidence_param
+
+from src.utils.utils import resolve_confidence_param
 from src.prediction.prediction_utils import setup_logging, predict_and_validate
 from src.utils.trade_date import is_trading_day
+from src.utils.reporting import format_backtest_summary
 
 def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window_days: int = 365, 
                          reuse_model: bool = True, retrain_interval_days: int = None,
-                         generate_report: bool = True, report_dir: str = None,
-                         override_dynamic_threshold_enabled: bool = None):
+                         generate_report: bool = True, report_dir: str = None):
     setup_logging()
     logger = logging.getLogger("RollingBacktest")
 
@@ -46,14 +42,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         from src.utils.config_loader import load_config as load_config_improved
         config = load_config_improved()
         
-        # 覆盖动态阈值开关（A/B 实验用）
-        try:
-            if override_dynamic_threshold_enabled is not None:
-                cfg_path = config.setdefault('confidence_weights', {}).setdefault('dynamic_threshold', {})
-                cfg_path['enabled'] = bool(override_dynamic_threshold_enabled)
-                logger.info(f"[A/B] 覆盖动态阈值开关: enabled={cfg_path['enabled']}")
-        except Exception as _e:
-            logger.warning(f"无法覆盖动态阈值开关: {_e}")
+
         
         # 应用训练策略配置
         if retrain_interval_days is not None:
@@ -217,7 +206,6 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
         
             # 新增：置信度分布诊断（confidence）
             try:
-                final_series = results_df['confidence'].astype(float).dropna()
                 conf_series = results_df['confidence'].astype(float).dropna()
 
                 def _safe_stat(s: pd.Series):
@@ -240,23 +228,37 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     }
 
                 conf_stat = _safe_stat(conf_series)
-                final_stat = _safe_stat(final_series)
 
                 # 直方分布（confidence）：含阈值附近的细分
                 final_threshold = resolve_confidence_param(config, 'final_threshold', 0.5)
                 bins = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
                 bin_labels = ["[0.0,0.2)", "[0.2,0.4)", "[0.4,0.5)", "[0.5,0.6)", "[0.6,0.8)", "[0.8,1.0]"]
                 bin_counts = {lbl: 0 for lbl in bin_labels}
-                if len(final_series) > 0:
-                    counts, _ = np.histogram(final_series, bins=bins)
+                if len(conf_series) > 0:
+                    counts, _ = np.histogram(conf_series, bins=bins)
                     for i, lbl in enumerate(bin_labels):
                         bin_counts[lbl] = int(counts[i])
-                bin_perc = {k: (v / len(final_series) * 100 if len(final_series) > 0 else 0.0) for k, v in bin_counts.items()}
+                bin_perc = {k: (v / len(conf_series) * 100 if len(conf_series) > 0 else 0.0) for k, v in bin_counts.items()}
 
-                # 灰区
-                gray_width = 0.05
-                gray_lower = max(0.0, final_threshold - gray_width)
-                gray_upper = min(1.0, final_threshold + gray_width)
+                # 灰区（决策带）
+                band_top = (config.get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_stg = ((config.get('strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_def = ((config.get('default_strategy', {}) or {}).get('confidence_weights', {}) or {}).get('decision_band', {}) or {}
+                band_cfg = band_top if band_top else (band_stg if band_stg else band_def)
+                abstain_thr = band_cfg.get('abstain_threshold')
+                enter_thr = band_cfg.get('enter_threshold')
+                if isinstance(abstain_thr, (int, float)) and isinstance(enter_thr, (int, float)):
+                    gray_lower = float(abstain_thr)
+                    gray_upper = float(enter_thr)
+                else:
+                    # 回退：若未配置决策带，使用固定±0.05范围
+                    gray_width = 0.05
+                    gray_lower = max(0.0, final_threshold - gray_width)
+                    gray_upper = min(1.0, final_threshold + gray_width)
+                if gray_lower > gray_upper:
+                    gray_lower, gray_upper = gray_upper, gray_lower
+                gray_lower = max(0.0, min(gray_lower, 1.0))
+                gray_upper = max(0.0, min(gray_upper, 1.0))
                 gray_mask = (results_df['confidence'] >= gray_lower) & (results_df['confidence'] <= gray_upper)
                 gray_df = results_df[gray_mask]
                 gray_total = len(gray_df)
@@ -280,9 +282,8 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                     pass
 
                 logger.info("\n--- 置信度分布诊断 ---")
-                logger.info(f"confidence: mean={final_stat['mean']:.4f}, std={final_stat['std']:.4f}, min={final_stat['min']:.4f}, max={final_stat['max']:.4f}")
-                logger.info(f"quantiles(10/25/50/75/90): {final_stat['q10']:.4f} / {final_stat['q25']:.4f} / {final_stat['q50']:.4f} / {final_stat['q75']:.4f} / {final_stat['q90']:.4f}")
                 logger.info(f"confidence: mean={conf_stat['mean']:.4f}, std={conf_stat['std']:.4f}, min={conf_stat['min']:.4f}, max={conf_stat['max']:.4f}")
+                logger.info(f"quantiles(10/25/50/75/90): {conf_stat['q10']:.4f} / {conf_stat['q25']:.4f} / {conf_stat['q50']:.4f} / {conf_stat['q75']:.4f} / {conf_stat['q90']:.4f}")
                 logger.info(f"分箱(confidence)：" + ", ".join([f"{lbl}: {bin_counts[lbl]} ({bin_perc[lbl]:.2f}%)" for lbl in bin_labels]))
                 logger.info(f"阈值(final_threshold)={final_threshold:.2f}，灰区[{gray_lower:.2f}, {gray_upper:.2f}] 覆盖: {gray_total} 条，占比 {(gray_total/len(results_df)*100 if len(results_df)>0 else 0):.2f}%；灰区中预测正类 {gray_pos} 条，正确 {gray_correct} 条")
                 logger.info(f"相关性：confidence vs future_max_rise = {corr_final_rise:.3f}，confidence vs prediction_correct = {corr_final_correct:.3f}")
@@ -440,10 +441,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 except Exception as e:
                     top_all_signals = [{'index': 1, 'error': f"生成Top-N时出现异常: {e}"}]
 
-                # 生成预测分布表格（类似原图表的数据展示）
-                correct_dates = results_df_validated[results_df_validated['prediction_correct'] == True]
-                incorrect_dates = results_df_validated[results_df_validated['prediction_correct'] == False]
-                
+     
                 # 按月份统计预测分布（替代原图表的时间轴信息）
                 monthly_stats = []
                 try:
@@ -471,28 +469,27 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append(f"## 基本信息")
                 report_lines.append(f"- **回测期间**: {start_date_str} 至 {end_date_str}")
                 report_lines.append(f"- **使用模型**: 已训练模型（禁止回测训练）")
-                report_lines.append(f"- **策略参数**: rise_threshold={resolve_confidence_param(config, 'rise_threshold', 0.04):.1%}, max_days={config.get('strategy', {}).get('max_days', 20)}")
-                report_lines.append(f"- **置信度阈值**: {final_threshold:.2f}")
+                report_lines.append(f"- **策略参数**: rise_threshold={resolve_confidence_param(config, 'rise_threshold', 0.04):.3%}, max_days={config.get('strategy', {}).get('max_days', 20)}")
+                report_lines.append(f"- **置信度阈值**: {final_threshold:.3f}")
                 report_lines.append(f"- **训练效率**: {training_count}/{len(results)} (节省 {((len(results) - training_count) / len(results) * 100):.1f}%)")
                 report_lines.append("")
                 
                 report_lines.append("## 总体指标")
                 report_lines.append(f"- **总预测日期数(可验证)**: {total_predictions_validated}")
                 report_lines.append(f"- **正确预测数**: {correct_predictions}")
-                report_lines.append(f"- **准确率(Accuracy)**: {success_rate:.2%}")
-                report_lines.append(f"- **精确率(Precision)**: {precision:.2%}")
-                report_lines.append(f"- **召回率(Recall)**: {recall:.2%}")
-                report_lines.append(f"- **F1分数(F1 Score)**: {(2*precision*recall/max(precision+recall, 1e-12)):.2%}")
-                report_lines.append(f"- **特异性(Specificity)**: {specificity:.2%}")
-                report_lines.append(f"- **平衡准确率(Balanced Accuracy)**: {balanced_acc:.2%}")
+                report_lines.append(f"- **准确率(Accuracy)**: {success_rate:.3%}")
+                report_lines.append(f"- **精确率(Precision)**: {precision:.3%}")
+                report_lines.append(f"- **召回率(Recall)**: {recall:.3%}")
+                report_lines.append(f"- **F1分数(F1 Score)**: {(2*precision*recall/max(precision+recall, 1e-12)):.3%}")
+                report_lines.append(f"- **特异性(Specificity)**: {specificity:.3%}")
+                report_lines.append(f"- **平衡准确率(Balanced Accuracy)**: {balanced_acc:.3%}")
                 report_lines.append("")
 
                 # 新增：置信度分布诊断（写入报告）
                 try:
                     report_lines.append("## 置信度分布诊断")
-                    report_lines.append(f"- confidence: 均值={final_stat['mean']:.4f}, 标准差={final_stat['std']:.4f}, 最小={final_stat['min']:.4f}, 最大={final_stat['max']:.4f}")
-                    report_lines.append(f"- 分位数(10/25/50/75/90): {final_stat['q10']:.4f} / {final_stat['q25']:.4f} / {final_stat['q50']:.4f} / {final_stat['q75']:.4f} / {final_stat['q90']:.4f}")
-                    report_lines.append(f"- confidence: 均值={conf_stat['mean']:.4f}, 标准差={conf_stat['std']:.4f}, 最小={conf_stat['min']:.4f}, 最大={conf_stat['max']:.4f}")
+                    report_lines.append(f"- confidence: 均值={conf_stat['mean']:.3f}, 标准差={conf_stat['std']:.3f}, 最小={conf_stat['min']:.3f}, 最大={conf_stat['max']:.3f}")
+                    report_lines.append(f"- 分位数(10/25/50/75/90): {conf_stat['q10']:.3f} / {conf_stat['q25']:.3f} / {conf_stat['q50']:.3f} / {conf_stat['q75']:.3f} / {conf_stat['q90']:.3f}")
                     report_lines.append("")
                     report_lines.append("### confidence 直方分布")
                     report_lines.append("| 区间 | 数量 | 占比 |")
@@ -546,16 +543,18 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                 report_lines.append("**字段说明：**")
                 report_lines.append("- **置信度**: AI模型输出的预测概率 (0-1)")
                 report_lines.append("- **阈值(used)**: 实际使用的决策阈值，当AI置信度≥此值时做出正向预测")
+                report_lines.append("- **策略详情**: 文本合并，包含策略原因与策略指标")
                 report_lines.append("")
-                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 |")
-                report_lines.append("|------|----------|----------|--------|------------|------|-------------|-------------|----------|----------|")
+                report_lines.append("| 日期 | 预测价格 | 预测结果 | 置信度 | 阈值(used) | 实际结果 | 趋势 | 未来最大涨幅 | 达标用时(天) | 预测正确 | 策略详情 |")
+                report_lines.append("|------|----------|----------|--------|------------|------|-------------|-------------|----------|----------|------------|")
                 for dt, row in results_df.iterrows():
                     date_str = pd.to_datetime(dt).strftime('%Y-%m-%d') if not pd.isna(dt) else ''
-                    predict_price = f"{row.get('predict_price', '')}"
+                    pp_val = row.get('predict_price')
+                    predict_price = f"{float(pp_val):.3f}" if pp_val is not None and not pd.isna(pp_val) else ''
                     predicted = "是" if row.get('predicted_low_point') else "否"
-                    confidence = f"{row.get('confidence', 0):.2f}"
+                    confidence = f"{row.get('confidence', 0):.3f}"
                     used_threshold = row.get('used_threshold')
-                    used_threshold_str = f"{float(used_threshold):.2f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
+                    used_threshold_str = f"{float(used_threshold):.3f}" if used_threshold is not None and not pd.isna(used_threshold) else "N/A"
                     actual = "是" if row.get('actual_low_point') else "否"
                     # 新增：提取趋势状态
                     trend_str = ''
@@ -571,14 +570,48 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                                     trend_str = d.get('trend_regime', '')
                             except Exception:
                                 trend_str = ''
-                    max_rise = f"{float(row.get('future_max_rise', 0)):.2%}" if not pd.isna(row.get('future_max_rise')) else "N/A"
+                    max_rise = f"{float(row.get('future_max_rise', 0)):.3%}" if not pd.isna(row.get('future_max_rise')) else "N/A"
                     days_to_target = f"{int(row.get('days_to_target', 0))}" if not pd.isna(row.get('days_to_target')) else "N/A"
                     prediction_correct = "是" if row.get('prediction_correct') else "否"
                     if pd.isna(row.get('actual_low_point')):
                         actual = '数据不足'
                     if pd.isna(row.get('prediction_correct')):
                         prediction_correct = '数据不足'
-                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_target} | {prediction_correct} |")
+                    # 合并策略原因与策略指标为文本
+                    reasons_val = row.get('strategy_reasons')
+                    if isinstance(reasons_val, (list, tuple)):
+                        reasons_str = ' | '.join(map(str, reasons_val))
+                    elif isinstance(reasons_val, str):
+                        reasons_str = reasons_val
+                    else:
+                        reasons_str = ''
+                    indicators_val = row.get('strategy_indicators')
+                    indicators_kv = ''
+                    if isinstance(indicators_val, dict):
+                        try:
+                            indicators_kv = ', '.join([f"{k}={v}" for k, v in indicators_val.items()])
+                        except Exception:
+                            indicators_kv = json.dumps(indicators_val, ensure_ascii=False)
+                    elif isinstance(indicators_val, str):
+                        s = indicators_val.strip()
+                        if s.startswith('{') and s.endswith('}'):
+                            try:
+                                d = json.loads(s)
+                                if isinstance(d, dict):
+                                    indicators_kv = ', '.join([f"{k}={v}" for k, v in d.items()])
+                                else:
+                                    indicators_kv = s
+                            except Exception:
+                                indicators_kv = s
+                        else:
+                            indicators_kv = s
+                    details_parts = []
+                    if reasons_str:
+                        details_parts.append(f"原因: {reasons_str}")
+                    if indicators_kv:
+                        details_parts.append(f"指标: {indicators_kv}")
+                    details_str = '； '.join(details_parts)
+                    report_lines.append(f"| {date_str} | {predict_price} | {predicted} | {confidence} | {used_threshold_str} | {actual} | {trend_str} | {max_rise} | {days_to_target} | {prediction_correct} | {details_str} |")
                 report_lines.append("")
 
                 # 新增：趋势分布与命中率（含震荡区间）
@@ -615,7 +648,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             for k in ['bull', 'sideways', 'bear', 'unknown']:
                                 if k in stats:
                                     c, h, r = stats[k]
-                                    report_lines.append(f"| {k} | {c} | {h} | {r:.2%} |")
+                                    report_lines.append(f"| {k} | {c} | {h} | {r:.3%} |")
                             report_lines.append("")
 
                             # 新增：分趋势的置信度分布统计
@@ -677,7 +710,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                                 # 分组统计
                                 if isinstance(trend_series, pd.Series):
                                     report_lines.append("## 震荡区间有效性验证")
-                                    report_lines.append("- 指标解释：|日收益|中位数用于衡量波动强度；MA20相对偏离中位数用于衡量价格是否围绕均线波动；近均线占比(|偏离|≤1%)用于判断贴近均线的天数占比。")
+                                    report_lines.append("- 指标解释：|日收益|中位数用于衡量波动强度；MA20相对偏离中位数用于测量价格是否围绕均线波动；近均线占比(|偏离|≤1%)用于判断贴近均线的天数占比。")
                                     report_lines.append("| 趋势 | 样本数 | |日收益|中位数 | MA20相对偏离中位数 | 近均线占比(|偏离|≤1%) |")
                                     report_lines.append("|------|------:|-------------:|--------------------:|-----------------------:|")
                                     for k in ['bull', 'sideways', 'bear', 'unknown']:
@@ -690,14 +723,14 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                                         near_ma = None
                                         if isinstance(dev_series, pd.Series):
                                             near_ma = float((dev_series[mask] <= 0.01).mean())
-                                        report_lines.append(f"| {k} | {cnt} | {vol_med:.2%} | {dev_med:.2%} | {near_ma:.2%} |")
+                                        report_lines.append(f"| {k} | {cnt} | {vol_med:.3%} | {dev_med:.3%} | {near_ma:.3%} |")
                                     report_lines.append("")
                             except Exception:
                                 pass
                 except Exception:
                     pass
                 report_lines.append("")
-                report_lines.append(f"**策略参数**: 涨幅阈值={resolve_confidence_param(config, 'rise_threshold', 0.04):.1%}, 最大观察天数={config.get('strategy', {}).get('max_days', 20)}, RSI超卖={config.get('strategy', {}).get('rsi_oversold', 30)}, RSI偏低={config.get('strategy', {}).get('rsi_low', 40)}, 置信度阈值={final_threshold:.2f}")
+                report_lines.append(f"**策略参数**: 涨幅阈值={resolve_confidence_param(config, 'rise_threshold', 0.04):.3%}, 最大观察天数={config.get('strategy', {}).get('max_days', 20)}, RSI超卖={config.get('strategy', {}).get('rsi_oversold', 30)}, RSI偏低={config.get('strategy', {}).get('rsi_low', 40)}, 置信度阈值={final_threshold:.3f}")
                 report_lines.append("")
 
                 report_lines.append("## 关键信号详情（按置信度降序，最多15条）")
@@ -708,12 +741,13 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         if 'error' in signal:
                             report_lines.append(f"| {signal.get('index', 1)} | - | - | - | - | - | - | - | {signal['error']} |")
                         else:
-                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                            pp_str = (f"{float(signal['predict_price']):.3f}" if isinstance(signal.get('predict_price'), (int, float)) else str(signal.get('predict_price')))
+                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.3f} | {signal['future_max_rise']:.3%} | {signal['days_to_rise']} | {pp_str} | {signal['correct']} |")
                 else:
                     report_lines.append("- (本次无正类信号或无法生成样例)")
                 report_lines.append("")
 
-                # 新增：全区间 Top-N confidence（包含未达阈值）
+                # 新增：全区间 Top-N confidence（包含未达阈值）")
                 report_lines.append("## 全区间 Top-N confidence（包含未达阈值）")
                 report_lines.append("| 序号 | 日期 | 预测 | 实际 | 置信度 | 未来最大涨幅 | 用时天数 | 预测价 | 结果 |")
                 report_lines.append("|------|------|------|------|--------|-------------|----------|---------|------|")
@@ -722,17 +756,18 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         if 'error' in signal:
                             report_lines.append(f"| {signal.get('index', 1)} | - | - | - | - | - | - | - | {signal['error']} |")
                         else:
-                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.2f} | {signal['future_max_rise']:.2%} | {signal['days_to_rise']} | {signal['predict_price']} | {signal['correct']} |")
+                            pp_str = (f"{float(signal['predict_price']):.3f}" if isinstance(signal.get('predict_price'), (int, float)) else str(signal.get('predict_price')))
+                            report_lines.append(f"| {signal['index']} | {signal['date']} | {signal['predicted']} | {signal['actual']} | {signal['confidence']:.3f} | {signal['future_max_rise']:.3%} | {signal['days_to_rise']} | {pp_str} | {signal['correct']} |")
                 else:
                     report_lines.append("- (无法生成Top-N列表)")
                 report_lines.append("")
 
                 report_lines.append("## 策略参数详情")
-                report_lines.append(f"- **涨幅阈值**: {resolve_confidence_param(config, 'rise_threshold', 0.04):.1%}")
+                report_lines.append(f"- **涨幅阈值**: {resolve_confidence_param(config, 'rise_threshold', 0.04):.3%}")
                 report_lines.append(f"- **最大观察天数**: {config.get('strategy', {}).get('max_days', 20)}")
                 report_lines.append(f"- **RSI超卖阈值**: {config.get('strategy', {}).get('rsi_oversold', 30)}")
                 report_lines.append(f"- **RSI偏低阈值**: {config.get('strategy', {}).get('rsi_low', 40)}")
-                report_lines.append(f"- **最终置信度阈值**: {final_threshold:.2f}")
+                report_lines.append(f"- **最终置信度阈值**: {final_threshold:.3f}")
                 report_lines.append("")
 
                 report_lines.append("> **免责声明**: 本报告由脚本自动生成，仅用于策略与模型评估，不构成投资建议。")
@@ -786,13 +821,30 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                             lambda d: json.dumps(d, ensure_ascii=False) if isinstance(d, dict) else ('' if d is None else str(d))
                         )
 
+                    # 格式化置信度保留两位小数
+                    if 'confidence' in csv_df.columns:
+                        try:
+                            csv_df['confidence'] = csv_df['confidence'].apply(
+                                lambda v: (f"{float(v):.2f}" if (v is not None and not pd.isna(v)) else '')
+                            )
+                        except Exception:
+                            pass
+
+                    # 将未来最大涨幅格式化为两位小数的百分比
+                    if 'future_max_rise' in csv_df.columns:
+                        try:
+                            csv_df['future_max_rise'] = csv_df['future_max_rise'].apply(
+                                lambda v: (f"{float(v) * 100:.2f}%" if (v is not None and not pd.isna(v)) else '')
+                            )
+                        except Exception:
+                            pass
+
                     # 仅保留关心的列（若缺失则自动跳过）
                     preferred_cols = ['date', 'predict_price', 'predicted_low_point', 'confidence',
-                                      'used_threshold', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_target', 'prediction_correct',
-                                      'strategy_reasons', 'strategy_indicators']
+                                      'used_threshold', 'actual_low_point', 'trend_regime', 'future_max_rise', 'days_to_target', 'prediction_correct']
                     cols = [c for c in preferred_cols if c in csv_df.columns]
                     
-                    # 创建中文列名映射
+                    # 创建中文列名映射（移除策略原因与策略指标）
                     chinese_column_mapping = {
                         'date': '日期',
                         'predict_price': '预测价格',
@@ -803,9 +855,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
                         'trend_regime': '趋势状态',
                         'future_max_rise': '未来最大涨幅',
                         'days_to_target': '达标用时(天)',
-                        'prediction_correct': '预测正确',
-                        'strategy_reasons': '策略原因',
-                        'strategy_indicators': '策略指标'
+                        'prediction_correct': '预测正确'
                     }
                     
                     # 重命名列名为中文
@@ -867,8 +917,7 @@ def run_rolling_backtest(start_date_str: str, end_date_str: str, training_window
 
 def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, training_window_days: int = 365,
                                      reuse_model: bool = True, retrain_interval_days: int = None,
-                                     generate_report: bool = True, report_dir: str = None,
-                                     override_dynamic_threshold_enabled: bool = None):
+                                     generate_report: bool = True, report_dir: str = None):
     """
     兼容入口：与 run_rolling_backtest 相同，只是显式返回其结果，供网格测试脚本调用。
     """
@@ -880,7 +929,6 @@ def run_rolling_backtest_with_return(start_date_str: str, end_date_str: str, tra
         retrain_interval_days=retrain_interval_days,
         generate_report=generate_report,
         report_dir=report_dir,
-        override_dynamic_threshold_enabled=override_dynamic_threshold_enabled,
     )
 
 
@@ -895,7 +943,7 @@ if __name__ == "__main__":
     parser.add_argument('--retrain_interval_days', type=int, help='重训练间隔天数')
     parser.add_argument('--no_report', action='store_true', help='不生成报告')
     parser.add_argument('--report_dir', help='报告目录')
-    parser.add_argument('--override_dynamic_threshold', type=bool, help='覆盖动态阈值设置')
+
     parser.add_argument('--verbose', action='store_true', help='详细输出')
     
     args = parser.parse_args()
@@ -908,13 +956,10 @@ if __name__ == "__main__":
         retrain_interval_days=args.retrain_interval_days,
         generate_report=not args.no_report,
         report_dir=args.report_dir,
-        override_dynamic_threshold_enabled=args.override_dynamic_threshold
     )
-    
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if result['success']:
-        print(f"回测完成！成功率: {result['metrics']['success_rate']:.2%}")
-        if 'report_path' in result:
-            print(f"报告已生成: {result['report_path']}")
+        print(format_backtest_summary(result, project_root=project_root))
     else:
         print(f"回测失败: {result['error']}")
         sys.exit(1)

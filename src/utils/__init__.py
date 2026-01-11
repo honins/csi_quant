@@ -18,7 +18,7 @@ from .common import (
 from .config_loader import load_config, save_config, get_default_config
 
 # 从base_module导入基础模块类
-from .base_module import BaseModule, DataModule, StrategyModule, AIModule
+from .base_module import BaseModule
 
 # 从command_processor导入命令处理器
 from .command_processor import CommandProcessor
@@ -52,7 +52,7 @@ __all__ = [
     'load_config', 'save_config', 'get_default_config',
     
     # 基础模块
-    'BaseModule', 'DataModule', 'StrategyModule', 'AIModule',
+    'BaseModule',
     
     # 命令处理
     'CommandProcessor',

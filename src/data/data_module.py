@@ -10,10 +10,9 @@ import os
 import logging
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-import requests
-import time
+
+from typing import Dict, Any
+
 
 class DataModule:
     """数据获取模块类"""
@@ -27,14 +26,11 @@ class DataModule:
         """
         self.logger = logging.getLogger('DataModule')
         self.config = config
-        self.index_code = config.get('data', {}).get('index_code', 'SHSE.000905')
-        self.frequency = config.get('data', {}).get('frequency', '1d')
-        
-        # 创建缓存目录
+        # 创建缓存目录（如配置提供）
         self.cache_dir = config.get('data', {}).get('cache_dir', os.path.join(os.path.dirname(__file__), '..', '..', 'cache'))
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
-            
+        
         self.logger.info("数据模块初始化完成")
         
     def get_history_data(self, start_date: str, end_date: str) -> pd.DataFrame:
@@ -191,96 +187,4 @@ class DataModule:
         data['volume_ratio'] = data['volume'] / data['volume_ma20']
         
         return data
-        
-    def get_latest_data(self) -> Optional[pd.Series]:
-        """
-        获取最新数据
-        
-        返回:
-        pandas.Series: 最新数据，如果获取失败返回None
-        """
-        self.logger.info("获取最新数据")
-        
-        try:
-            # 获取最近30天的数据
-            end_date = datetime.now().strftime('%Y-%m-%d')
-            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-            
-            data = self.get_history_data(start_date, end_date)
-            
-            if len(data) > 0:
-                latest = data.iloc[-1]
-                self.logger.info("获取最新数据成功，日期: %s", latest['date'])
-                return latest
-            else:
-                self.logger.warning("没有获取到最新数据")
-                return None
-                
-        except Exception as e:
-            self.logger.error("获取最新数据失败: %s", str(e))
-            return None
-            
-    def validate_data(self, data: pd.DataFrame) -> bool:
-        """
-        验证数据质量
-        
-        参数:
-        data: 数据
-        
-        返回:
-        bool: 数据是否有效
-        """
-        self.logger.info("验证数据质量")
-        
-        try:
-            # 检查必要的列
-            required_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
-            for col in required_columns:
-                if col not in data.columns:
-                    self.logger.error("缺少必要的列: %s", col)
-                    return False
-                    
-            # 检查数据类型
-            if not pd.api.types.is_datetime64_any_dtype(data['date']):
-                self.logger.error("日期列类型不正确")
-                return False
-                
-            # 严格检查价格数据的逻辑性：不允许任何逻辑错误
-            invalid_rows = []
-            for i in range(len(data)):
-                row = data.iloc[i]
-                if not (row['low'] <= row['open'] <= row['high'] and 
-                       row['low'] <= row['close'] <= row['high']):
-                    invalid_rows.append(i)
-                    self.logger.error("第 %d 行价格数据逻辑错误 - High: %.2f, Low: %.2f, Open: %.2f, Close: %.2f", 
-                                    i, row['high'], row['low'], row['open'], row['close'])
-            
-            # 严格要求：任何价格逻辑错误都不被接受
-            if len(invalid_rows) > 0:
-                self.logger.error("数据验证失败：发现 %d 行价格数据逻辑错误，严格模式下不接受任何错误数据", 
-                                len(invalid_rows))
-                return False
-                    
-            # 严格检查缺失值：核心列不允许有任何缺失值
-            # 核心列：date, open, high, low, close, volume
-            core_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
-            for col in core_columns:
-                if col in data.columns:
-                    missing_count = data[col].isnull().sum()
-                    if missing_count > 0:
-                        self.logger.error("数据验证失败：核心列 '%s' 包含 %d 个缺失值，严格模式下不接受任何核心数据缺失", 
-                                        col, missing_count)
-                        return False
-            
-            # 检查其他列的缺失值（技术指标列允许一定缺失，因为计算窗口导致）
-            other_missing = data.drop(columns=core_columns, errors='ignore').isnull().sum().sum()
-            if other_missing > 0:
-                self.logger.info("技术指标列存在 %d 个缺失值（正常，由计算窗口导致）", other_missing)
-                
-            self.logger.info("数据验证完成")
-            return True
-            
-        except Exception as e:
-            self.logger.error("数据验证失败: %s", str(e))
-            return False
 
