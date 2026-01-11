@@ -701,14 +701,19 @@ class AIOptimizerImproved:
     def _prepare_labels(self, data: pd.DataFrame, strategy_module) -> np.ndarray:
         """
         准备标签：基于未来收益率 (Future Return)
-        目标：预测未来10天内涨幅是否超过2%
+        目标：预测未来N天内涨幅是否超过阈值
         """
-        self.logger.info("🏷️ 使用【未来收益率】生成训练标签 (Target: 10天涨幅>2%)")
+        # 获取配置参数
+        ai_config = self.config.get('ai', {})
+        train_config = ai_config.get('training', {})
         
-        # 1. 计算未来10天的收益率
-        # 使用 shift(-10) 获取10个交易日后的收盘价
-        future_days = 10
-        return_threshold = 0.02
+        future_days = train_config.get('target_days', 10)
+        return_threshold = train_config.get('target_return', 0.02)
+        
+        self.logger.info(f"🏷️ 使用【未来收益率】生成训练标签 (Target: {future_days}天涨幅>{return_threshold:.1%})")
+        
+        # 1. 计算未来收益率
+        # 使用 shift(-N) 获取N个交易日后的收盘价
         
         # 确保有 close 列
         if 'close' not in data.columns:
@@ -720,7 +725,6 @@ class AIOptimizerImproved:
         
         # 2. 生成基础标签
         # 只有当未来收益率 > 阈值时，标记为 1 (正样本)
-        # fillna(0) 处理最后几天的 NaN
         labels = (future_returns > return_threshold).astype(int)
         
         # 将最后 future_days 天的标签设为 0 (因为不知道未来)
@@ -739,19 +743,25 @@ class AIOptimizerImproved:
             dates = data.index
             
         if dates is not None:
-            # 定义负样本区间 (2025-03-01 到 2025-05-31)
-            # 该区间为"阴跌"或"假摔"行情，强制设为负样本
-            mask_hard_negative = (dates >= '2025-03-01') & (dates <= '2025-05-31')
+            # 从配置读取负样本区间
+            hnm_config = train_config.get('hard_negative_mining', {})
             
-            indices = np.where(mask_hard_negative)[0]
-            if len(indices) > 0:
-                positive_count_before = np.sum(labels[indices])
+            if hnm_config.get('enabled', False):
+                start_date = hnm_config.get('start_date', '2025-03-01')
+                end_date = hnm_config.get('end_date', '2025-05-31')
                 
-                # 强制设为0
-                labels[indices] = 0
+                # 定义负样本区间
+                mask_hard_negative = (dates >= start_date) & (dates <= end_date)
                 
-                if positive_count_before > 0:
-                    self.logger.info(f"🎯 负样本增强: 将2025.3-5月区间的 {positive_count_before} 个正样本强制修正为负样本")
+                indices = np.where(mask_hard_negative)[0]
+                if len(indices) > 0:
+                    positive_count_before = np.sum(labels[indices])
+                    
+                    # 强制设为0
+                    labels[indices] = 0
+                    
+                    if positive_count_before > 0:
+                        self.logger.info(f"🎯 负样本增强: 将 {start_date} 到 {end_date} 区间的 {positive_count_before} 个正样本强制修正为负样本")
         
         return labels
 
