@@ -14,16 +14,17 @@
 FIXED_PARAMS = [
     'rise_threshold',      # 涨幅阈值
     'max_days',           # 最大天数
-    'final_threshold'      # 最终置信度阈值（固定，避免循环依赖）
+    'final_threshold'     # 最终置信度阈值 - 从优化中分离，应单独优化
 ]
 
-# 🎯 最终选择的14个有效优化参数
+# 🎯 最终选择的14个有效优化参数（已移除final_threshold）
 # 根据用户确定的优化方案，只选择真正有效的参数
 
 # 🔥 核心决策参数（2个）- 每次预测都使用
 CORE_DECISION_PARAMS = [
     'rsi_oversold_threshold',            # RSI超卖阈值 - 有效性：★★★★★
-    'rsi_low_threshold'                  # RSI低阈值 - 有效性：★★★★☆
+    'rsi_low_threshold',                 # RSI低阈值 - 有效性：★★★★☆
+    # 注意：final_threshold 已移至固定参数，不再参与优化
 ]
 
 # 🔥 基础权重参数（4个）- 高频使用，重要逻辑
@@ -50,7 +51,7 @@ TECHNICAL_INDICATOR_PARAMS = [
     'price_decline_threshold'            # 价格下跌阈值 - 有效性：★★★☆☆
 ]
 
-# 🎯 所有可优化参数（14个）
+# 🎯 所有可优化参数（15个）
 OPTIMIZABLE_PARAMS = (
     CORE_DECISION_PARAMS + 
     BASIC_WEIGHT_PARAMS + 
@@ -116,7 +117,7 @@ def is_fixed_param(param_name: str) -> bool:
     return param_name in FIXED_PARAMS
 
 def is_optimizable_param(param_name: str) -> bool:
-    """检查是否为可优化参数（15个有效参数）"""
+    """检查是否为可优化参数（14个有效参数，已移除final_threshold）"""
     return param_name in OPTIMIZABLE_PARAMS
 
 def is_confidence_weight_param(param_name: str) -> bool:
@@ -141,7 +142,7 @@ def get_param_category(param_name: str) -> str:
         return 'other'
 
 def get_all_optimizable_params() -> list:
-    """获取所有可优化参数（15个有效参数）"""
+    """获取所有可优化参数（14个有效参数）"""
     return list(OPTIMIZABLE_PARAMS)
 
 def get_all_params() -> dict:
@@ -208,11 +209,11 @@ def print_param_summary():
     print("=" * 80)
     print("📊 参数分类摘要（基于14个有效参数方案）")
     print("=" * 80)
-    print(f"🔒 固定参数: {stats['total_fixed']} 个")
+    print(f"🔒 固定参数: {len(FIXED_PARAMS)} 个")
     print(f"   {', '.join(FIXED_PARAMS)}")
     print()
     print(f"🎯 可优化参数: {stats['total_optimizable']} 个（14个有效参数）")
-    print("   🔥 核心决策参数（2个）:")
+    print("   🔥 核心决策参数（3个）:")
     for param in CORE_DECISION_PARAMS:
         effectiveness = get_param_effectiveness(param)
         print(f"      {param} - 有效性: {effectiveness}")
@@ -234,4 +235,4 @@ def print_param_summary():
     print("=" * 80)
 
 if __name__ == "__main__":
-    print_param_summary() 
+    print_param_summary()

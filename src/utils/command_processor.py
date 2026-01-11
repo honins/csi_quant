@@ -79,15 +79,7 @@ class CommandProcessor:
             return config, None
         except Exception as e:
             error_msg = f"加载配置失败: {e}"
-            self.logger.error(error_msg)
-            # 返回最小可用配置
-            minimal_config = {
-                'data': {'data_file_path': 'data/'},
-                'strategy': {'rise_threshold': 0.04, 'max_days': 20},
-                'ai': {'model_type': 'RandomForest', 'models_dir': 'models'},
-                'logging': {'level': 'INFO'}
-            }
-            return minimal_config, error_msg
+            raise QuantError(error_msg)
     
     def _register_builtin_commands(self):
         """注册内置命令"""
@@ -236,6 +228,13 @@ class CommandProcessor:
             choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
             default='INFO',
             help='日志级别'
+        )
+        
+        # 新增：快速验证模式（全局开关）
+        parser.add_argument(
+            '--quick',
+            action='store_true',
+            help='快速验证模式：缩小数据范围、减少优化迭代，适合快速验证'
         )
         
         # 特定命令参数
@@ -437,6 +436,7 @@ class CommandProcessor:
   --no-timer           禁用性能计时器
   --config FILE        指定配置文件
   --log-level LEVEL    设置日志级别 (DEBUG/INFO/WARNING/ERROR)
+  --quick              快速验证模式：缩小数据范围、减少优化迭代
 
 📝 示例：
   python run.py help                    # 显示帮助
@@ -562,4 +562,4 @@ __all__ = [
     'CommandProcessor',
     'create_command_processor',
     'run_command'
-] 
+]

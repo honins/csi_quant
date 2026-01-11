@@ -14,6 +14,8 @@
 import sys
 import os
 from pathlib import Path
+from copy import deepcopy
+from datetime import date, timedelta
 
 # 添加src目录到Python路径
 project_root = Path(__file__).parent
@@ -24,6 +26,7 @@ from src.utils.common import (
     LoggerManager, PerformanceMonitor, init_project_environment,
     error_context, safe_execute
 )
+from src.utils.reporting import format_backtest_summary
 
 
 class QuantSystemCommands:
@@ -107,17 +110,6 @@ class QuantSystemCommands:
             handler=self.run_unit_tests,
             require_config=False
         )
-        
-        # 全套测试命令
-        self.processor.register_command(
-            name='all',
-            description='运行全套测试和回测',
-            handler=self.run_all_tests,
-            require_config=True,
-            args_spec=[
-                {'name': 'params', 'type': list, 'required': False}
-            ]
-        )
     
     def run_basic_test(self, args, config):
         """运行基础策略测试"""
@@ -141,21 +133,33 @@ class QuantSystemCommands:
     def run_ai_optimization(self, args, config):
         """运行AI优化"""
         try:
-            # 根据模式选择不同的执行方式
-            mode = getattr(args, 'mode', 'optimize')
-            
-            print(f"🎯 AI命令模式: {mode}")
-            print("📋 可用模式说明:")
-            print("   • optimize (默认): 完整AI优化 - 策略参数优化 + 模型训练")
-            print("   • full: 完全重训练 - 重新训练整个模型")
-            print("   • incremental: 增量训练 - 基于现有模型增量学习")
-            print("   • demo: 演示预测 - 使用已训练模型进行预测演示")
+            print("🎯 AI优化模式")
+            print("📋 功能说明: 完整AI优化 - 策略参数优化 + 模型训练")
             print()
             
-            if mode in ['incremental', 'full', 'demo']:
-                return self._run_ai_training(mode, config)
-            else:
-                return self._run_ai_optimization(config)
+            # 处理快速验证模式覆盖
+            use_quick = getattr(args, 'quick', False)
+            local_config = deepcopy(config)
+            if use_quick:
+                print("⚡ 已启用快速验证模式：缩小数据范围并减少优化迭代")
+                # 缩小数据时间范围到最近约180天
+                end_d = date.today()
+                start_d = end_d - timedelta(days=180)
+                local_config.setdefault('data', {})
+                local_config['data'].setdefault('time_range', {})
+                local_config['data']['time_range']['start_date'] = start_d.strftime('%Y-%m-%d')
+                local_config['data']['time_range']['end_date'] = end_d.strftime('%Y-%m-%d')
+                # 调小贝叶斯优化迭代次数
+                local_config.setdefault('bayesian_optimization', {})
+                local_config['bayesian_optimization']['n_calls'] = max(10, int(local_config['bayesian_optimization'].get('n_calls', 120) * 0.2))
+                calc_init = int(local_config['bayesian_optimization'].get('n_initial_points', 25) * 0.2)
+                local_config['bayesian_optimization']['n_initial_points'] = max(5, min(10, calc_init))
+                # 明确启用
+                local_config['bayesian_optimization']['enabled'] = True
+                print(f"   📅 快速数据范围: {local_config['data']['time_range']['start_date']} ~ {local_config['data']['time_range']['end_date']}")
+                print(f"   🔬 快速优化配置: n_calls={local_config['bayesian_optimization']['n_calls']}, n_initial_points={local_config['bayesian_optimization']['n_initial_points']}")
+            
+            return self._run_ai_optimization(local_config)
                 
         except ImportError as e:
             self.logger.error(f"AI模块导入失败: {e}")
@@ -163,131 +167,6 @@ class QuantSystemCommands:
         except Exception as e:
             self.logger.error(f"AI优化执行异常: {e}")
             return f"❌ AI优化执行异常: {e}"
-    
-    def _run_ai_training(self, mode, config):
-        """运行AI训练"""
-        from datetime import datetime
-        start_time = datetime.now()
-        
-        print(f"🤖 开始AI训练，模式: {mode}")
-        print("=" * 60)
-        self.logger.info(f"🤖 开始AI训练，模式: {mode}")
-        
-        try:
-            # 尝试导入并调用真实的AI训练模块
-            print("📦 导入AI训练模块...")
-            from src.ai.ai_optimizer_improved import AIOptimizerImproved
-            from src.strategy.strategy_module import StrategyModule
-            from src.data.data_module import DataModule
-            print("✅ 模块导入成功")
-            
-            # 初始化数据和策略模块
-            print("\n📊 获取历史数据...")
-            data_module = DataModule(config)
-            
-            # 获取数据配置
-            data_config = config.get('data', {})
-            time_range = data_config.get('time_range', {})
-            start_date = time_range.get('start_date', '2019-01-01')
-            end_date = time_range.get('end_date', '2025-07-15')
-            
-            print(f"📅 数据时间范围: {start_date} ~ {end_date}")
-            data = data_module.get_history_data(start_date, end_date)
-            strategy_module = StrategyModule(config)
-            
-            if data is None or data.empty:
-                return "❌ 无法获取数据，请检查数据配置"
-            
-            print(f"✅ 数据获取成功: {len(data)} 条记录")
-            
-            ai_optimizer = AIOptimizerImproved(config)
-            
-            print(f"\n🚀 开始AI {mode} 训练...")
-            
-            if mode == 'incremental':
-                # 增量训练逻辑
-                print("💡 增量训练模式: 基于现有模型进行增量学习")
-                result = ai_optimizer.incremental_train(data, strategy_module)
-                
-                # 计算耗时
-                end_time = datetime.now()
-                total_time = (end_time - start_time).total_seconds()
-                
-                if result.get('success'):
-                    print(f"\n✅ AI增量训练完成 (耗时: {total_time:.1f}秒)")
-                    print(f"📊 训练结果: {result.get('summary', '成功')}")
-                    return f"✅ AI增量训练完成，耗时: {total_time:.1f}秒"
-                else:
-                    print(f"\n❌ AI增量训练失败 (耗时: {total_time:.1f}秒)")
-                    return f"❌ AI增量训练失败: {result.get('error', '未知错误')}"
-                
-            elif mode == 'full':
-                # 完全重训练逻辑
-                print("💡 完全重训练模式: 重新训练整个模型")
-                result = ai_optimizer.full_train(data, strategy_module)
-                
-                # 计算耗时
-                end_time = datetime.now()
-                total_time = (end_time - start_time).total_seconds()
-                
-                if result.get('success'):
-                    train_samples = result.get('train_samples', 0)
-                    feature_count = result.get('feature_count', 0)
-                    positive_ratio = result.get('positive_ratio', 0)
-                    save_success = result.get('save_success', False)
-                    
-                    print(f"\n✅ AI完全重训练完成 (耗时: {total_time:.1f}秒)")
-                    print(f"📊 训练统计:")
-                    print(f"   📈 训练样本: {train_samples:,} 条")
-                    print(f"   🔧 特征数量: {feature_count} 个")
-                    print(f"   📊 正样本比例: {positive_ratio:.2%}")
-                    print(f"   💾 模型保存: {'成功' if save_success else '失败'}")
-                    
-                    return f"✅ AI完全重训练完成，耗时: {total_time:.1f}秒"
-                else:
-                    print(f"\n❌ AI完全重训练失败 (耗时: {total_time:.1f}秒)")
-                    return f"❌ AI完全重训练失败: {result.get('error', '未知错误')}"
-                
-            elif mode == 'demo':
-                # 演示预测逻辑 - 使用最近一个交易日进行预测
-                print("💡 演示预测模式: 使用已训练模型进行预测演示")
-                from examples.predict_single_day import predict_single_day
-                from datetime import datetime, timedelta
-                import pandas as pd
-                
-                # 获取最近的交易日作为演示日期
-                demo_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
-                print(f"📅 演示预测日期: {demo_date}")
-                
-                result = predict_single_day(demo_date, use_trained_model=True)
-                
-                # 计算耗时
-                end_time = datetime.now()
-                total_time = (end_time - start_time).total_seconds()
-                
-                if result:
-                    print(f"\n✅ AI演示预测完成 (耗时: {total_time:.1f}秒)")
-                    print(f"📅 预测日期: {demo_date}")
-                    return f"✅ AI演示预测完成: {demo_date}"
-                else:
-                    print(f"\n❌ AI演示预测失败 (耗时: {total_time:.1f}秒)")
-                    return f"❌ AI演示预测失败: {demo_date}"
-                
-            else:
-                return f"❌ 未知的AI训练模式: {mode}"
-                
-        except ImportError as e:
-            self.logger.warning(f"AI训练模块不可用: {e}")
-            # 降级到基础功能
-            training_modes = {
-                'incremental': '增量训练',
-                'full': '完全重训练',
-                'demo': '演示预测'
-            }
-            return f"⚠️ AI模块不可用，模拟执行 {training_modes.get(mode, mode)}"
-        except Exception as e:
-            self.logger.error(f"AI训练执行失败: {e}")
-            return f"❌ AI训练失败: {e}"
     
     def _run_ai_optimization(self, config):
         """运行AI优化"""
@@ -418,7 +297,7 @@ class QuantSystemCommands:
                     print(f"📊 最终评估:")
                     print(f"   🎯 策略得分: {strategy_score:.4f}")
                     print(f"   📈 成功率: {strategy_success_rate:.2%}")
-                    print(f"   🔍 识别点数: {identified_points}")
+                    print(f"   🔍 交易数: {identified_points}")
                     print(f"   🤖 AI置信度: {ai_confidence:.4f}")
                 else:
                     print(f"⚠️ 最终评估: 部分失败")
@@ -497,15 +376,16 @@ class QuantSystemCommands:
         self.logger.info(f"开始滚动回测: {start_date} 到 {end_date}")
         
         try:
-            # 尝试调用真实的回测模块
+            # 使用修改后的回测模块，生成Markdown报告
             from examples.run_rolling_backtest import run_rolling_backtest
             
-            result = run_rolling_backtest(start_date, end_date)
+            result = run_rolling_backtest(start_date, end_date, generate_report=True)
             
             if result.get('success'):
-                success_rate = result.get('success_rate', 0)
-                total_signals = result.get('total_signals', 0)
-                return f"✅ 滚动回测完成 ({start_date} ~ {end_date}): 成功率 {success_rate:.1%}, 信号数 {total_signals}"
+                # 使用统一的摘要格式化方法
+                summary = format_backtest_summary(result, project_root=str(project_root))
+                self.logger.info(summary)
+                return summary
             else:
                 error_msg = result.get('error', '回测失败')
                 return f"❌ 滚动回测失败: {error_msg}"
@@ -562,39 +442,6 @@ class QuantSystemCommands:
         except Exception as e:
             self.logger.error(f"单元测试异常: {e}")
             return f"❌ 单元测试异常: {e}"
-    
-    def run_all_tests(self, args, config):
-        """运行全套测试"""
-        results = []
-        
-        self.logger.info("开始运行全套测试")
-        
-        # 1. 基础测试
-        with PerformanceMonitor("基础测试"):
-            result = self.run_basic_test(args, config)
-            results.append(f"📊 基础测试: {result}")
-        
-        # 2. 数据获取
-        with PerformanceMonitor("数据获取"):
-            result = self.run_data_fetch(args, config)
-            results.append(f"📥 数据获取: {result}")
-        
-        # 3. AI优化（如果有参数指定）
-        if hasattr(args, 'mode') and args.mode:
-            with PerformanceMonitor("AI优化"):
-                result = self.run_ai_optimization(args, config)
-                results.append(f"🤖 AI优化: {result}")
-        
-        # 4. 回测（如果提供了日期参数）
-        if args.params and len(args.params) >= 2:
-            with PerformanceMonitor("滚动回测"):
-                result = self.run_rolling_backtest(args, config)
-                results.append(f"📈 回测: {result}")
-        
-        # 汇总结果
-        summary = "\n".join(results)
-        return f"🎯 全套测试完成:\n\n{summary}"
-
 
 def check_virtual_environment():
     """检查虚拟环境"""
@@ -622,8 +469,8 @@ def main():
         # 创建命令处理器
         processor = CommandProcessor()
         
-        # 注册量化系统命令
-        commands = QuantSystemCommands(processor)
+        # 创建并注册量化系统命令
+        quant_commands = QuantSystemCommands(processor)
         
         # 运行命令处理器
         exit_code = processor.run()
@@ -639,4 +486,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

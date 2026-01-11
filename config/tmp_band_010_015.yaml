@@ -1,0 +1,4 @@
+confidence_weights:
+  decision_band:
+    abstain_threshold: 0.10
+    enter_threshold: 0.15

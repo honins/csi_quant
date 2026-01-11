@@ -1,0 +1,99 @@
+metadata:
+  last_updated: '2025-09-28 00:01:51'
+  optimization_version: v2.2_sharpe_optimized
+  total_params: 22
+  description: null
+  method: genetic_algorithm
+  timestamp: '2025-09-28T00:01:51.831563'
+  param_count: 22
+  optimization_target: sharpe_ratio_maximization
+strategy_params:
+  rise_threshold: 0.04
+  max_days: 20
+confidence_weights:
+  final_threshold: 0.15
+  ai_weight: 0.5
+  strategy_weight: 0.5
+  decision_band:
+    enabled: true
+    abstain_threshold: 0.15
+    enter_threshold: 0.20
+  gray_zone_requires:
+    rsi_oversold_max: 40
+    strategy_positive: true
+    min_confirmations: 2
+    use_macd_negative: true
+    use_bb_near_lower: true
+    use_ma_below: true
+    trend_regime_allowed: ['bear', 'sideways']
+  ma_all_below: 0.4
+  ma_partial_below: 0.25
+  rsi_oversold: 0.35
+  rsi_low: 0.2
+  rsi_moderate: 0.1
+  macd_weak_negative: 0.08
+  bb_lower_near: 0.25
+  rsi_moderate_threshold: 50
+  base_confidence_ratio: 0.6
+  min_base_confidence: 0.1
+  rsi_oversold_threshold: 35
+  rsi_low_threshold: 50
+  dynamic_confidence_adjustment: 0.25
+  market_sentiment_weight: 0.08
+  trend_strength_weight: 0.25
+technical_indicators:
+  price_decline_threshold: -0.01
+  rsi_oversold_threshold: 35
+  rsi_low_threshold: 50
+  macd_negative_threshold: -0.01
+  macd_weak_negative_threshold: 0.005
+  bb_near_threshold: 1.02
+volume_params:
+  volume_panic_bonus: 0.08
+  volume_surge_bonus: 0.15
+  volume_shrink_penalty: 0.5
+  volume_panic_threshold: 1.5
+market_params:
+  market_sentiment_weight: 0.08
+  trend_strength_weight: 0.25
+  dynamic_confidence_adjustment: 0.25
+  price_momentum_weight: 0.2
+strategy_level_params:
+  volume_weight: 0.3
+  price_momentum_weight: 0.2
+  bb_near_threshold: 1.02
+  volume_panic_threshold: 1.5
+  volume_surge_threshold: 1.2
+  volume_shrink_threshold: 0.8
+strategy_scoring:
+  sharpe_weight: 0.6
+  success_weight: 0.25
+  return_weight: 0.15
+  sharpe_benchmark: 2.0
+  days_benchmark: 10.0
+ai_scoring:
+  sharpe_weight: 0.6
+  success_weight: 0.25
+  return_weight: 0.15
+default_strategy:
+  rise_threshold: 0.04
+  max_days: 20
+  confidence_weights:
+    final_threshold: 0.15
+    decision_band:
+      enabled: true
+      abstain_threshold: 0.08
+      enter_threshold: 0.12
+    gray_zone_requires:
+      rsi_oversold_max: 40
+      strategy_positive: true
+      min_confirmations: 2
+      use_macd_negative: true
+      use_bb_near_lower: true
+      use_ma_below: true
+      trend_regime_allowed: ['bear', 'sideways']
+    rsi_oversold_threshold: 40
+    rsi_low_threshold: 45
+    dynamic_confidence_adjustment: 0.2
+    market_sentiment_weight: 0.2
+    trend_strength_weight: 0.03

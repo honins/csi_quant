@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-改进版AI优化器
+AI优化器
 集成增量学习、特征权重优化和趋势确认指标
-已废弃置信度平滑功能，直接使用AI模型原始输出
 """
 
 import logging
@@ -16,20 +15,29 @@ from datetime import datetime, timedelta
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+
 from typing import Dict, Any, Tuple, List, Optional
 import json
 import yaml
-from itertools import product
+
 import sys
 import time
 
+# 贝叶斯优化相关导入
 
-# 注释：以下ConfidenceSmoother类已废弃，不再使用平滑处理
-# 现在直接使用模型的原始输出，保持信息完整性
+from skopt import gp_minimize
+from skopt.space import Real, Integer
+from skopt.utils import use_named_args
+BAYESIAN_AVAILABLE = True
+
+# 导入工具函数
+from src.utils.utils import resolve_confidence_param
+
+
 
 
 class AIOptimizerImproved:
-    """改进版AI优化器"""
+    """AI优化器"""
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -52,10 +60,10 @@ class AIOptimizerImproved:
         self.max_incremental_updates = incremental_config.get('max_updates', 10)  # 最大增量更新次数
         self.incremental_count = 0
 
-        # 移除置信度平滑器 - 使用模型原始输出
-        # self.confidence_smoother = ConfidenceSmoother(config)
+        # 移除置信度处理器 - 使用模型原始输出
+        # self.confidence_processor = ConfidenceProcessor(config)
 
-        self.logger.info("改进版AI优化器初始化完成")
+        self.logger.info("AI优化器初始化完成")
 
     def prepare_features_improved(self, data: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
         """
@@ -370,14 +378,20 @@ class AIOptimizerImproved:
                     self.logger.warning("缺少scaler，进行完全重训练")
                     return self.full_train(new_data, strategy_module)
 
-                # 使用warm_start进行增量学习
-                if hasattr(self.model.named_steps['classifier'], 'n_estimators'):
+                # 使用warm_start进行增量学习（仅当为Pipeline且底层分类器支持）
+                classifier = None
+                if hasattr(self.model, 'named_steps') and 'classifier' in getattr(self.model, 'named_steps', {}):
                     classifier = self.model.named_steps['classifier']
+                else:
+                    self.logger.warning("当前模型不是Pipeline（可能为校准后的模型），回退到完全重训练")
+                    return self.full_train(new_data, strategy_module)
+
+                if hasattr(classifier, 'n_estimators'):
                     classifier.n_estimators += 10  # 增加树的数量
                     classifier.warm_start = True
 
                     # 重新训练（这里实际上是增量的）
-                    self.model.named_steps['classifier'].fit(recent_features_scaled, recent_labels)
+                    classifier.fit(recent_features_scaled, recent_labels)
 
                     self.incremental_count += 1
                     self.logger.info(f"增量训练完成，更新次数: {self.incremental_count}")
@@ -401,7 +415,7 @@ class AIOptimizerImproved:
 
     def full_train(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
         """
-        完整训练改进版AI模型
+        完整训练AI模型
         
         参数:
         data: 历史数据
@@ -411,7 +425,7 @@ class AIOptimizerImproved:
         dict: 训练结果
         """
         train_start_time = time.time()
-        self.logger.info("🤖 开始改进版AI模型完整训练")
+        self.logger.info("🤖 开始AI模型完整训练")
         self.logger.info("=" * 80)
 
         try:
@@ -519,6 +533,11 @@ class AIOptimizerImproved:
 
             model_time = time.time() - model_start_time
             self.model = model
+            # 保存scaler供增量训练复用
+            try:
+                self.scaler = model.named_steps['scaler'] if hasattr(model, 'named_steps') and 'scaler' in model.named_steps else None
+            except Exception:
+                self.scaler = None
 
             self.logger.info(f"✅ 模型训练完成 (耗时: {model_time:.2f}s)")
             self.logger.info("-" * 60)
@@ -538,7 +557,7 @@ class AIOptimizerImproved:
             # 训练总结
             total_train_time = time.time() - train_start_time
             self.logger.info("=" * 80)
-            self.logger.info("🎉 改进版AI模型训练完成!")
+            self.logger.info("🎉 AI模型训练完成!")
             self.logger.info(f"⏱️ 总耗时: {total_train_time:.2f}s ({total_train_time / 60:.1f}分钟)")
             self.logger.info(f"📊 训练统计:")
             self.logger.info(f"   特征工程: {feature_time:.2f}s")
@@ -575,7 +594,7 @@ class AIOptimizerImproved:
             }
 
         except Exception as e:
-            self.logger.error(f"改进版模型训练失败: {e}")
+            self.logger.error(f"模型训练失败: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -583,16 +602,16 @@ class AIOptimizerImproved:
 
     def predict_low_point(self, data: pd.DataFrame, prediction_date: str = None) -> Dict[str, Any]:
         """
-        预测相对低点（带置信度平滑）
+        预测相对低点
         
         参数:
         data: 市场数据
-        prediction_date: 预测日期（用于置信度平滑）
+        prediction_date: 预测日期
         
         返回:
         dict: 预测结果
         """
-        self.logger.info("预测相对低点（改进版）")
+        self.logger.info("预测相对低点")
 
         try:
             # 加载模型（如果未加载）
@@ -630,18 +649,25 @@ class AIOptimizerImproved:
             # 获取预测概率（不使用predict方法，避免内置阈值影响）
             prediction_proba = self.model.predict_proba(latest_features)[0]
 
-            # 获取原始置信度（不再进行平滑处理）
+            # 获取原始置信度（不再进行处理）
             raw_confidence = prediction_proba[1] if len(prediction_proba) > 1 else 0.0
 
-            # 直接使用原始置信度，不进行平滑处理
+            # 直接使用原始置信度，不进行处理
             final_confidence = raw_confidence
 
-            # 使用配置的阈值和原始置信度进行最终预测
-            confidence_config = self.config.get('strategy', {}).get('confidence_weights', {})
-            final_threshold = confidence_config.get('final_threshold', 0.5)
+            # 使用固定阈值（从配置读取，不进行动态调整）
+            final_threshold = resolve_confidence_param(self.config, 'final_threshold', 0.5)
 
             # 基于原始置信度和配置阈值进行预测
             is_low_point = final_confidence >= final_threshold
+
+            # 获取模型类型
+            model_type = type(self.model).__name__
+            try:
+                if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
+                    model_type = type(self.model.named_steps['classifier']).__name__
+            except Exception:
+                pass
 
             result = {
                 'is_low_point': bool(is_low_point),
@@ -649,13 +675,13 @@ class AIOptimizerImproved:
                 'final_confidence': float(final_confidence),  # 现在等于原始置信度
                 'prediction_proba': prediction_proba.tolist(),
                 'feature_count': len(feature_names),
-                'model_type': type(self.model.named_steps['classifier']).__name__,
+                'model_type': model_type,
                 'threshold_used': final_threshold
             }
 
             # 输出预测结果
             self.logger.info("----------------------------------------------------")
-            self.logger.info("AI预测结果（无平滑）: \033[1m%s\033[0m",
+            self.logger.info("AI预测结果: \033[1m%s\033[0m",
                              "相对低点" if is_low_point else "非相对低点")
             self.logger.info("原始置信度: \033[1m%.4f\033[0m, 阈值: \033[1m%.2f\033[0m",
                              raw_confidence, final_threshold)
@@ -742,10 +768,12 @@ class AIOptimizerImproved:
                     'scaler': self.scaler
                 }, f)
 
-            # 保存最新模型路径
+            # 保存最新模型路径（相对项目根目录）
             latest_path = os.path.join(self.models_dir, 'latest_improved_model.txt')
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            relative_model_path = os.path.relpath(model_path, start=project_root)
             with open(latest_path, 'w') as f:
-                f.write(model_path)
+                f.write(relative_model_path)
 
             self.logger.info(f"改进模型保存成功: {model_path}")
             return True
@@ -766,6 +794,12 @@ class AIOptimizerImproved:
             with open(latest_path, 'r') as f:
                 model_path = f.read().strip()
 
+            # 如果是相对路径，转换为绝对路径（相对于项目根目录）
+            if not os.path.isabs(model_path):
+                # 获取项目根目录（从当前文件位置向上三级：src/ai/ai_optimizer_improved.py -> 项目根目录）
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                model_path = os.path.join(project_root, model_path)
+            
             # 安全检查：验证模型文件路径
             if not os.path.abspath(model_path).startswith(os.path.abspath(self.models_dir)):
                 self.logger.error(f"模型文件路径不安全: {model_path}")
@@ -780,7 +814,6 @@ class AIOptimizerImproved:
             with open(model_path, 'rb') as f:
                 # 使用受限的pickle加载器（限制可导入的模块）
                 import pickle
-                import builtins
 
                 # 创建安全的unpickler
                 logger = self.logger  # 保存logger引用
@@ -847,11 +880,12 @@ class AIOptimizerImproved:
                 return {}
 
             # 从Pipeline中获取分类器
-            if hasattr(self.model, 'named_steps') and 'classifier' in self.model.named_steps:
-                classifier = self.model.named_steps['classifier']
+            model_obj = self.model
+            if hasattr(model_obj, 'named_steps') and 'classifier' in getattr(model_obj, 'named_steps', {}):
+                classifier = model_obj.named_steps['classifier']
             else:
                 # 如果模型不是Pipeline，直接使用
-                classifier = self.model
+                classifier = model_obj
 
             # 检查分类器是否有feature_importances_属性
             if hasattr(classifier, 'feature_importances_'):
@@ -893,9 +927,9 @@ class AIOptimizerImproved:
 
         # 同时使用print和logger确保输出可见
         current_time = datetime.now().strftime("%H:%M:%S")
-        print(f"🚀 开始完整的AI优化流程（改进版） [{current_time}]")
+        print(f"🚀 开始完整的AI优化流程 [{current_time}]")
         print("=" * 80)
-        self.logger.info("🚀 开始完整的AI优化流程（改进版）")
+        self.logger.info("🚀 开始完整的AI优化流程")
         self.logger.info("=" * 80)
 
         try:
@@ -910,8 +944,8 @@ class AIOptimizerImproved:
             # 步骤预览
             current_time = datetime.now().strftime("%H:%M:%S")
             print(f"📋 优化流程概览: [{current_time}]")
-            print("   🔧 步骤A: 策略参数优化 (遗传算法/网格搜索)")
-            print("   🤖 步骤B: 改进版模型训练")
+            print("   🔧 步骤A: 策略参数优化 (贝叶斯优化)")
+            print("   🤖 步骤B: 模型训练")
             print("   📊 步骤C: 最终性能评估")
             print("   💾 步骤D: 结果保存")
             print("-" * 80)
@@ -920,13 +954,10 @@ class AIOptimizerImproved:
             current_time = datetime.now().strftime("%H:%M:%S")
             print(f"🔧 步骤A: 策略参数优化 [{current_time}]")
             print("   🎯 目标: 寻找最优策略参数组合")
-            print("   📊 方法: 遗传算法高精度优化")
+            print("   📊 方法: 贝叶斯优化高精度搜索")
             
             # 🔧 从配置文件中读取固定参数值
             strategy_config = self.config.get('strategy', {})
-            fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
-            fixed_max_days = strategy_config.get('max_days', 20)
-            print(f"   🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
 
             # 🔧 获取当前策略基准得分
             current_time = datetime.now().strftime("%H:%M:%S")
@@ -989,14 +1020,14 @@ class AIOptimizerImproved:
             print("-" * 80)
             self.logger.info("-" * 80)
 
-            # 步骤B: 改进版模型训练
+            # 步骤B: 模型训练
             current_time = datetime.now().strftime("%H:%M:%S")
-            print(f"🤖 步骤B: 改进版模型训练 [{current_time}]")
+            print(f"🤖 步骤B: 模型训练 [{current_time}]")
             print("   🎯 目标: 训练RandomForest分类模型")
             print("   ⚙️ 配置: 150棵树, 深度12, 平衡权重")
             print("   📊 数据: 特征工程 + 样本权重 + 标准化")
 
-            self.logger.info("🤖 步骤B: 改进版模型训练")
+            self.logger.info("🤖 步骤B: 模型训练")
             self.logger.info("   🎯 目标: 训练RandomForest分类模型")
             self.logger.info("   ⚙️ 配置: 150棵树, 深度12, 平衡权重")
             self.logger.info("   📊 数据: 特征工程 + 样本权重 + 标准化")
@@ -1055,13 +1086,13 @@ class AIOptimizerImproved:
                 print(f"✅ 步骤C完成 (耗时: {step_c_time:.2f}s) [{current_time}]")
                 print(f"   🎯 策略得分: {evaluation_result.get('strategy_score', 0):.4f}")
                 print(f"   📊 成功率: {evaluation_result.get('strategy_success_rate', 0):.2%}")
-                print(f"   🔍 识别点数: {evaluation_result.get('identified_points', 0)}")
+                print(f"   🔍 交易数: {evaluation_result.get('identified_points', 0)}")
                 print(f"   🤖 AI置信度: {evaluation_result.get('ai_confidence', 0):.4f}")
 
                 self.logger.info(f"✅ 步骤C完成 (耗时: {step_c_time:.2f}s)")
                 self.logger.info(f"   🎯 策略得分: {evaluation_result.get('strategy_score', 0):.4f}")
                 self.logger.info(f"   📊 成功率: {evaluation_result.get('strategy_success_rate', 0):.2%}")
-                self.logger.info(f"   🔍 识别点数: {evaluation_result.get('identified_points', 0)}")
+                self.logger.info(f"   🔍 交易数: {evaluation_result.get('identified_points', 0)}")
                 self.logger.info(f"   🤖 AI置信度: {evaluation_result.get('ai_confidence', 0):.4f}")
             else:
                 current_time = datetime.now().strftime("%H:%M:%S")
@@ -1081,7 +1112,7 @@ class AIOptimizerImproved:
             if strategy_result['success']:
                 print("   📝 保存最优参数到配置文件...")
                 self.logger.info("   📝 保存最优参数到配置文件...")
-                self.save_optimized_params(strategy_result['best_params'])
+                self._save_optimized_parameters(strategy_result['best_params'])
                 print("   ✅ 参数保存完成")
                 self.logger.info("   ✅ 参数保存完成")
             else:
@@ -1167,7 +1198,7 @@ class AIOptimizerImproved:
 
     def optimize_strategy_parameters_improved(self, strategy_module, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        改进版策略参数优化（集成贝叶斯优化和遗传算法的高精度模式）
+        策略参数优化（贝叶斯优化高精度模式）
         
         参数:
         strategy_module: 策略模块
@@ -1184,7 +1215,7 @@ class AIOptimizerImproved:
         print(f"    🚀 启动策略参数优化子流程 [{current_time}]")
         print(f"    📊 数据规模: {len(data)} 条记录")
 
-        self.logger.info("🚀 开始改进版策略参数优化（集成贝叶斯优化和遗传算法）")
+        self.logger.info("🚀 开始策略参数优化（贝叶斯优化）")
         self.logger.info("=" * 80)
 
         try:
@@ -1229,8 +1260,8 @@ class AIOptimizerImproved:
             # 检查配置
             bayesian_config = self.config.get('bayesian_optimization', {})
             bayesian_enabled = bayesian_config.get('enabled', True)
-            genetic_config = self.config.get('genetic_algorithm', {})
-            genetic_enabled = genetic_config.get('enabled', True)
+            # 贝叶斯优化为主要优化方法
+            optimization_method_config = self.config.get('optimization_method', 'bayesian')
             advanced_config = self.config.get('advanced_optimization', {})
             advanced_enabled = advanced_config.get('enabled', True)
 
@@ -1240,7 +1271,7 @@ class AIOptimizerImproved:
 
             best_params = {}
             best_score = -float('inf')
-            optimization_method = 'unknown'
+            optimization_method = 'initial_params'
 
             # 🔧 修复：保存初始策略参数作为基准
             initial_params = strategy_module.get_current_params() if hasattr(strategy_module,
@@ -1266,16 +1297,16 @@ class AIOptimizerImproved:
             self.logger.info(f"🔒 固定参数: rise_threshold={fixed_rise_threshold}, max_days={fixed_max_days}")
 
        
-            # 直接进入遗传算法参数优化流程
-            print("    🧬 使用遗传算法进行参数优化")
-            print("    🎯 配置参数: 200个体 × 20代 = 4000次评估")
-            print("    ⏳ 预计耗时: 15-30分钟（进化搜索）")
+            # 直接进入贝叶斯优化参数优化流程
+            print("    🔬 使用贝叶斯优化进行参数优化")
+            print("    🎯 配置参数: 100次评估 (智能搜索)")
+            print("    ⏳ 预计耗时: 5-10分钟（高效搜索）")
 
-            self.logger.info("🧬 使用遗传算法进行参数优化")
-            genetic_start_time = time.time()
+            self.logger.info("🔬 使用贝叶斯优化进行参数优化")
+            bayesian_start_time = time.time()
 
             # 🔧 关键修复：定义不影响策略模块状态的评估函数
-            current_best_params_in_genetic = initial_params.copy()
+            current_best_params_in_bayesian = initial_params.copy()
             
             # 🔧 修复：计算初始参数的统一评分作为基准
             if initial_params:
@@ -1286,14 +1317,14 @@ class AIOptimizerImproved:
                 # 使用统一的评分方法计算初始得分
                 initial_unified_score = self._calculate_unified_score(initial_evaluation)
                 
-                current_best_score_in_genetic = initial_unified_score
-                print(f"    📊 遗传算法初始统一得分: {initial_unified_score:.6f}")
-                self.logger.info(f"📊 遗传算法初始统一得分: {initial_unified_score:.6f}")
+                current_best_score_in_bayesian = initial_unified_score
+                print(f"    📊 贝叶斯优化初始统一得分: {initial_unified_score:.6f}")
+                self.logger.info(f"📊 贝叶斯优化初始统一得分: {initial_unified_score:.6f}")
             else:
-                current_best_score_in_genetic = 0.0
+                current_best_score_in_bayesian = 0.0
 
             def evaluate_strategy_params(params):
-                nonlocal current_best_params_in_genetic, current_best_score_in_genetic
+                nonlocal current_best_params_in_bayesian, current_best_score_in_bayesian
 
                 try:
                     # 🔧 修复：rise_threshold和max_days是固定参数，不应该参与优化
@@ -1308,90 +1339,110 @@ class AIOptimizerImproved:
                     # print("    临时应用参数进行评估")
                     strategy_module.update_params(complete_params)
 
-                    # 在训练集上评估
-                    backtest_results = strategy_module.backtest(train_data)
-                    evaluation = strategy_module.evaluate_strategy(backtest_results)
+                    # 在训练集上评估（使用配置中的固定 final_threshold，仅在优化期间生效）
+                    orig_ft = None
+                    cw = strategy_module.config.setdefault('confidence_weights', {})
+                    try:
+                        orig_ft = cw.get('final_threshold', None)
+                        # 从配置解析固定 final_threshold（不参与优化）
+                        cw['final_threshold'] = resolve_confidence_param(strategy_module.config, 'final_threshold', 0.5)
+                        backtest_results = strategy_module.backtest(train_data)
+                        evaluation = strategy_module.evaluate_strategy(backtest_results)
+                    finally:
+                        # 恢复final_threshold，避免污染全局配置
+                        if orig_ft is None:
+                            if 'final_threshold' in cw:
+                                del cw['final_threshold']
+                        else:
+                            cw['final_threshold'] = orig_ft
 
                     # 使用统一的评分方法
                     final_score = self._calculate_unified_score(evaluation)
 
                     # 🎯 修复后的参数管理逻辑：只有更好的参数才保留在策略模块中
-                    if final_score > current_best_score_in_genetic:
+                    if final_score > current_best_score_in_bayesian:
                         # 新参数更好，保留在策略模块中
-                        prev_score = current_best_score_in_genetic
-                        current_best_params_in_genetic = complete_params.copy()
-                        current_best_score_in_genetic = final_score
+                        prev_score = current_best_score_in_bayesian
+                        current_best_params_in_bayesian = complete_params.copy()
+                        current_best_score_in_bayesian = final_score
                         # 策略模块已经更新为新参数，不需要额外操作
-                        self.logger.info(f"遗传算法发现更优参数: 得分 {final_score:.6f} > {prev_score:.6f}")
+                        self.logger.info(f"贝叶斯优化发现更优参数: 得分 {final_score:.6f} > {prev_score:.6f}")
                         self.logger.info(f"参数详情: ")
                         for param_name, param_value in complete_params.items():
                             print(f"          {param_name}: {param_value}")
                     else:
                         # 新参数较差，必须恢复到之前的最佳参数
-                        if current_best_params_in_genetic:
-                            strategy_module.update_params(current_best_params_in_genetic)
+                        if current_best_params_in_bayesian:
+                            strategy_module.update_params(current_best_params_in_bayesian)
                         else:
                             # 如果没有最佳参数，恢复到原始参数
                             if original_params:
                                 strategy_module.update_params(original_params)
 
-                        return final_score
+                    # 贝叶斯优化需要返回负值（因为它是最小化算法）
+                    return -final_score
 
                 except Exception as e:
                     self.logger.warning(f"参数评估失败: {e}")
                     # 出错时恢复到最佳参数或原始参数
-                    if current_best_params_in_genetic:
-                        strategy_module.update_params(current_best_params_in_genetic)
+                    if current_best_params_in_bayesian:
+                        strategy_module.update_params(current_best_params_in_bayesian)
                     elif original_params:
                         strategy_module.update_params(original_params)
-                    return -1.0
+                    return 1.0  # 返回正值表示失败（贝叶斯优化会避免这个区域）
 
-            # 运行遗传算法
-            print(f"    🔬 开始遗传算法参数搜索... [{datetime.now().strftime('%H:%M:%S')}]")
-            self.logger.info("🔬 开始遗传算法参数搜索...")
-            genetic_params = self.run_genetic_algorithm(evaluate_strategy_params)
-            genetic_time = time.time() - genetic_start_time
+            # 运行贝叶斯优化
+            print(f"    🔬 开始贝叶斯优化参数搜索... [{datetime.now().strftime('%H:%M:%S')}]")
+            self.logger.info("🔬 开始贝叶斯优化参数搜索...")
+            bayesian_params = self.run_bayesian_optimization(evaluate_strategy_params)
+            bayesian_time = time.time() - bayesian_start_time
 
-            if genetic_params:
-                # 🔧 修复：遗传算法已经通过评估函数管理了最佳参数
-                # 获取遗传算法过程中找到的最佳参数（已经在策略模块中）
-                final_genetic_params = strategy_module.get_current_params() if hasattr(strategy_module,
-                                                                                        'get_current_params') else genetic_params
+            if bayesian_params:
+                # 🔧 修复：贝叶斯优化已经通过评估函数管理了最佳参数
+                # 获取贝叶斯优化过程中找到的最佳参数（已经在策略模块中）
+                final_bayesian_params = strategy_module.get_current_params() if hasattr(strategy_module,
+                                                                                        'get_current_params') else bayesian_params
 
-                # 最终评估遗传算法结果（此时策略模块已经是最佳状态）
-                genetic_backtest = strategy_module.backtest(train_data)
-                genetic_evaluation = strategy_module.evaluate_strategy(genetic_backtest)
-                genetic_unified_score = self._calculate_unified_score(genetic_evaluation)
+                # 最终评估贝叶斯优化结果（此时策略模块已经是最佳状态）
+                bayesian_backtest = strategy_module.backtest(train_data)
+                bayesian_evaluation = strategy_module.evaluate_strategy(bayesian_backtest)
+                bayesian_unified_score = self._calculate_unified_score(bayesian_evaluation)
 
-                # 如果遗传算法结果更好，更新全局最佳参数
-                if genetic_unified_score > best_score:
-                    best_params = final_genetic_params.copy()  # 使用遗传算法管理的最佳参数
-                    best_score = genetic_unified_score
-                    optimization_method = 'genetic_algorithm'
+                # 如果贝叶斯优化结果更好，更新全局最佳参数
+                if bayesian_unified_score > best_score:
+                    best_params = final_bayesian_params.copy()  # 使用贝叶斯优化管理的最佳参数
+                    best_score = bayesian_unified_score
+                    optimization_method = 'bayesian_optimization'
 
-                    print(f"    ✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
-                    self.logger.info(f"✅ 遗传算法找到更优参数! 得分提升: {best_score:.6f}")
+                    print(f"    ✅ 贝叶斯优化找到更优参数! 得分提升: {best_score:.6f}")
+                    self.logger.info(f"✅ 贝叶斯优化找到更优参数! 得分提升: {best_score:.6f}")
                 else:
-                    print(f"    ⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
-                    self.logger.info(f"⚠️ 遗传算法结果未超过当前最优，恢复之前最佳参数")
+                    print(f"    ⚠️ 贝叶斯优化结果未超过当前最优，恢复之前最佳参数")
+                    self.logger.info(f"⚠️ 贝叶斯优化结果未超过当前最优，恢复之前最佳参数")
                     # 恢复到之前的最佳参数
                     strategy_module.update_params(best_params)
+                    # 如果使用的是初始参数，保持optimization_method为initial_params
+                    if optimization_method == 'initial_params':
+                        optimization_method = 'initial_params_retained'
 
                 current_time = datetime.now().strftime("%H:%M:%S")
-                print(f"    🧬 遗传算法完成 (耗时: {genetic_time:.2f}s) [{current_time}]")
-                print(f"       📈 最优得分: {genetic_unified_score:.6f}")
-                print(f"       📊 成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
-                print(f"       🔍 识别点数: {genetic_evaluation.get('total_points', 0)}")
-                print(f"       📈 平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
+                print(f"    🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s) [{current_time}]")
+                print(f"       📈 最优得分: {bayesian_unified_score:.6f}")
+                print(f"       📊 成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
+                print(f"       🔍 交易数: {bayesian_evaluation.get('total_trades', 0)}")
+                print(f"       📈 平均收益: {bayesian_evaluation.get('avg_return', 0):.2%}")
 
-                self.logger.info(f"🧬 遗传算法完成 (耗时: {genetic_time:.2f}s)")
-                self.logger.info(f"   最优得分: {genetic_unified_score:.6f}")
-                self.logger.info(f"   成功率: {genetic_evaluation.get('success_rate', 0):.2%}")
-                self.logger.info(f"   识别点数: {genetic_evaluation.get('total_points', 0)}")
-                self.logger.info(f"   平均涨幅: {genetic_evaluation.get('avg_rise', 0):.2%}")
+                self.logger.info(f"🔬 贝叶斯优化完成 (耗时: {bayesian_time:.2f}s)")
+                self.logger.info(f"   最优得分: {bayesian_unified_score:.6f}")
+                self.logger.info(f"   成功率: {bayesian_evaluation.get('success_rate', 0):.2%}")
+                self.logger.info(f"   交易数: {bayesian_evaluation.get('total_trades', 0)}")
+                self.logger.info(f"   平均收益: {bayesian_evaluation.get('avg_return', 0):.2%}")
             else:
-                print("    ⚠️ 遗传算法未找到有效解")
-                self.logger.warning("⚠️ 遗传算法未找到有效解")
+                print("    ⚠️ 贝叶斯优化未找到有效解")
+                self.logger.warning("⚠️ 贝叶斯优化未找到有效解")
+                # 如果贝叶斯优化失败，使用初始参数
+                if optimization_method == 'initial_params':
+                    optimization_method = 'initial_params_fallback'
 
             # 验证最佳参数
             if not best_params:
@@ -1418,8 +1469,8 @@ class AIOptimizerImproved:
             val_evaluation = strategy_module.evaluate_strategy(val_backtest)
             val_score = val_evaluation['score']
             val_success_rate = val_evaluation.get('success_rate', 0)
-            val_total_points = val_evaluation.get('total_points', 0)
-            val_avg_rise = val_evaluation.get('avg_rise', 0)
+            val_total_points = val_evaluation.get('total_trades', val_evaluation.get('total_points', 0))
+            val_avg_rise = val_evaluation.get('avg_return', val_evaluation.get('avg_rise', 0))
 
             validation_time = time.time() - validation_start_time
 
@@ -1430,15 +1481,15 @@ class AIOptimizerImproved:
             print(f"    ✅ 验证集评估完成 (耗时: {validation_time:.2f}s)")
             print(f"       得分: {val_score:.6f}")
             print(f"       成功率: {val_success_rate:.2%}")
-            print(f"       识别点数: {val_total_points}")
-            print(f"       平均涨幅: {val_avg_rise:.2%}")
+            print(f"       交易数: {val_total_points}")
+            print(f"       平均收益: {val_avg_rise:.2%}")
             print(f"       过拟合检测: {'✅ 通过' if overfitting_passed else '⚠️ 警告'}")
 
             self.logger.info(f"✅ 验证集评估完成 (耗时: {validation_time:.2f}s)")
             self.logger.info(f"   得分: {val_score:.6f}")
             self.logger.info(f"   成功率: {val_success_rate:.2%}")
-            self.logger.info(f"   识别点数: {val_total_points}")
-            self.logger.info(f"   平均涨幅: {val_avg_rise:.2%}")
+            self.logger.info(f"   交易数: {val_total_points}")
+            self.logger.info(f"   平均收益: {val_avg_rise:.2%}")
             self.logger.info(f"   过拟合检测: {'✅ 通过' if overfitting_passed else '⚠️ 警告'}")
             self.logger.info("-" * 60)
 
@@ -1452,8 +1503,8 @@ class AIOptimizerImproved:
             test_evaluation = strategy_module.evaluate_strategy(test_backtest)
             test_score = test_evaluation['score']
             test_success_rate = test_evaluation.get('success_rate', 0)
-            test_total_points = test_evaluation.get('total_points', 0)
-            test_avg_rise = test_evaluation.get('avg_rise', 0)
+            test_total_points = test_evaluation.get('total_trades', test_evaluation.get('total_points', 0))
+            test_avg_rise = test_evaluation.get('avg_return', test_evaluation.get('avg_rise', 0))
 
             test_time = time.time() - test_start_time
 
@@ -1470,16 +1521,16 @@ class AIOptimizerImproved:
             print(f"    ✅ 测试集评估完成 (耗时: {test_time:.2f}s)")
             print(f"       得分: {test_score:.6f}")
             print(f"       成功率: {test_success_rate:.2%}")
-            print(f"       识别点数: {test_total_points}")
-            print(f"       平均涨幅: {test_avg_rise:.2%}")
+            print(f"       交易数: {test_total_points}")
+            print(f"       平均收益: {test_avg_rise:.2%}")
             print(
                 f"       泛化能力: {'✅ 良好' if generalization_passed else '⚠️ 一般'} (比率: {generalization_ratio:.3f})")
 
             self.logger.info(f"✅ 测试集评估完成 (耗时: {test_time:.2f}s)")
             self.logger.info(f"   得分: {test_score:.6f}")
             self.logger.info(f"   成功率: {test_success_rate:.2%}")
-            self.logger.info(f"   识别点数: {test_total_points}")
-            self.logger.info(f"   平均涨幅: {test_avg_rise:.2%}")
+            self.logger.info(f"   交易数: {test_total_points}")
+            self.logger.info(f"   平均收益: {test_avg_rise:.2%}")
             self.logger.info(
                 f"   泛化能力: {'✅ 良好' if generalization_passed else '⚠️ 一般'} (比率: {generalization_ratio:.3f})")
 
@@ -1507,10 +1558,10 @@ class AIOptimizerImproved:
             self.logger.info(f"   🛡️ 过拟合检测: {'通过' if overfitting_passed else '警告'}")
             self.logger.info(f"   🎯 泛化能力: {'良好' if generalization_passed else '一般'}")
 
-            # 如果使用了遗传算法，输出详细的参数信息
-            if optimization_method == 'genetic_algorithm':
-                print(f"    🧬 遗传算法最优参数详情:")
-                self.logger.info(f"\n🧬 遗传算法最优参数详情:")
+            # 如果使用了贝叶斯优化，输出详细的参数信息
+            if optimization_method == 'bayesian_optimization':
+                print(f"    🔬 贝叶斯优化最优参数详情:")
+                self.logger.info(f"\n🔬 贝叶斯优化最优参数详情:")
                 for param_name, param_value in best_params.items():
                     print(f"       {param_name}: {param_value}")
                     self.logger.info(f"   {param_name}: {param_value}")
@@ -1523,18 +1574,24 @@ class AIOptimizerImproved:
                 'best_score': best_score,
                 'validation_score': val_score,
                 'validation_success_rate': val_success_rate,
+                # 兼容命名：仍保留旧字段，但含义改为交易数/平均收益
                 'validation_total_points': val_total_points,
                 'validation_avg_rise': val_avg_rise,
+                # 新字段
+                'validation_total_trades': val_total_points,
+                'validation_avg_return': val_avg_rise,
                 'test_score': test_score,
                 'test_success_rate': test_success_rate,
                 'test_total_points': test_total_points,
                 'test_avg_rise': test_avg_rise,
+                'test_total_trades': test_total_points,
+                'test_avg_return': test_avg_rise,
                 'overfitting_passed': overfitting_passed,
                 'generalization_passed': generalization_passed,
                 'generalization_ratio': generalization_ratio,
                 'optimization_method': optimization_method,
                 'optimization_time': optimization_total_time,
-                'genetic_algorithm_used': optimization_method == 'genetic_algorithm'
+                'bayesian_optimization_used': optimization_method == 'bayesian_optimization'
             }
 
         except Exception as e:
@@ -1545,86 +1602,6 @@ class AIOptimizerImproved:
                 'success': False,
                 'error': str(e)
             }
-
-    def _grid_search_optimization(self, strategy_module, train_data: pd.DataFrame, param_ranges: dict) -> tuple:
-        """
-        网格搜索优化
-        
-        参数:
-        strategy_module: 策略模块
-        train_data: 训练数据
-        param_ranges: 参数范围
-        
-        返回:
-        tuple: (最佳参数, 最佳得分)
-        """
-        self.logger.info("开始网格搜索优化")
-
-        # 🔧 从配置文件中读取参数范围，而不是硬编码
-        optimization_ranges = self.config.get('optimization_ranges', {})
-        
-        # 转换配置文件格式为搜索格式
-        default_ranges = {}
-        for param_name, param_config in optimization_ranges.items():
-            default_ranges[param_name] = {
-                'min': param_config.get('min', 0),
-                'max': param_config.get('max', 1),
-                'step': param_config.get('step', 0.01)
-            }
-
-        # 合并用户配置和默认配置
-        search_ranges = {**default_ranges, **param_ranges}
-
-        # 生成参数组合
-        param_combinations = []
-        param_names = list(search_ranges.keys())
-
-        def generate_range(param_config):
-            start = param_config['min']
-            end = param_config['max']
-            step = param_config['step']
-            return [start + i * step for i in range(int((end - start) / step) + 1)]
-
-        # 生成所有参数组合（限制数量以避免过长时间）
-        ranges = [generate_range(search_ranges[param]) for param in param_names]
-        all_combinations = list(product(*ranges))
-
-        # 限制搜索数量
-        max_combinations = 50
-        if len(all_combinations) > max_combinations:
-            import random
-            random.seed(42)
-            all_combinations = random.sample(all_combinations, max_combinations)
-
-        self.logger.info(f"将测试 {len(all_combinations)} 个参数组合")
-
-        best_score = -float('inf')
-        best_params = {}
-
-        for i, combination in enumerate(all_combinations):
-            # 构建参数字典
-            params = dict(zip(param_names, combination))
-
-            try:
-                # 更新参数并测试
-                strategy_module.update_params(params)
-                backtest_results = strategy_module.backtest(train_data)
-                evaluation = strategy_module.evaluate_strategy(backtest_results)
-                score = evaluation['score']
-
-                if score > best_score:
-                    best_score = score
-                    best_params = params.copy()
-
-                if (i + 1) % 10 == 0:
-                    self.logger.info(f"已测试 {i + 1}/{len(all_combinations)} 个组合，当前最佳得分: {best_score:.4f}")
-
-            except Exception as e:
-                self.logger.warning(f"参数组合 {params} 测试失败: {e}")
-                continue
-
-        self.logger.info(f"网格搜索完成，最佳得分: {best_score:.4f}")
-        return best_params, best_score
 
     def evaluate_optimized_system(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
         """
@@ -1647,12 +1624,44 @@ class AIOptimizerImproved:
             # AI模型预测评估
             prediction_result = self.predict_low_point(data)
 
+            # 新增：记录用于预测的日期和概率向量，便于诊断
+            try:
+                prediction_date = None
+                if 'date' in getattr(data, 'columns', []):
+                    try:
+                        prediction_date = pd.to_datetime(data['date'].iloc[-1]).strftime('%Y-%m-%d')
+                    except Exception:
+                        prediction_date = str(data['date'].iloc[-1])
+                elif hasattr(data, 'index') and len(data.index) > 0:
+                    try:
+                        prediction_date = pd.to_datetime(data.index[-1]).strftime('%Y-%m-%d')
+                    except Exception:
+                        prediction_date = str(data.index[-1])
+
+                proba = prediction_result.get('prediction_proba')
+
+                if isinstance(proba, (list, tuple, np.ndarray)):
+                    proba_iter = proba.tolist() if hasattr(proba, 'tolist') else list(proba)
+                    proba_str = '[' + ', '.join(f'{float(p):.4f}' for p in proba_iter) + ']'
+                else:
+                    proba_str = str(proba)
+
+                print(f"    🔎 评估-预测日期: {prediction_date} | 概率向量: {proba_str}")
+                self.logger.info(f"评估-预测日期: {prediction_date} | 概率向量: {proba_str}")
+
+                if prediction_result.get('error'):
+                    print(f"    ⚠️ 评估-预测错误: {prediction_result.get('error')}")
+                    self.logger.warning(f"评估-预测错误: {prediction_result.get('error')}")
+            except Exception as log_ex:
+                self.logger.warning(f"记录预测细节时发生异常: {log_ex}")
+
             return {
                 'success': True,
                 'strategy_score': strategy_evaluation['score'],
-                'strategy_success_rate': strategy_evaluation['success_rate'],
-                'identified_points': strategy_evaluation['total_points'],
-                'avg_rise': strategy_evaluation['avg_rise'],
+                'strategy_success_rate': strategy_evaluation.get('success_rate', 0),
+                'identified_points': strategy_evaluation.get('total_trades', strategy_evaluation.get('total_points', 0)),
+                'avg_return': strategy_evaluation.get('avg_return', strategy_evaluation.get('avg_rise', 0)),
+                'total_profit': strategy_evaluation.get('total_profit', 0),
                 'ai_confidence': prediction_result.get('final_confidence', 0),
                 'ai_prediction': prediction_result.get('is_low_point', False)
             }
@@ -1664,192 +1673,47 @@ class AIOptimizerImproved:
                 'error': str(e)
             }
 
-    def save_optimized_params(self, params: dict):
+    def _save_optimized_parameters(self, best_params: Dict[str, Any]) -> bool:
         """
-        保存优化后的参数到配置文件（保留注释版）
+        保存优化后的参数到optimized_params.yaml文件
         
         参数:
-        params: 优化后的参数
+        best_params: 优化后的参数
         """
         try:
-            # 尝试使用保留注释的保存器
-            try:
-                from src.utils.config_saver import CommentPreservingConfigSaver
-                saver = CommentPreservingConfigSaver()
-                saver.save_optimized_parameters(params)
-                self.logger.info("参数已保存（保留注释版本）")
-                return
-            except ImportError as e:
-                self.logger.warning(f"ruamel.yaml模块未安装，使用传统保存方式: {e}")
-            except Exception as e:
-                self.logger.warning(f"保留注释版本保存失败，使用传统方式: {e}")
-
-            # 使用传统方式保存
-            self._save_params_fallback(params)
-
-        except Exception as e:
-            self.logger.error(f"保存优化参数失败: {e}")
-            raise
-
-    def _save_params_fallback(self, params: dict):
-        """
-        传统的参数保存方式（原子性写入）
-        
-        参数:
-        params: 优化后的参数
-        """
-        import tempfile
-        import shutil
-
-        # 转换numpy类型为Python原生类型
-        def convert_numpy_types(obj):
-            if isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, dict):
-                return {key: convert_numpy_types(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy_types(item) for item in obj]
-            elif isinstance(obj, tuple):
-                return tuple(convert_numpy_types(item) for item in obj)
+            from src.utils.optimized_params_saver import save_optimized_params
+            
+            # 添加优化信息
+            optimization_info = {
+                'method': 'genetic_algorithm',
+                'timestamp': datetime.now().isoformat(),
+                'param_count': len(best_params)
+            }
+            
+            # 保存参数到optimized_params.yaml
+            success = save_optimized_params(
+                params=best_params,
+                optimization_info=optimization_info
+            )
+            
+            if success:
+                self.logger.info(f"优化参数已保存到optimized_params.yaml，共{len(best_params)}个参数")
+                return True
             else:
-                return obj
-
-        # 转换参数
-        converted_params = convert_numpy_types(params)
-
-        try:
-            config_path = 'config/strategy.yaml'
-            backup_path = f"{config_path}.backup"
-
-            # 创建备份
-            if os.path.exists(config_path):
-                shutil.copy2(config_path, backup_path)
-                self.logger.info(f"已创建配置文件备份: {backup_path}")
-
-            # 读取现有配置
-            config = {}
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f) or {}
-                except yaml.YAMLError as e:
-                    self.logger.error(f"配置文件格式错误: {e}")
-                    if os.path.exists(backup_path):
-                        shutil.copy2(backup_path, config_path)
-                        self.logger.info("已从备份恢复配置文件")
-                        with open(config_path, 'r', encoding='utf-8') as f:
-                            config = yaml.safe_load(f) or {}
-
-            # 更新参数
-            for param_name, param_value in converted_params.items():
-                # 导入参数配置
-                from src.utils.param_config import (
-                    is_confidence_weight_param, 
-                    is_strategy_level_param,
-                    get_param_category,
-                    OPTIMIZABLE_PARAMS,
-                    get_all_optimizable_params
-                )
+                self.logger.error("保存优化参数失败")
+                return False
                 
-                # 确保strategy和confidence_weights存在
-                if 'strategy' not in config:
-                    config['strategy'] = {}
-                if 'confidence_weights' not in config['strategy']:
-                    config['strategy']['confidence_weights'] = {}
-                
-                # 根据参数类型保存到正确位置
-                if is_confidence_weight_param(param_name):
-                    # 保存到confidence_weights
-                    config['strategy']['confidence_weights'][param_name] = float(param_value)
-                    self.logger.info(f"保存confidence_weights参数: {param_name} = {param_value}")
-                elif is_strategy_level_param(param_name):
-                    # 保存到strategy级别
-                    config['strategy'][param_name] = float(param_value)
-                    self.logger.info(f"保存strategy参数: {param_name} = {param_value}")
-                else:
-                    # 默认保存到strategy级别
-                    config['strategy'][param_name] = float(param_value)
-                    self.logger.info(f"保存默认参数: {param_name} = {param_value} (分类: {get_param_category(param_name)})")
-
-            # 原子性写入：先写入临时文件，再移动
-            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
-                                             dir=os.path.dirname(config_path),
-                                             delete=False) as temp_file:
-                yaml.dump(config, temp_file, default_flow_style=False, allow_unicode=True)
-                temp_path = temp_file.name
-
-            # 移动临时文件到目标位置
-            shutil.move(temp_path, config_path)
-
-            self.logger.info(f"参数已安全保存到配置文件: {len(converted_params)} 个参数")
-
-            # 验证保存是否成功
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        saved_config = yaml.safe_load(f)
-                    # 验证参数是否正确保存
-                    saved_count = 0
-                    for param_name in converted_params.keys():
-                        # 导入参数配置
-                        from src.utils.param_config import (
-                            is_confidence_weight_param, 
-                            is_strategy_level_param,
-                            get_param_category,
-                            OPTIMIZABLE_PARAMS,
-                            get_all_optimizable_params
-                        )
-                        
-                        # 根据参数类型验证保存位置
-                        if is_confidence_weight_param(param_name):
-                            if saved_config.get('strategy', {}).get('confidence_weights', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证confidence_weights参数: {param_name}")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: confidence_weights参数 {param_name} 未找到")
-                        elif is_strategy_level_param(param_name):
-                            if saved_config.get('strategy', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证strategy参数: {param_name}")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: strategy参数 {param_name} 未找到")
-                        else:
-                            if saved_config.get('strategy', {}).get(param_name) is not None:
-                                saved_count += 1
-                                self.logger.info(f"✅ 验证默认参数: {param_name} (分类: {get_param_category(param_name)})")
-                            else:
-                                self.logger.warning(f"❌ 验证失败: 默认参数 {param_name} 未找到")
-
-                    self.logger.info(f"验证成功: {saved_count}/{len(converted_params)} 个参数已正确保存")
-
-                    # 清理旧备份
-                    if os.path.exists(backup_path):
-                        os.remove(backup_path)
-                except Exception as verify_error:
-                    self.logger.warning(f"参数保存验证失败: {verify_error}")
-            else:
-                self.logger.error("配置文件保存后不存在")
-
         except Exception as e:
-            self.logger.error(f"传统方式保存参数失败: {e}")
-            # 尝试从备份恢复
-            if os.path.exists(backup_path):
-                try:
-                    shutil.copy2(backup_path, config_path)
-                    self.logger.info("已从备份恢复配置文件")
-                except Exception as restore_error:
-                    self.logger.error(f"备份恢复失败: {restore_error}")
-            raise
+             self.logger.error(f"保存优化参数时发生错误: {e}")
+             return False
 
-    def run_genetic_algorithm(self, evaluate_func, param_ranges=None) -> Dict[str, Any]:
+    # 已移除_save_params_fallback方法，现在统一使用optimized_params_saver
+
+    def run_bayesian_optimization(self, evaluate_func, param_ranges=None) -> Dict[str, Any]:
         """
-        遗传算法参数优化（高精度版本）
+        贝叶斯优化参数优化（高精度版本）
         
-        专为高准确度设计，不考虑执行时间限制
+        专为高准确度设计，使用scikit-optimize进行贝叶斯优化
         
         参数:
         evaluate_func: 评估函数，接收参数字典，返回评分
@@ -1860,29 +1724,30 @@ class AIOptimizerImproved:
         """
         from datetime import datetime
 
-        print(f"        🧬 初始化遗传算法 [{datetime.now().strftime('%H:%M:%S')}]")
-        self.logger.info("🧬 启动遗传算法优化（高精度模式）")
+        print(f"        🔬 初始化贝叶斯优化 [{datetime.now().strftime('%H:%M:%S')}]")
+        self.logger.info("🔬 启动贝叶斯优化（高精度模式）")
         start_time = time.time()
 
         try:
-            # 获取遗传算法配置（针对高精度调整）
-            genetic_config = self.config.get('genetic_algorithm', {})
+            # 获取贝叶斯优化配置
+            bayesian_config = self.config.get('bayesian_optimization', {})
+            
+            # 高精度配置
+            n_calls = bayesian_config.get('n_calls', 120)  # 总调用次数
+            n_initial_points = bayesian_config.get('n_initial_points', 25)  # 初始随机点
+            acq_func = bayesian_config.get('acq_func', 'EI')  # 采集函数
+            xi = bayesian_config.get('xi', 0.01)  # 探索参数
+            kappa = bayesian_config.get('kappa', 1.96)  # UCB参数
+            random_state = bayesian_config.get('random_state', 42)
 
-            # 高精度配置：增加种群和代数
-            population_size = genetic_config.get('population_size', 50)  # 增加到50
-            generations = genetic_config.get('generations', 30)  # 增加到30
-            crossover_rate = genetic_config.get('crossover_rate', 0.8)
-            mutation_rate = genetic_config.get('mutation_rate', 0.15)  # 稍微提高变异率
-            elite_ratio = genetic_config.get('elite_ratio', 0.1)  # 保留10%精英
+            print(f"        📊 贝叶斯优化配置:")
+            print(f"           总调用次数: {n_calls}")
+            print(f"           初始随机点: {n_initial_points}")
+            print(f"           采集函数: {acq_func}")
+            print(f"           探索参数xi: {xi}")
+            print(f"           UCB参数kappa: {kappa}")
 
-            print(f"        📊 遗传算法配置:")
-            print(f"           种群大小: {population_size} 个体")
-            print(f"           进化代数: {generations} 代")
-            print(f"           交叉概率: {crossover_rate:.1%}")
-            print(f"           变异概率: {mutation_rate:.1%}")
-            print(f"           精英比例: {elite_ratio:.1%}")
-
-            self.logger.info(f"高精度遗传算法配置: 种群{population_size}, 代数{generations}")
+            self.logger.info(f"高精度贝叶斯优化配置: 调用{n_calls}次, 初始点{n_initial_points}个")
 
             # 获取或生成参数范围
             if param_ranges is None:
@@ -1890,209 +1755,131 @@ class AIOptimizerImproved:
 
             print(f"        🎯 优化参数数量: {len(param_ranges)} 个")
 
-            # 初始化种群
-            print(f"        🌱 生成初始种群... [{datetime.now().strftime('%H:%M:%S')}]")
-            population = self._initialize_population(param_ranges, population_size)
+            # 若搜索空间为空，直接跳过并给出清晰提示
+            if not param_ranges:
+                msg = "参数搜索空间为空，跳过贝叶斯优化（请检查配置optimization_ranges或固定参数设置）"
+                print(f"        ⚠️ {msg}")
+                self.logger.warning(msg)
+                return {}
 
-            best_individual = None
+            # 构建搜索空间
+            dimensions = []
+            param_names = []
+            
+            for param_name, param_range in param_ranges.items():
+                param_names.append(param_name)
+                
+                if param_range['type'] == 'int':
+                    dimensions.append(Integer(param_range['min'], param_range['max'], name=param_name))
+                else:  # float
+                    dimensions.append(Real(param_range['min'], param_range['max'], name=param_name))
+
+            print(f"        🌱 构建搜索空间完成")
+            self.logger.info(f"搜索空间维度: {len(dimensions)}")
+
+            # 若维度为0，无法执行优化
+            if len(dimensions) == 0:
+                msg = "搜索空间维度为0，无法执行贝叶斯优化（可能所有参数被固定或范围缺失）"
+                print(f"        ⚠️ {msg}")
+                self.logger.warning(msg)
+                return {}
+
+            # 定义目标函数（贝叶斯优化需要最小化，所以返回负值）
             best_score = -float('inf')
-            best_generation = 0
-            stagnation_count = 0
-            recent_generations = []
-
-            print(f"        🚀 开始进化过程 (总计 {population_size * generations} 次评估)")
-            total_evaluations = population_size * generations
-
-            # 收敛检测相关变量
-            convergence_history = []  # 记录最近几代的收敛信息
-            convergence_threshold = 0.001  # 收敛阈值
-            convergence_generations = 3  # 连续收敛代数要求
-
-            # 进化主循环
-            for generation in range(generations):
-                generation_start_time = time.time()
-                current_time = datetime.now().strftime("%H:%M:%S")
-
-                print(
-                    f"        🧬 第 {generation + 1}/{generations} 代进化 ({((generation + 1) / generations) * 100:.1f}% 完成) [{current_time}]")
-                self.logger.info(f"\n🧬 第 {generation + 1}/{generations} 代进化 "
-                                 f"({((generation + 1) / generations) * 100:.1f}% 完成)")
-                self.logger.info("------------------------------------------------------------")
-
-                # 评估当前种群
-                scores = []
-                valid_evaluations = 0
-                failed_evaluations = 0
-
-                # 每10个个体显示一次进度，避免过多输出
-                for i, individual in enumerate(population):
-                    if (i + 1) % 10 == 0 or i == len(population) - 1:
-                        current_progress = ((generation * population_size + i + 1) / total_evaluations) * 100
-                        print(
-                            f"        🔍 评估进度: {i + 1}/{population_size} 个体 | 总进度: {current_progress:.1f}% | 第{generation + 1}代")
-                        self.logger.info(f"🔍 评估进度: {i + 1}/{population_size} 个体 | "
-                                         f"总进度: {current_progress:.1f}% | 第{generation + 1}代")
-
-                    try:
-                        score = evaluate_func(individual)
-                        if score is not None and score >= 0:
-                            scores.append(score)
-                            valid_evaluations += 1
-                        else:
-                            scores.append(0.0)
-                            failed_evaluations += 1
-                    except Exception as e:
-                        self.logger.warning(f"个体评估失败: {e}")
-                        scores.append(0.0)
-                        failed_evaluations += 1
-
-                # 更新全局最优
-                generation_best_idx = np.argmax(scores)
-                generation_best_score = scores[generation_best_idx]
-
-                if generation_best_score > best_score:
-                    best_score = generation_best_score
-                    best_individual = population[generation_best_idx].copy()
-                    best_generation = generation + 1
-                    stagnation_count = 0
-                    print(f"        🎉 发现新最佳解! 得分: {best_score:.6f}")
-                    self.logger.info(f"🎉 发现新最佳解! 得分: {best_score:.6f}")
-                else:
-                    stagnation_count += 1
-
-                # 统计信息
-                if len(scores) > 0:
-                    max_score = max(scores)
-                    avg_score = sum(scores) / len(scores)
-                    min_score = min(scores)
-                    std_score = np.std(scores)
-
-                    generation_time = time.time() - generation_start_time
-
-                    # 预计剩余时间
-                    remaining_generations = generations - generation - 1
-                    if generation > 0:
-                        avg_generation_time = (time.time() - start_time) / (generation + 1)
-                        estimated_remaining = remaining_generations * avg_generation_time
+            best_params = None
+            evaluation_count = 0
+            
+            @use_named_args(dimensions)
+            def objective(**params):
+                nonlocal best_score, best_params, evaluation_count
+                evaluation_count += 1
+                
+                try:
+                    # 验证并修复参数
+                    validated_params = self._validate_and_fix_parameters(params, param_ranges)
+                    
+                    # 🔍 详细日志：记录每次评估的参数取值
+                    param_str = ", ".join([f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}" 
+                                          for k, v in validated_params.items()])
+                    print(f"        🧪 试验 #{evaluation_count}: {param_str}")
+                    self.logger.info(f"🧪 试验 #{evaluation_count}: {param_str}")
+                    
+                    # 评估参数
+                    score = evaluate_func(validated_params)
+                    
+                    # 🔍 详细日志：记录每次评估的得分
+                    # 修复：evaluate_func 返回的是用于最小化的"负得分"，这里转换为正得分显示与比较
+                    if score is None or not isinstance(score, (int, float)) or (isinstance(score, float) and (np.isnan(score) or np.isinf(score))):
+                        print(f"           ❌ 得分: 无效 (score={score})")
+                        self.logger.info(f"           ❌ 得分: 无效 (score={score})")
+                        return 1.0  # 返回正值表示差的结果
+                    
+                    actual_score = -score  # 转回正的统一评分用于展示与比较
+                    print(f"           📊 得分: {actual_score:.6f}")
+                    self.logger.info(f"           📊 得分: {actual_score:.6f}")
+                    
+                    # 更新最佳结果（使用正值进行比较）
+                    if actual_score > best_score:
+                        improvement = actual_score - best_score
+                        best_score = actual_score
+                        best_params = validated_params.copy()
+                        print(f"        🎉 发现新最佳解! 得分: {best_score:.6f} (改进: +{improvement:.6f}) (第{evaluation_count}次评估)")
+                        self.logger.info(f"🎉 发现新最佳解! 得分: {best_score:.6f} (改进: +{improvement:.6f}) (第{evaluation_count}次评估)")
                     else:
-                        estimated_remaining = remaining_generations * generation_time
+                        deficit = best_score - actual_score
+                        print(f"           🔍 当前解劣于最佳: -{deficit:.6f}")
+                        self.logger.info(f"           🔍 当前解劣于最佳: -{deficit:.6f}")
+                    
+                    # 每5次评估显示进度（更频繁的反馈）
+                    if evaluation_count % 5 == 0:
+                        progress = (evaluation_count / n_calls) * 100
+                        print(f"        📈 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
+                        self.logger.info(f"📈 评估进度: {evaluation_count}/{n_calls} ({progress:.1f}%) | 当前最佳: {best_score:.6f}")
+                    
+                    return score  # 直接返回用于最小化的值（负得分）
+                    
+                except Exception as e:
+                    print(f"           ❌ 参数评估异常: {e}")
+                    self.logger.warning(f"参数评估失败: {e}")
+                    return 1.0  # 返回正值表示差的结果
 
-                    print(f"        📊 第{generation + 1}代统计:")
-                    print(f"           ✅ 有效个体: {valid_evaluations}/{population_size}")
-                    print(f"           ❌ 失败个体: {failed_evaluations}")
-                    print(f"           📈 最高分: {max_score:.6f}")
-                    print(f"           📊 平均分: {avg_score:.6f}")
-                    print(f"           📉 最低分: {min_score:.6f}")
-                    print(f"           📏 标准差: {std_score:.6f}")
-                    print(f"           🏆 历史最优: {best_score:.6f}")
-                    print(f"           ⏱️ 本代耗时: {generation_time:.2f}s")
-                    print(f"           ⏳ 预计剩余时间: {estimated_remaining:.1f}s ({estimated_remaining / 60:.1f}分钟)")
-
-                    self.logger.info(f"📊 第{generation + 1}代统计:")
-                    self.logger.info(f"   ✅ 有效个体: {valid_evaluations}/{population_size}")
-                    self.logger.info(f"   ❌ 失败个体: {failed_evaluations}")
-                    self.logger.info(f"   📈 最高分: {max_score:.6f}")
-                    self.logger.info(f"   📊 平均分: {avg_score:.6f}")
-                    self.logger.info(f"   📉 最低分: {min_score:.6f}")
-                    self.logger.info(f"   📏 标准差: {std_score:.6f}")
-                    self.logger.info(f"   🏆 历史最优: {best_score:.6f}")
-                    self.logger.info(f"   ⏱️ 本代耗时: {generation_time:.2f}s")
-                    self.logger.info(
-                        f"   ⏳ 预计剩余时间: {estimated_remaining:.1f}s ({estimated_remaining / 60:.1f}分钟)")
-
-                    # 保存最近几代的统计信息
-                    recent_generations.append({
-                        'generation': generation + 1,
-                        'max_score': max_score,
-                        'avg_score': avg_score,
-                        'std_score': std_score,
-                        'best_score': best_score
-                    })
-
-                # 每5代分析一次收敛趋势
-                if (generation + 1) % 5 == 0 and len(recent_generations) >= 5:
-                    self._log_genetic_statistics(recent_generations[-5:])
-
-                # 🔧 新增：连续3代收敛检测
-                if len(recent_generations) >= 2:
-                    # 记录当前代的收敛信息
-                    current_convergence = {
-                        'generation': generation + 1,
-                        'best_score': best_score,
-                        'max_score': max_score,
-                        'std_score': std_score
-                    }
-                    convergence_history.append(current_convergence)
-
-                    # 保持最近的convergence_generations代记录
-                    if len(convergence_history) > convergence_generations:
-                        convergence_history = convergence_history[-convergence_generations:]
-
-                    # 检测是否连续收敛
-                    if len(convergence_history) >= convergence_generations:
-                        is_converged = self._check_convergence(convergence_history, convergence_threshold)
-
-                        if is_converged:
-                            print(f"        🎯 检测到连续{convergence_generations}代收敛，提前停止优化")
-                            print(f"        📊 收敛阈值: {convergence_threshold:.6f}")
-                            print(f"        🏆 最终得分: {best_score:.6f}")
-
-                            self.logger.info(f"🎯 检测到连续{convergence_generations}代收敛，提前停止优化")
-                            self.logger.info(f"📊 收敛阈值: {convergence_threshold:.6f}")
-                            self.logger.info(f"🏆 最终得分: {best_score:.6f}")
-                            break
-
-                # 如果不是最后一代，进行进化操作
-                if generation < generations - 1:
-                    evolution_start = time.time()
-                    print(f"        🔄 开始第{generation + 1}代进化操作... [{datetime.now().strftime('%H:%M:%S')}]")
-                    self.logger.info(f"🔄 开始第{generation + 1}代进化操作...")
-
-                    # 进化种群
-                    population = self._evolve_population(
-                        population, scores, param_ranges, population_size,
-                        crossover_rate, mutation_rate, elite_ratio
-                    )
-
-                    evolution_time = time.time() - evolution_start
-                    print(f"        ✅ 进化操作完成 (耗时: {evolution_time:.2f}s)")
-                    self.logger.info(f"✅ 进化操作完成 (耗时: {evolution_time:.2f}s)")
-
-                # 提前停止条件：连续多代无改善
-                if stagnation_count >= 10:
-                    print(f"        🛑 连续{stagnation_count}代无改善，提前停止")
-                    self.logger.info(f"连续{stagnation_count}代无改善，提前停止")
-                    break
-
-                print(f"        {'=' * 60}")
-                self.logger.info("------------------------------------------------------------")
-
-            total_time = time.time() - start_time
-            current_time = datetime.now().strftime('%H:%M:%S')
-
-            print(f"        🎉 遗传算法优化完成! [{current_time}]")
-            print(f"        ⏱️ 总耗时: {total_time:.2f}s ({total_time / 60:.1f}分钟)")
-            print(f"        🏆 最优得分: {best_score:.6f}")
-            print(f"        📍 最佳代数: 第{best_generation}代")
-
-            if best_individual:
-                print(f"        🔧 最优参数:")
-                for param_name, param_value in best_individual.items():
-                    print(f"           {param_name}: {param_value}")
-
-            self.logger.info("🎉 遗传算法优化完成!")
-            self.logger.info(f"总耗时: {total_time:.2f}s, 最优得分: {best_score:.6f}")
-            self.logger.info(f"最佳解在第{best_generation}代发现")
-
-            return best_individual if best_individual else {}
-
+            print(f"        🚀 开始贝叶斯优化 (总计 {n_calls} 次评估)")
+            
+            # 执行贝叶斯优化
+            result = gp_minimize(
+                func=objective,
+                dimensions=dimensions,
+                n_calls=n_calls,
+                n_initial_points=n_initial_points,
+                acq_func=acq_func,
+                xi=xi,
+                kappa=kappa,
+                random_state=random_state
+            )
+            
+            optimization_time = time.time() - start_time
+            
+            print(f"        ✅ 贝叶斯优化完成!")
+            print(f"        🏆 最佳得分: {best_score:.6f}")
+            print(f"        ⏱️ 总耗时: {optimization_time:.2f}s ({optimization_time/60:.1f}分钟)")
+            print(f"        📊 总评估次数: {evaluation_count}")
+            
+            self.logger.info(f"✅ 贝叶斯优化完成!")
+            self.logger.info(f"🏆 最佳得分: {best_score:.6f}")
+            self.logger.info(f"⏱️ 总耗时: {optimization_time:.2f}s ({optimization_time/60:.1f}分钟)")
+            self.logger.info(f"📊 总评估次数: {evaluation_count}")
+            
+            if best_params is None:
+                self.logger.error("贝叶斯优化未找到有效参数")
+                return {}
+            
+            return best_params
+            
         except Exception as e:
-            current_time = datetime.now().strftime('%H:%M:%S')
-            print(f"        ❌ 遗传算法执行失败: {e} [{current_time}]")
-            self.logger.error(f"遗传算法执行失败: {e}")
-            import traceback
-            self.logger.error(f"错误详情: {traceback.format_exc()}")
+            self.logger.error(f"贝叶斯优化执行失败: {e}")
+            print(f"        ❌ 贝叶斯优化失败: {e}")
             return {}
+
 
     def _get_enhanced_parameter_ranges(self, base_ranges: dict) -> dict:
         """
@@ -2104,7 +1891,7 @@ class AIOptimizerImproved:
         返回:
         dict: 增强的参数范围
         """
-        # 🚨 重要：固定参数，不参与遗传算法优化
+        # 🚨 重要：固定参数，不参与贝叶斯优化
         # 从配置文件中读取固定参数值
         strategy_config = self.config.get('strategy', {})
         fixed_rise_threshold = strategy_config.get('rise_threshold', 0.04)
@@ -2137,12 +1924,21 @@ class AIOptimizerImproved:
 
         # 添加optimization_ranges中的参数
         for param_name, param_config in optimization_ranges.items():
+            # 优先使用配置中的类型定义；若缺省则按名称进行推断（仅对RSI阈值使用整数）
+            cfg_type = param_config.get('type') if isinstance(param_config, dict) else None
+            inferred_type = 'int' if (param_name.endswith('_threshold') and 'rsi' in param_name) else 'float'
+            final_type = cfg_type if cfg_type in ('int', 'float') else inferred_type
+            precision = param_config.get('precision', 0 if final_type == 'int' else 4) if isinstance(param_config, dict) else (0 if final_type == 'int' else 4)
+
             enhanced_ranges[param_name] = {
                 'min': param_config.get('min', 0),
                 'max': param_config.get('max', 1),
-                'type': 'float',
-                'precision': 4
+                'type': final_type,
+                'precision': precision
             }
+            # 保留 step 信息，便于遗传算法或网格搜索使用
+            if isinstance(param_config, dict) and 'step' in param_config:
+                enhanced_ranges[param_name]['step'] = param_config['step']
 
         # 合并用户配置的范围（但排除固定参数）
         for param_name, param_config in base_ranges.items():
@@ -2162,285 +1958,13 @@ class AIOptimizerImproved:
 
         self.logger.info(f"🎯 参数搜索空间: {len(enhanced_ranges)} 个参数")
         self.logger.info(f"🔒 固定参数: {', '.join(FIXED_PARAMS)} (不参与优化)")
-        self.logger.info(f"🔧 可优化参数: {len(get_all_optimizable_params())} 个（14个有效参数）")
+        self.logger.info(f"🔧 可优化参数: {len(get_all_optimizable_params())} 个（14个有效参数，已移除final_threshold）")
 
         # 记录参数范围
         for param_name, param_config in enhanced_ranges.items():
             self.logger.info(f"   {param_name}: {param_config['min']} - {param_config['max']} ({param_config['type']})")
 
         return enhanced_ranges
-
-    def _initialize_population(self, param_ranges: dict, population_size: int) -> List[Dict]:
-        """
-        初始化种群
-        
-        参数:
-        param_ranges: 参数范围
-        population_size: 种群大小
-        
-        返回:
-        List[Dict]: 初始种群
-        """
-        if not param_ranges:
-            raise ValueError("参数范围不能为空")
-
-        if population_size <= 0:
-            raise ValueError(f"种群大小必须大于0，当前值: {population_size}")
-
-        population = []
-
-        # 验证参数范围的有效性
-        for param_name, param_config in param_ranges.items():
-            if 'min' not in param_config or 'max' not in param_config:
-                raise ValueError(f"参数 {param_name} 缺少 min 或 max 配置")
-
-            min_val = param_config['min']
-            max_val = param_config['max']
-
-            if min_val >= max_val:
-                raise ValueError(f"参数 {param_name} 的最小值({min_val})必须小于最大值({max_val})")
-
-        for _ in range(population_size):
-            individual = {}
-            for param_name, param_config in param_ranges.items():
-                min_val = param_config['min']
-                max_val = param_config['max']
-                param_type = param_config.get('type', 'float')
-
-                try:
-                    if param_type == 'int':
-                        # 确保整数范围有效
-                        if max_val - min_val < 1:
-                            individual[param_name] = min_val
-                        else:
-                            individual[param_name] = np.random.randint(min_val, max_val + 1)
-                    else:  # float
-                        individual[param_name] = np.random.uniform(min_val, max_val)
-                        precision = param_config.get('precision', 4)
-                        individual[param_name] = round(individual[param_name], precision)
-
-                except Exception as e:
-                    self.logger.error(f"初始化参数 {param_name} 失败: {e}")
-                    # 使用中间值作为默认值
-                    if param_type == 'int':
-                        individual[param_name] = int((min_val + max_val) / 2)
-                    else:
-                        individual[param_name] = round((min_val + max_val) / 2,
-                                                       param_config.get('precision', 4))
-
-            population.append(individual)
-
-        self.logger.info(f"✅ 初始化种群: {population_size} 个个体，包含 {len(param_ranges)} 个参数")
-        return population
-
-    def _evolve_population(self, population: List[Dict], scores: List[float],
-                           param_ranges: dict, population_size: int,
-                           crossover_rate: float, mutation_rate: float,
-                           elite_ratio: float) -> List[Dict]:
-        """
-        进化种群
-        
-        参数:
-        population: 当前种群
-        scores: 评分列表
-        param_ranges: 参数范围
-        population_size: 种群大小
-        crossover_rate: 交叉概率
-        mutation_rate: 变异概率
-        elite_ratio: 精英保留比例
-        
-        返回:
-        List[Dict]: 新种群
-        """
-        # 排序个体（按得分降序）
-        sorted_indices = np.argsort(scores)[::-1]
-        sorted_population = [population[i] for i in sorted_indices]
-        sorted_scores = [scores[i] for i in sorted_indices]
-
-        # 精英保留（深拷贝以避免引用问题）
-        elite_count = int(population_size * elite_ratio)
-        new_population = [individual.copy() for individual in sorted_population[:elite_count]]
-
-        # 生成剩余个体
-        remaining_count = population_size - elite_count
-        children_needed = remaining_count // 2 * 2  # 确保偶数个子代
-
-        for _ in range(children_needed // 2):
-            # 选择父母（锦标赛选择）
-            parent1 = self._tournament_selection(sorted_population, sorted_scores)
-            parent2 = self._tournament_selection(sorted_population, sorted_scores)
-
-            # 交叉
-            if np.random.random() < crossover_rate:
-                child1, child2 = self._crossover(parent1, parent2, param_ranges)
-            else:
-                child1, child2 = parent1.copy(), parent2.copy()
-
-            # 变异（每个子代独立决定是否变异）
-            if np.random.random() < mutation_rate:
-                child1 = self._mutate(child1, param_ranges)
-            if np.random.random() < mutation_rate:
-                child2 = self._mutate(child2, param_ranges)
-
-            # 添加到新种群
-            new_population.extend([child1, child2])
-
-        # 如果还需要补充个体（奇数情况）
-        while len(new_population) < population_size:
-            parent = self._tournament_selection(sorted_population, sorted_scores)
-            child = self._mutate(parent.copy(), param_ranges) if np.random.random() < mutation_rate else parent.copy()
-            new_population.append(child)
-
-        # 确保精确的种群大小
-        return new_population[:population_size]
-
-    def _tournament_selection(self, population: List[Dict], scores: List[float],
-                              tournament_size: int = 5) -> Dict:
-        """
-        锦标赛选择
-        
-        参数:
-        population: 种群
-        scores: 评分
-        tournament_size: 锦标赛大小
-        
-        返回:
-        Dict: 选中的个体
-        """
-        if not population or not scores:
-            raise ValueError("种群或评分列表为空")
-
-        if len(population) != len(scores):
-            raise ValueError(f"种群大小({len(population)})与评分数量({len(scores)})不匹配")
-
-        # 过滤有效的个体（评分不是负无穷或NaN）
-        valid_indices = [i for i, score in enumerate(scores)
-                         if score != -float('inf') and not np.isnan(score)]
-
-        if not valid_indices:
-            # 如果没有有效个体，随机选择一个
-            self.logger.warning("锦标赛选择：没有有效个体，随机选择")
-            return population[np.random.randint(len(population))].copy()
-
-        # 从有效个体中进行锦标赛选择
-        available_size = len(valid_indices)
-        actual_tournament_size = min(tournament_size, available_size)
-
-        tournament_indices = np.random.choice(valid_indices,
-                                              size=actual_tournament_size,
-                                              replace=False)
-
-        # 找到最佳个体
-        best_idx = max(tournament_indices, key=lambda i: scores[i])
-        return population[best_idx].copy()
-
-    def _crossover(self, parent1: Dict, parent2: Dict, param_ranges: dict) -> Tuple[Dict, Dict]:
-        """
-        交叉操作（统一交叉 + 算术交叉）
-        
-        参数:
-        parent1: 父母1
-        parent2: 父母2
-        param_ranges: 参数范围
-        
-        返回:
-        Tuple[Dict, Dict]: 两个子代
-        """
-        # 参数一致性检查
-        if set(parent1.keys()) != set(parent2.keys()):
-            self.logger.warning("父母个体参数不一致，使用交集")
-            common_params = set(parent1.keys()) & set(parent2.keys())
-        else:
-            common_params = set(parent1.keys())
-
-        child1, child2 = {}, {}
-
-        for param_name in common_params:
-            # 确保参数在两个父母中都存在
-            if param_name not in parent2:
-                child1[param_name] = parent1[param_name]
-                child2[param_name] = parent1[param_name]
-                continue
-
-            if np.random.random() < 0.5:
-                # 交换基因
-                child1[param_name] = parent2[param_name]
-                child2[param_name] = parent1[param_name]
-            else:
-                child1[param_name] = parent1[param_name]
-                child2[param_name] = parent2[param_name]
-
-            # 算术交叉（用于数值参数）
-            if np.random.random() < 0.3:  # 30%概率进行算术交叉
-                alpha = np.random.random()
-                val1 = parent1[param_name]
-                val2 = parent2[param_name]
-
-                new_val1 = alpha * val1 + (1 - alpha) * val2
-                new_val2 = (1 - alpha) * val1 + alpha * val2
-
-                # 确保在范围内
-                param_config = param_ranges.get(param_name, {})
-                min_val = param_config.get('min', 0)
-                max_val = param_config.get('max', 1)
-                param_type = param_config.get('type', 'float')
-
-                new_val1 = np.clip(new_val1, min_val, max_val)
-                new_val2 = np.clip(new_val2, min_val, max_val)
-
-                if param_type == 'int':
-                    new_val1 = int(round(new_val1))
-                    new_val2 = int(round(new_val2))
-                else:
-                    precision = param_config.get('precision', 4)
-                    new_val1 = round(new_val1, precision)
-                    new_val2 = round(new_val2, precision)
-
-                child1[param_name] = new_val1
-                child2[param_name] = new_val2
-
-        return child1, child2
-
-    def _mutate(self, individual: Dict, param_ranges: dict,
-                mutation_strength: float = 0.1) -> Dict:
-        """
-        变异操作
-        
-        参数:
-        individual: 个体
-        param_ranges: 参数范围
-        mutation_strength: 变异强度
-        
-        返回:
-        Dict: 变异后的个体
-        """
-        mutated = individual.copy()
-
-        for param_name, param_value in individual.items():
-            if np.random.random() < 0.3:  # 每个基因30%概率变异
-                param_config = param_ranges.get(param_name, {})
-                min_val = param_config.get('min', 0)
-                max_val = param_config.get('max', 1)
-                param_type = param_config.get('type', 'float')
-
-                if param_type == 'int':
-                    # 整数变异：随机选择邻近值
-                    mutation_range = max(1, int((max_val - min_val) * mutation_strength))
-                    delta = np.random.randint(-mutation_range, mutation_range + 1)
-                    new_val = param_value + delta
-                    new_val = np.clip(new_val, min_val, max_val)
-                    mutated[param_name] = int(new_val)
-                else:
-                    # 浮点数变异：高斯变异
-                    mutation_range = (max_val - min_val) * mutation_strength
-                    delta = np.random.normal(0, mutation_range)
-                    new_val = param_value + delta
-                    new_val = np.clip(new_val, min_val, max_val)
-
-                    precision = param_config.get('precision', 4)
-                    mutated[param_name] = round(new_val, precision)
-
-        return mutated
 
     def _validate_and_fix_parameters(self, params: Dict, param_ranges: dict) -> Dict:
         """
@@ -2477,187 +2001,35 @@ class AIOptimizerImproved:
 
         return fixed_params
 
-    def _log_genetic_statistics(self, recent_generations: List[Dict]):
-        """
-        记录遗传算法统计信息
-        
-        参数:
-        recent_generations: 最近几代的统计信息
-        """
-        if not recent_generations or len(recent_generations) == 0:
-            self.logger.warning("没有可用的代数统计信息")
-            return
 
-        try:
-            avg_scores = [gen.get('avg_score', 0) for gen in recent_generations if
-                          gen.get('avg_score') is not None and gen.get('avg_score') != -1.0]
-            max_scores = [gen.get('max_score', 0) for gen in recent_generations if
-                          gen.get('max_score') is not None and gen.get('max_score') != -1.0]
-            generation_times = [gen.get('generation_time', 0) for gen in recent_generations if
-                                gen.get('generation_time') is not None]
 
-            if not avg_scores or not max_scores:
-                self.logger.warning("统计数据不完整，跳过统计报告")
-                return
-
-            self.logger.info(f"📊 最近 {len(recent_generations)} 代性能分析:")
-            self.logger.info(f"   📈 平均分趋势: {avg_scores[0]:.4f} → {avg_scores[-1]:.4f} "
-                             f"(变化: {avg_scores[-1] - avg_scores[0]:+.4f})")
-            self.logger.info(f"   🎯 最高分趋势: {max_scores[0]:.4f} → {max_scores[-1]:.4f} "
-                             f"(改善: {max_scores[-1] - max_scores[0]:+.4f})")
-
-            if generation_times:
-                avg_time = np.mean(generation_times)
-                self.logger.info(f"   ⏱️ 平均代耗时: {avg_time:.2f}s")
-
-            # 收敛性分析
-            if len(max_scores) >= 3:
-                recent_improvement = max_scores[-1] - max_scores[-3]
-                if abs(recent_improvement) < 0.001:
-                    self.logger.info(f"   🎯 收敛状态: 稳定 (近期改善: {recent_improvement:+.6f})")
-                else:
-                    self.logger.info(f"   🚀 收敛状态: 优化中 (近期改善: {recent_improvement:+.6f})")
-
-        except Exception as e:
-            self.logger.warning(f"统计信息生成失败: {e}")
-
-    def _check_convergence(self, convergence_history: List[Dict], threshold: float) -> bool:
-        """
-        检测遗传算法是否收敛
-        
-        参数:
-        convergence_history: 最近几代的收敛信息
-        threshold: 收敛阈值
-        
-        返回:
-        bool: 是否收敛
-        """
-        try:
-            if len(convergence_history) < 3:
-                return False
-
-            # 提取最近3代的得分
-            scores = [gen['best_score'] for gen in convergence_history[-3:]]
-            std_scores = [gen['std_score'] for gen in convergence_history[-3:]]
-
-            # 条件1：最佳得分变化小于阈值
-            score_changes = [abs(scores[i] - scores[i - 1]) for i in range(1, len(scores))]
-            score_stable = all(change < threshold for change in score_changes)
-
-            # 条件2：种群标准差都很小（表示种群收敛）
-            std_threshold = 0.01  # 标准差阈值
-            std_stable = all(std < std_threshold for std in std_scores)
-
-            # 条件3：连续改善幅度很小
-            improvements = [scores[i] - scores[i - 1] for i in range(1, len(scores))]
-            improvement_stable = all(abs(imp) < threshold for imp in improvements)
-
-            # 收敛判断：得分稳定且种群收敛，或者改善幅度很小
-            is_converged = (score_stable and std_stable) or improvement_stable
-
-            if is_converged:
-                self.logger.info(f"收敛检测详情:")
-                self.logger.info(f"  得分变化: {score_changes}")
-                self.logger.info(f"  标准差: {std_scores}")
-                self.logger.info(f"  改善幅度: {improvements}")
-                self.logger.info(f"  得分稳定: {score_stable}, 种群收敛: {std_stable}, 改善微小: {improvement_stable}")
-
-            return is_converged
-
-        except Exception as e:
-            self.logger.warning(f"收敛检测失败: {e}")
-            return False
-
-    def _save_optimized_parameters(self, best_params: Dict[str, Any]) -> bool:
-        """
-        保存优化后的参数到配置文件
-        
-        参数:
-        best_params: 最优参数字典
-        
-        返回:
-        bool: 是否保存成功
-        """
-        try:
-            from src.utils.config_saver import save_strategy_config
-
-            # 构建策略参数字典
-            strategy_params = {}
-
-            # 基础参数
-            if 'rise_threshold' in best_params:
-                strategy_params['rise_threshold'] = best_params['rise_threshold']
-            if 'max_days' in best_params:
-                strategy_params['max_days'] = best_params['max_days']
-
-            # 置信度权重参数
-            confidence_weights = {}
-            confidence_weight_keys = [
-                'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
-                'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight'
-            ]
-
-            for key in confidence_weight_keys:
-                if key in best_params:
-                    confidence_weights[key] = best_params[key]
-
-            if confidence_weights:
-                strategy_params['confidence_weights'] = confidence_weights
-
-            # 保存到配置文件
-            if strategy_params:
-                success = save_strategy_config(strategy_params)
-
-                if success:
-                    print(f"   💾 最优参数已保存到配置文件")
-                    self.logger.info("💾 最优参数已保存到配置文件")
-                    self.logger.info(f"   保存的参数: {strategy_params}")
-                    return True
-                else:
-                    print(f"   ⚠️ 参数保存失败，但优化结果仍然有效")
-                    self.logger.warning("参数保存失败，但优化结果仍然有效")
-                    return False
-            else:
-                self.logger.info("没有需要保存的策略参数")
-                return True
-
-        except ImportError as e:
-            self.logger.warning(f"配置保存模块不可用: {e}")
-            print(f"   ⚠️ 配置保存模块不可用，参数未持久化")
-            return False
-        except Exception as e:
-            self.logger.error(f"保存优化参数失败: {e}")
-            print(f"   ❌ 参数保存失败: {e}")
-            return False
+    # 已移除重复的_save_optimized_parameters方法定义
 
     def _calculate_unified_score(self, evaluation: Dict[str, Any]) -> float:
         """
-        统一的评分方法，与策略模块保持一致
-        
-        参数:
-        evaluation: 策略评估结果字典
-        
-        返回:
-        float: 统一评分
+        统一评分（按利润目标）：
+        使用 利润因子 × log1p(交易次数) 作为优化目标；若交易次数过少则强惩罚。
+        若evaluation已包含符合规则的score，则直接使用以保持一致性。
         """
-        success_rate = evaluation.get('success_rate', 0)
-        avg_rise = evaluation.get('avg_rise', 0)
-        avg_days = evaluation.get('avg_days', 0)
+        # 优先使用evaluation中的score（允许为负，按利润直接优化）
+        if isinstance(evaluation, dict):
+            existing_score = evaluation.get('score', None)
+            if isinstance(existing_score, (int, float)) and np.isfinite(existing_score):
+                return float(existing_score)
         
-        # 使用与策略模块相同的评分公式
-        # 成功率权重：50%
-        success_score = success_rate * 0.5
-        
-        # 平均涨幅权重：30%（相对于基准涨幅）
-        rise_benchmark = 0.1  # 10%基准
-        rise_score = min(avg_rise / rise_benchmark, 1.0) * 0.3
-        
-        # 平均天数权重：20%（天数越少越好，以基准天数为准）
-        days_benchmark = 10.0  # 10天基准
-        if avg_days > 0:
-            days_score = min(days_benchmark / avg_days, 1.0) * 0.2
-        else:
-            days_score = 0.0
-            
-        total_score = success_score + rise_score + days_score
-        return total_score
+        # 否则按PF与交易次数计算参考分
+        profit_factor = float(evaluation.get('profit_factor', 0.0) or 0.0)
+        num_trades = int(evaluation.get('total_trades', evaluation.get('total_points', 0)) or 0)
+
+        # 最少交易次数门槛（可由配置覆盖）
+        min_trades_threshold = int(self.config.get('optimization_constraints', {}).get('min_trades_threshold', 10))
+
+        # 交易过少返回0（参考）
+        if num_trades < min_trades_threshold:
+            return 0.0
+
+        # 计算复合分数：PF * log1p(N)
+        score = profit_factor * float(np.log1p(num_trades))
+        if not np.isfinite(score):
+            return 0.0
+        return float(score)

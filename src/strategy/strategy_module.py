@@ -9,9 +9,9 @@
 import os
 import logging
 import pandas as pd
-from datetime import datetime
-from typing import Dict, Any, Optional
-import matplotlib.pyplot as plt
+
+from typing import Dict, Any
+
 import numpy as np
 
 class StrategyModule:
@@ -79,243 +79,264 @@ class StrategyModule:
             is_low_point = False
             confidence = 0.0
             reasons = []
+            trend_regime = 'sideways'
             
             # 从配置文件获取置信度权重
             strategy_config = self.config.get('strategy', {})
-            confidence_config = strategy_config.get('confidence_weights', {})
+            # 优化参数现在在根级别的confidence_weights中
+            confidence_config = self.config.get('confidence_weights', {})
+            
+            # 统计触发的关键信号数量用于最终确认（提高精准度）
+            signal_count = 0
             
             # 条件1: 价格低于多条移动平均线
             if ma5 is not None and ma10 is not None and ma20 is not None:
                 if latest_price < ma5 and latest_price < ma10 and latest_price < ma20:
-                    # 价格跌破所有均线 - 基础条件满足
                     base_confidence = confidence_config.get('ma_all_below', 0.3)
-                    
-                    # 成交量分析 - 区分是下跌通道还是见底信号
                     volume_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else 1.0
                     price_decline = data.iloc[-1]['price_change'] if 'price_change' in data.columns else 0.0
-                    
-                    # 获取成交量相关阈值
                     volume_panic_threshold = confidence_config.get('volume_panic_threshold', 1.4)
                     volume_surge_threshold = confidence_config.get('volume_surge_threshold', 1.2)
                     volume_shrink_threshold = confidence_config.get('volume_shrink_threshold', 0.8)
                     price_decline_threshold = confidence_config.get('price_decline_threshold', -0.02)
-                    
-                    # 判断成交量状态
+
                     if volume_ratio > volume_panic_threshold and price_decline < price_decline_threshold:
-                        # 恐慌性抛售 - 可能是见底信号
                         panic_bonus = confidence_config.get('volume_panic_bonus', 0.1)
                         confidence += base_confidence + panic_bonus
                         is_low_point = True
+                        signal_count += 1
                         reasons.append(f"价格跌破所有均线+恐慌性抛售(成交量放大{volume_ratio:.1f}倍)")
                     elif volume_ratio > volume_surge_threshold:
-                        # 温和放量 - 可能是见底信号
                         surge_bonus = confidence_config.get('volume_surge_bonus', 0.05)
                         confidence += base_confidence + surge_bonus
                         is_low_point = True
+                        signal_count += 1
                         reasons.append(f"价格跌破所有均线+温和放量(成交量放大{volume_ratio:.1f}倍)")
                     elif volume_ratio < volume_shrink_threshold:
-                        # 成交量萎缩 - 可能是下跌通道中
                         shrink_penalty = confidence_config.get('volume_shrink_penalty', 0.7)
                         confidence += base_confidence * shrink_penalty
                         reasons.append(f"价格跌破所有均线+成交量萎缩(可能是下跌通道)")
                     else:
-                        # 正常成交量 - 保持原有逻辑
                         confidence += base_confidence
                         is_low_point = True
+                        signal_count += 1
                         reasons.append("价格低于MA5/MA10/MA20")
                 elif latest_price < ma10 and latest_price < ma20:
                     confidence += confidence_config.get('ma_partial_below', 0.2)
                     reasons.append("价格低于MA10/MA20")
-                    
+
+            # 🔥 成交量分析 - 恐慌性抛售检测
+            volume_panic_bonus = confidence_config.get('volume_panic_bonus', 0.15)
+            if len(data) >= 20:
+                avg_volume_20 = data['volume'].tail(20).mean()
+                avg_volume_5 = data['volume'].tail(5).mean()
+                current_volume = data['volume'].iloc[-1]
+                volume_ratio = current_volume / avg_volume_20 if avg_volume_20 > 0 else 1
+                volume_ratio_5d = avg_volume_5 / avg_volume_20 if avg_volume_20 > 0 else 1
+
+                if volume_ratio > 2.5:
+                    confidence += volume_panic_bonus * 2.5
+                    reasons.append(f"极度恐慌性抛售(量比{volume_ratio:.1f})")
+                elif volume_ratio > 2.0:
+                    confidence += volume_panic_bonus * 2.0
+                    reasons.append(f"恐慌性大量抛售(量比{volume_ratio:.1f})")
+                elif volume_ratio > 1.5:
+                    confidence += volume_panic_bonus * 1.2
+                    reasons.append(f"放量下跌(量比{volume_ratio:.1f})")
+                elif volume_ratio > 1.2:
+                    confidence += volume_panic_bonus * 0.8
+                    reasons.append(f"温和放量(量比{volume_ratio:.1f})")
+                elif volume_ratio < 0.5:
+                    confidence += volume_panic_bonus * 0.4
+                    reasons.append(f"缩量下跌(量比{volume_ratio:.1f})")
+                elif volume_ratio < 0.8:
+                    confidence += volume_panic_bonus * 0.2
+                    reasons.append(f"成交量偏低(量比{volume_ratio:.1f})")
+                
+                # 5日平均成交量分析
+                if volume_ratio_5d > 1.3:
+                    confidence += volume_panic_bonus * 0.6
+                    reasons.append(f"近期成交活跃(5日量比{volume_ratio_5d:.1f})")
+                elif volume_ratio_5d < 0.7:
+                    confidence += volume_panic_bonus * 0.3
+                    reasons.append(f"近期成交低迷(5日量比{volume_ratio_5d:.1f})")
+
             # 条件2: RSI超卖
             if rsi is not None:
                 rsi_oversold_threshold = confidence_config.get('rsi_oversold_threshold', 30)
                 rsi_low_threshold = confidence_config.get('rsi_low_threshold', 40)
+                rsi_moderate_threshold = confidence_config.get('rsi_moderate_threshold', 50)
                 if rsi < rsi_oversold_threshold:
                     is_low_point = True
-                    confidence += confidence_config.get('rsi_oversold', 0.3)
+                    signal_count += 1
+                    confidence += confidence_config.get('rsi_oversold', 0.35)
                     reasons.append(f"RSI超卖({rsi:.2f})")
                 elif rsi < rsi_low_threshold:
                     confidence += confidence_config.get('rsi_low', 0.2)
                     reasons.append(f"RSI偏低({rsi:.2f})")
-                    
-            # 🆕 条件2B: RSI上升阶段的回调识别（新增逻辑）
-            if rsi is not None and len(data) >= 10:
-                # 获取RSI历史数据用于回调分析
-                rsi_series = data['rsi'].tail(10) if 'rsi' in data.columns else None
-                if rsi_series is not None and not rsi_series.isna().all():
-                    # 🔥 RSI上升阶段参数（大幅放宽条件）
-                    rsi_uptrend_min = confidence_config.get('rsi_uptrend_min', 35)  # 大幅降低门槛
-                    rsi_uptrend_max = confidence_config.get('rsi_uptrend_max', 85)  # 扩大范围
-                    rsi_pullback_threshold = confidence_config.get('rsi_pullback_threshold', 3)  # 降低回调要求
-                    
-                    # 🎯 更宽松的RSI阶段识别（适应更多上升阶段情况）
-                    if rsi_uptrend_min <= rsi <= rsi_uptrend_max:
-                        # 计算RSI短期变化
-                        rsi_recent_high = rsi_series.tail(5).max()  # 近5日RSI最高值
-                        rsi_recent_low = rsi_series.tail(5).min()   # 近5日RSI最低值
-                        rsi_pullback = rsi_recent_high - rsi  # RSI回调幅度
-                        
-                        # 条件1: 任何程度的健康回调都给予奖励
-                        if rsi_pullback >= rsi_pullback_threshold:
-                            # 🚀 不再要求严格的价格回调条件
-                            uptrend_pullback_weight = confidence_config.get('rsi_uptrend_pullback', 0.35)
-                            confidence += uptrend_pullback_weight
-                            is_low_point = True
-                            reasons.append(f"上升趋势中健康回调(RSI:{rsi:.1f}, 回调{rsi_pullback:.1f}点)")
-                        
-                        # 条件2: RSI在中高位（40-70）也给予支持
-                        elif 40 <= rsi <= 70:
-                            # 任何在中高位的RSI都可能是相对低点
-                            moderate_rsi_weight = confidence_config.get('moderate_rsi_bonus', 0.20)
-                            confidence += moderate_rsi_weight
-                            reasons.append(f"RSI中高位支撑({rsi:.1f})")
-                        
-                        # 条件3: RSI从任何高位回落（更宽松）
-                        elif rsi_recent_high >= 60 and rsi >= 45:
-                            # 从中高位回落也算修正机会
-                            overbought_correction_weight = confidence_config.get('rsi_overbought_correction', 0.25)
-                            confidence += overbought_correction_weight
-                            reasons.append(f"RSI超买修正({rsi:.1f}, 从{rsi_recent_high:.1f}回落)")
-                    
-            # 条件3: MACD负值
-            if macd is not None and macd < 0:
-                confidence += confidence_config.get('macd_negative', 0.1)
-                reasons.append("MACD负值")
-                
+                elif rsi < rsi_moderate_threshold:
+                    confidence += confidence_config.get('rsi_moderate', 0.1)
+                    reasons.append(f"RSI中性偏低({rsi:.2f})")
+
+            # 条件3: MACD信号
+            if macd is not None:
+                macd_negative_threshold = confidence_config.get('macd_negative_threshold', -0.01)
+                macd_weak_negative_threshold = confidence_config.get('macd_weak_negative_threshold', 0.005)
+                if macd < macd_negative_threshold:
+                    confidence += confidence_config.get('macd_negative', 0.15)
+                    reasons.append(f"MACD负值({macd:.4f})")
+                elif macd < macd_weak_negative_threshold:
+                    confidence += confidence_config.get('macd_weak_negative', 0.08)
+                    reasons.append(f"MACD弱负值({macd:.4f})")
+
             # 条件4: 价格接近布林带下轨
             if bb_lower is not None:
                 bb_near_threshold = confidence_config.get('bb_near_threshold', 1.02)
                 if latest_price <= bb_lower * bb_near_threshold:
                     is_low_point = True
-                    confidence += confidence_config.get('bb_lower_near', 0.2)
+                    signal_count += 1
+                    confidence += confidence_config.get('bb_lower_near', 0.25)
                     reasons.append("价格接近布林带下轨")
-                
-            # 条件5: 近期大幅下跌
+
+            # 条件5: 价格动量分析
             if len(data) >= 5:
-                price_5d_ago = data.iloc[-6]['close'] if len(data) >= 6 else data.iloc[0]['close']
-                decline_5d = (latest_price - price_5d_ago) / price_5d_ago
-                decline_threshold = confidence_config.get('decline_threshold', -0.05)  # 5%下跌阈值
-                if decline_5d < decline_threshold:
-                    confidence += confidence_config.get('recent_decline', 0.2)
-                    reasons.append(f"近5日大幅下跌({decline_5d:.2%})")
-            
-            # 条件6: AI优化参数调整
-            # 动态置信度调整 - 根据市场波动性调整
-            dynamic_confidence_adjustment = confidence_config.get('dynamic_confidence_adjustment', 0.1)
-            if len(data) >= 20:
-                # 计算20日波动率
-                returns = data['close'].pct_change().dropna()
-                volatility = returns.std()
-                # 高波动率时降低置信度要求，低波动率时提高要求
-                if volatility > 0.03:  # 高波动率
-                    confidence += dynamic_confidence_adjustment * 0.5
-                    reasons.append(f"高波动率调整(+{dynamic_confidence_adjustment * 0.5:.3f})")
-                elif volatility < 0.015:  # 低波动率
-                    confidence -= dynamic_confidence_adjustment * 0.3
-                    reasons.append(f"低波动率调整(-{dynamic_confidence_adjustment * 0.3:.3f})")
-            
-            # 市场情绪权重 - 基于成交量变化判断市场情绪
-            market_sentiment_weight = confidence_config.get('market_sentiment_weight', 0.15)
-            if len(data) >= 10:
-                # 计算近期成交量变化
-                recent_volume_avg = data['volume'].tail(5).mean()
-                historical_volume_avg = data['volume'].tail(20).mean()
-                volume_ratio = recent_volume_avg / historical_volume_avg
+                price_momentum_weight = confidence_config.get('price_momentum_weight', 0.1)
+                recent_prices = data['close'].tail(5).values
+                price_change_1d = (recent_prices[-1] - recent_prices[-2]) / recent_prices[-2]
+                price_change_3d = (recent_prices[-1] - recent_prices[-4]) / recent_prices[-4] if len(recent_prices) >= 4 else 0
                 
-                if volume_ratio > 1.5:  # 放量 - 可能是恐慌性抛售或抄底
-                    if latest_price < data['close'].tail(10).mean():  # 价格下跌时放量
-                        confidence += market_sentiment_weight
-                        reasons.append(f"恐慌性抛售情绪(+{market_sentiment_weight:.3f})")
-                elif volume_ratio < 0.7:  # 缩量 - 可能是观望情绪
-                    confidence += market_sentiment_weight * 0.3
-                    reasons.append(f"观望情绪(+{market_sentiment_weight * 0.3:.3f})")
-            
-            # 🆕 上升趋势中的成交量配合分析（新增逻辑）
-            if len(data) >= 20:
-                # 判断是否处于上升趋势
-                ma20_current = latest_data.get('ma20', None)
-                ma20_prev = data.iloc[-5]['ma20'] if len(data) >= 5 and 'ma20' in data.columns else None
+                if price_change_1d < -0.02:  # 单日跌幅超过2%
+                    confidence += price_momentum_weight * 1.5
+                    reasons.append(f"单日大跌({price_change_1d:.2%})")
+                elif price_change_1d < -0.01:  # 单日跌幅超过1%
+                    confidence += price_momentum_weight * 1.0
+                    reasons.append(f"单日下跌({price_change_1d:.2%})")
+                elif price_change_1d < 0:  # 单日下跌
+                    confidence += price_momentum_weight * 0.5
+                    reasons.append(f"单日微跌({price_change_1d:.2%})")
                 
-                if ma20_current and ma20_prev and ma20_current > ma20_prev:
-                    # 确认在上升趋势中
-                    price_vs_ma20 = (latest_price - ma20_current) / ma20_current
-                    
-                    # 价格回调但仍在均线附近（健康调整）
-                    if -0.02 <= price_vs_ma20 <= 0.03:  # 价格在MA20的-2%到+3%范围内
-                        volume_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else 1.0
-                        
-                        # 缩量回调（健康的洗盘）
-                        if volume_ratio < 0.8:
-                            uptrend_volume_pullback = confidence_config.get('uptrend_volume_pullback', 0.15)
-                            confidence += uptrend_volume_pullback
-                            is_low_point = True
-                            reasons.append(f"上升趋势中缩量回调(+{uptrend_volume_pullback:.3f})")
-                        
-                        # 温和放量（可能是支撑位抄底）
-                        elif 1.0 <= volume_ratio <= 1.3:
-                            uptrend_support_volume = confidence_config.get('uptrend_support_volume', 0.12)
-                            confidence += uptrend_support_volume
-                            reasons.append(f"上升趋势中支撑位放量(+{uptrend_support_volume:.3f})")
-                    
-                    # 价格接近或略低于重要均线（强支撑位）
-                    elif -0.05 <= price_vs_ma20 < -0.02:  # 价格在MA20下方2-5%
-                        ma_support_weight = confidence_config.get('uptrend_ma_support', 0.18)
-                        confidence += ma_support_weight
-                        is_low_point = True
-                        reasons.append(f"上升趋势中均线支撑(+{ma_support_weight:.3f})")
-            
-            # 🔄 趋势强度权重 - 智能趋势内回调识别（修改后的逻辑）
+                if price_change_3d < -0.05:  # 3日跌幅超过5%
+                    confidence += price_momentum_weight * 1.0
+                    reasons.append(f"3日累计大跌({price_change_3d:.2%})")
+                elif price_change_3d < -0.02:  # 3日跌幅超过2%
+                    confidence += price_momentum_weight * 0.6
+                    reasons.append(f"3日累计下跌({price_change_3d:.2%})")
+
+            # 🔄 趋势强度权重 - 减弱上升趋势惩罚，突出下跌趋势加分
             trend_strength_weight = confidence_config.get('trend_strength_weight', 0.12)
             if len(data) >= 20:
-                # 计算多时间框架趋势
-                # 长期趋势（20日）
                 x_long = np.arange(20)
                 y_long = data['close'].tail(20).values
                 slope_long = np.polyfit(x_long, y_long, 1)[0]
                 trend_strength_long = abs(slope_long) / y_long.mean()
-                
-                # 短期趋势（5日）
-                if len(data) >= 5:
-                    x_short = np.arange(5)
-                    y_short = data['close'].tail(5).values
-                    slope_short = np.polyfit(x_short, y_short, 1)[0]
-                    trend_strength_short = abs(slope_short) / y_short.mean()
+
+                # 简单趋势判别：结合斜率方向与价格相对MA20位置
+                price_above_ma20 = ma20 is not None and latest_price >= ma20
+                price_below_ma20 = ma20 is not None and latest_price < ma20
+                if slope_long > 0 and price_above_ma20:
+                    trend_regime = 'bull'
+                elif slope_long < 0 and price_below_ma20:
+                    trend_regime = 'bear'
                 else:
-                    slope_short = slope_long
-                    trend_strength_short = trend_strength_long
-                
-                # 智能趋势分析
-                if trend_strength_long > 0.01:  # 长期强趋势
-                    if slope_long > 0:  # 长期上涨趋势
-                        # 🆕 上升趋势中的智能回调识别
-                        if slope_short < 0 and trend_strength_short > 0.005:
-                            # 短期回调但长期向上 - 这是好的买入机会！
-                            uptrend_pullback_bonus = confidence_config.get('uptrend_pullback_bonus', 0.18)
-                            confidence += uptrend_pullback_bonus
-                            is_low_point = True
-                            reasons.append(f"上升趋势中回调机会(+{uptrend_pullback_bonus:.3f})")
-                        elif abs(slope_short) < 0.002:
-                            # 上升趋势中的横盘整理
-                            uptrend_consolidation_bonus = confidence_config.get('uptrend_consolidation_bonus', 0.12)
-                            confidence += uptrend_consolidation_bonus
-                            reasons.append(f"上升趋势中横盘整理(+{uptrend_consolidation_bonus:.3f})")
-                        else:
-                            # 继续上涨，适度降低权重但不大幅减分
-                            confidence -= trend_strength_weight * 0.1
-                            reasons.append(f"强上涨趋势延续(-{trend_strength_weight * 0.1:.3f})")
-                    else:  # 长期下跌趋势
-                        confidence += trend_strength_weight
-                        reasons.append(f"强下跌趋势(+{trend_strength_weight:.3f})")
-                elif trend_strength_long < 0.002:  # 弱趋势
-                    confidence += trend_strength_weight * 0.2
-                    reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.2:.3f})")
-                    
-            # 最终判断
+                    trend_regime = 'sideways'
+
+                if trend_strength_long > 0.01:
+                    if slope_long > 0:
+                        # 上升趋势中不给惩罚，避免与相对低点冲突，仅轻微降低置信度
+                        confidence -= trend_strength_weight * 0.03
+                        reasons.append(f"强上涨趋势轻微扣分(-{trend_strength_weight * 0.03:.3f})")
+                    else:
+                        confidence += trend_strength_weight * 2.0
+                        reasons.append(f"强下跌趋势加分(+{trend_strength_weight * 2.0:.3f})")
+                elif trend_strength_long < 0.002:
+                    confidence += trend_strength_weight * 0.8
+                    reasons.append(f"弱趋势调整(+{trend_strength_weight * 0.8:.3f})")
+
+            # 🟢 多头趋势的回撤买点识别（与原有相对低点逻辑兼容，可作为加分项）
+            if trend_regime == 'bull':
+                try:
+                    up_ma_support_w = confidence_config.get('uptrend_ma_support', 0.3)
+                    up_pullback_w = confidence_config.get('uptrend_pullback_bonus', 0.3)
+                    up_vol_pullback_w = confidence_config.get('uptrend_volume_pullback', 0.2)
+                    rsi_min = confidence_config.get('rsi_uptrend_min', 30)
+                    rsi_max = confidence_config.get('rsi_uptrend_max', 80)
+                    rsi_pb_th = confidence_config.get('rsi_pullback_threshold', 3)
+
+                    ma_support = False
+                    if ma10 is not None and ma20 is not None:
+                        ma_support = (ma10 >= ma20) and (latest_price >= ma20)
+                    elif ma20 is not None:
+                        ma_support = latest_price >= ma20
+
+                    if ma_support:
+                        confidence += up_ma_support_w
+                        reasons.append("多头趋势: 均线支撑(MA10≥MA20且价在MA20上方)")
+
+                    # RSI健康区间内的回撤
+                    rsi_valid = rsi is not None and not pd.isna(rsi)
+                    rsi_prev = None
+                    if 'rsi' in data.columns and len(data) >= 2:
+                        rsi_prev = data['rsi'].iloc[-2]
+                    rsi_prev_valid = rsi_prev is not None and not pd.isna(rsi_prev)
+
+                    if rsi_valid and rsi_prev_valid:
+                        rsi_in_trend = (rsi_min <= rsi <= rsi_max)
+                        rsi_drop_ok = (rsi_prev - rsi) >= rsi_pb_th
+                        if rsi_in_trend and rsi_drop_ok:
+                            confidence += up_pullback_w
+                            reasons.append(f"多头趋势: RSI健康回撤({rsi_prev:.1f}→{rsi:.1f}, -{(rsi_prev - rsi):.1f})")
+
+                    # 回撤期缩量更优
+                    vol_ratio = data.iloc[-1]['volume_ratio'] if 'volume_ratio' in data.columns else None
+                    if vol_ratio is not None and pd.notna(vol_ratio) and vol_ratio < 1.0:
+                        confidence += up_vol_pullback_w
+                        reasons.append(f"多头趋势: 回撤缩量(量比{vol_ratio:.2f})")
+                except Exception as _e:
+                    # 保守处理，出现异常不影响主流程
+                    pass
+            
+            # 🆕 动态置信度调整：多信号共振时额外加分
+            dynamic_adj_weight = confidence_config.get('dynamic_confidence_adjustment', 0.15)
+            # 移除最少信号数(min_signals)逻辑，仅根据置信度阈值进行判断
+            if signal_count >= 3:
+                confidence += dynamic_adj_weight * 1.0
+                reasons.append(f"多信号确认奖励(+{dynamic_adj_weight * 1.0:.3f})")
+            elif signal_count >= 2:
+                confidence += dynamic_adj_weight * 0.3
+                reasons.append(f"最低信号确认(+{dynamic_adj_weight * 0.3:.3f})")
+
+            # 最终判断 - 仅门控（去除多信号数量限制）
             confidence_threshold = confidence_config.get('final_threshold', 0.5)
             if confidence >= confidence_threshold:
                 is_low_point = True
-                
+                reasons.append(f"置信度达阈值({confidence:.2f} ≥ {confidence_threshold:.2f})")
+            else:
+                if is_low_point:
+                    reasons.append(f"门控未通过: 置信度不足(置信度{confidence:.2f}/{confidence_threshold:.2f})")
+                is_low_point = False
+            
+            # 基础置信度调整：确保即使没有明显信号也有最小置信度
+            min_base_confidence = confidence_config.get('min_base_confidence', 0.10)
+            base_confidence_ratio = confidence_config.get('base_confidence_ratio', 0.6)
+            
+            # 调试信息：检查参数是否正确读取
+            # self.logger.debug(f"min_base_confidence: {min_base_confidence}, confidence before adjustment: {confidence}")
+            
+            if confidence <= 0.01:  # 几乎没有信号
+                # 给予最小基础置信度
+                confidence = min_base_confidence
+                reasons.append(f"最小基础置信度({min_base_confidence:.2f})")
+            elif confidence > 0 and not is_low_point:
+                # 对于有一定信号但未达到交易阈值的情况，保留部分置信度
+                confidence = max(confidence * base_confidence_ratio, min_base_confidence)
+                reasons.append(f"基础置信度保留({base_confidence_ratio:.1f}倍)")
+            
+            # 确保最终置信度不低于最小值
+            if confidence < min_base_confidence:
+                confidence = min_base_confidence
+                if "最小基础置信度" not in str(reasons):
+                    reasons.append(f"最小置信度保障({min_base_confidence:.2f})")
+            
             # 限制置信度在0-1之间
             confidence = min(confidence, 1.0)
             
@@ -332,7 +353,8 @@ class StrategyModule:
                     'ma20': ma20,
                     'rsi': rsi,
                     'macd': macd,
-                    'bb_lower': bb_lower
+                    'bb_lower': bb_lower,
+                    'trend_regime': trend_regime
                 }
             }
             
@@ -352,7 +374,7 @@ class StrategyModule:
             
     def backtest(self, data: pd.DataFrame) -> pd.DataFrame:
         """
-        回测策略
+        回测策略 - 使用T+1开盘价买入的真实逻辑
         
         参数:
         data: 历史数据
@@ -360,303 +382,235 @@ class StrategyModule:
         返回:
         pandas.DataFrame: 回测结果
         """
-        self.logger.info("开始回测，数据长度: %d", len(data))
+        self.logger.info("开始T+1真实回测，数据长度: %d", len(data))
         
         try:
             # 复制数据避免修改原数据
             backtest_data = data.copy()
             
+            # 确保数据有open列用于T+1买入
+            if 'open' not in backtest_data.columns:
+                self.logger.error("数据缺少open列，无法进行T+1开盘价回测")
+                raise ValueError("数据必须包含open列用于T+1开盘价买入")
+            
             # 添加回测结果列
             backtest_data['is_low_point'] = False
-            backtest_data['future_max_rise'] = 0.0
-            backtest_data['days_to_rise'] = 0
-            backtest_data['max_rise_date'] = None
+            backtest_data['entry_price'] = 0.0  # T+1开盘价
+            backtest_data['exit_price'] = 0.0
+            backtest_data['exit_date'] = None
+            backtest_data['trade_return'] = 0.0
+            backtest_data['days_to_target'] = 0
+            
+            # 信号列表用于收集所有识别的低点
+            signals = []
 
             # index为交易日序号，date为实际交易日，未出现的日期视为非交易日
-            # 只遍历到倒数max_days个交易日，保证未来最多只看max_days个交易日
-            for i in range(len(backtest_data) - self.max_days):
-                current_price = backtest_data.iloc[i]['close']
-                current_date = backtest_data.iloc[i]['date']
-                # 当前index可用：backtest_data.iloc[i]['index']
-
-                max_rise = 0.0
-                days_to_rise = 0
-                max_rise_date = None
-
-                # 只统计未来max_days个交易日（严格以index为步进，date为实际交易日）
-                for j in range(1, self.max_days + 1):
-                    if i + j >= len(backtest_data):
-                        break  # 超出数据范围
-                    future_price = backtest_data.iloc[i + j]['close']
-                    future_date = backtest_data.iloc[i + j]['date']
-                    rise_rate = (future_price - current_price) / current_price
-
-                    if rise_rate > max_rise:
-                        max_rise = rise_rate
-                        max_rise_date = future_date
-
-                    if rise_rate >= self.rise_threshold and days_to_rise == 0:
-                        days_to_rise = j  # j即为x个交易日后
-
-                # 更新数据
-                backtest_data.loc[i, 'future_max_rise'] = max_rise
-                backtest_data.loc[i, 'days_to_rise'] = days_to_rise
-                backtest_data.loc[i, 'max_rise_date'] = max_rise_date
-
+            # 只遍历到倒数max_days-1个交易日，保证T+1买入后还有足够的持有期
+            for i in range(len(backtest_data) - self.max_days - 1):
                 # 使用策略识别相对低点（基于技术指标，而不是未来结果）
                 # 传递从开始到当前位置的所有历史数据，让算法基于历史数据判断当前时点
                 historical_data = backtest_data.iloc[:i+1].copy()
                 identification_result = self.identify_relative_low(historical_data)
+                
+                # 记录识别结果
                 backtest_data.loc[i, 'is_low_point'] = identification_result['is_low_point']
                 
-            self.logger.info("回测完成")
+                # 如果识别为相对低点，进行T+1交易模拟
+                if identification_result['is_low_point']:
+                    signal_date = backtest_data.iloc[i]['date']
+                    
+                    # T+1买入：使用次日开盘价
+                    if i + 1 < len(backtest_data):
+                        entry_price = backtest_data.iloc[i + 1]['open']
+                        entry_date = backtest_data.iloc[i + 1]['date']
+                        
+                        # 记录买入价格
+                        backtest_data.loc[i, 'entry_price'] = entry_price
+                        
+                        # 寻找退出点：从买入日开始，最多持有max_days天
+                        exit_price = None
+                        exit_date = None
+                        days_to_target = 0
+                        
+                        # 检查未来max_days天的表现
+                        for j in range(1, self.max_days + 1):
+                            if i + 1 + j >= len(backtest_data):
+                                break  # 超出数据范围
+                            
+                            future_high = backtest_data.iloc[i + 1 + j]['high']
+                            future_close = backtest_data.iloc[i + 1 + j]['close']
+                            future_date = backtest_data.iloc[i + 1 + j]['date']
+                            
+                            # 检查是否在当日达到目标涨幅
+                            if future_high >= entry_price * (1 + self.rise_threshold):
+                                # 按目标价格卖出
+                                exit_price = entry_price * (1 + self.rise_threshold)
+                                exit_date = future_date
+                                days_to_target = j
+                                break
+                        
+                        # 如果没有达到目标，在最后一天收盘价卖出
+                        if exit_price is None:
+                            max_check_idx = min(i + 1 + self.max_days, len(backtest_data) - 1)
+                            exit_price = backtest_data.iloc[max_check_idx]['close']
+                            exit_date = backtest_data.iloc[max_check_idx]['date']
+                            days_to_target = 0  # 未达到目标
+                        
+                        # 计算交易收益率
+                        trade_return = (exit_price / entry_price) - 1
+                        
+                        # 记录交易结果
+                        backtest_data.loc[i, 'exit_price'] = exit_price
+                        backtest_data.loc[i, 'exit_date'] = exit_date
+                        backtest_data.loc[i, 'trade_return'] = trade_return
+                        backtest_data.loc[i, 'days_to_target'] = days_to_target
+                        
+                        # 收集信号用于收益率计算
+                        signals.append({
+                            'signal_date': signal_date,
+                            'entry_date': entry_date,
+                            'entry_price': entry_price,
+                            'exit_date': exit_date,
+                            'exit_price': exit_price,
+                            'trade_return': trade_return,
+                            'days_to_target': days_to_target
+                        })
+                        
+            self.logger.info("T+1真实回测完成，识别信号数: %d", len(signals))
             return backtest_data
             
         except Exception as e:
-            self.logger.error("回测失败: %s", str(e))
+            self.logger.error("T+1真实回测失败: %s", str(e))
             raise
             
-    def evaluate_strategy(self, backtest_results: pd.DataFrame) -> Dict[str, Any]:
+    def evaluate_strategy(self, backtest_data: pd.DataFrame) -> Dict[str, Any]:
         """
-        评估策略
+        评估策略性能 - 基于T+1真实交易结果
         
         参数:
-        backtest_results: 回测结果
+        backtest_data: 回测结果数据
         
         返回:
-        dict: 评估结果
+        dict: 包含各种性能指标的字典
         """
-        self.logger.info("评估策略")
+        low_points = backtest_data[backtest_data['is_low_point'] == True]
+        total_low_points = len(low_points)
         
-        try:
-            # 获取相对低点
-            low_points = backtest_results[backtest_results['is_low_point']]
-            total_points = len(low_points)
-            
-            if total_points == 0:
-                return {
-                    'total_points': 0,
-                    'success_rate': 0.0,
-                    'avg_rise': 0.0,
-                    'avg_days': 0.0,
-                    'max_rise': 0.0,
-                    'min_rise': 0.0,
-                    'score': 0.0
-                }
-            
-            # 计算统计数据
-            avg_rise = low_points['future_max_rise'].mean()
-            avg_days = low_points['days_to_rise'].mean()
-            max_rise = low_points['future_max_rise'].max()
-            min_rise = low_points['future_max_rise'].min()
-            
-            # 计算成功率（未来实际涨幅超过阈值的比例）
-            successful_points = low_points[low_points['future_max_rise'] >= self.rise_threshold]
-            success_rate = len(successful_points) / total_points
-            
-            # 计算综合得分
-            score = self._calculate_score(success_rate, avg_rise, avg_days)
-            
-            # 构建评估结果
-            evaluation = {
-                'total_points': total_points,
-                'success_rate': success_rate,
-                'avg_rise': avg_rise,
-                'avg_days': avg_days,
-                'max_rise': max_rise,
-                'min_rise': min_rise,
-                'score': score,
-                'rise_threshold': self.rise_threshold,
-                'max_days': self.max_days
+        if total_low_points == 0:
+            result = {
+                'total_signals': 0,
+                'total_trades': 0,
+                'success_count': 0,
+                'success_rate': 0.0,
+                'avg_return': 0.0,
+                'total_return': 0.0,
+                'total_profit': 0.0,
+                'max_drawdown': 0.0,
+                'win_rate': 0.0,
+                'avg_holding_days': 0.0,
+                'profit_factor': 0.0,
+                'score': 0.0
             }
-            
-            self.logger.info("策略评估完成: 识别点数=%d, 成功率=%.2f%%, 平均涨幅=%.2f%%, 得分=%.4f", 
-                           total_points, success_rate * 100, avg_rise * 100, score)
-            
-            return evaluation
-            
-        except Exception as e:
-            self.logger.error("评估策略失败: %s", str(e))
-            raise
-            
-    def _calculate_score(self, success_rate: float, avg_rise: float, avg_days: float) -> float:
-        """
-        计算策略得分
+            self._last_evaluation = result
+            return result
         
-        参数:
-        success_rate: 成功率
-        avg_rise: 平均涨幅
-        avg_days: 平均天数
+        # 有效交易统计（成功买入的交易）
+        valid_trades = low_points[low_points['entry_price'] > 0]
+        total_trades = len(valid_trades)
         
-        返回:
-        float: 策略得分
-        """
-        # 从配置文件获取评分参数
-        strategy_config = self.config.get('strategy', {})
-        scoring_config = strategy_config.get('scoring', {})
+        if total_trades == 0:
+            result = {
+                'total_signals': total_low_points,
+                'total_trades': 0,
+                'success_count': 0,
+                'success_rate': 0.0,
+                'avg_return': 0.0,
+                'total_return': 0.0,
+                'total_profit': 0.0,
+                'max_drawdown': 0.0,
+                'win_rate': 0.0,
+                'avg_holding_days': 0.0,
+                'profit_factor': 0.0,
+                'score': 0.0
+            }
+            self._last_evaluation = result
+            return result
         
-        # 成功率权重：50%
-        success_weight = scoring_config.get('success_weight', 0.5)
-        success_score = success_rate * success_weight
+        # 成功交易统计（达到目标涨幅）
+        successful_trades = valid_trades[valid_trades['days_to_target'] > 0]
+        success_count = len(successful_trades)
+        success_rate = success_count / total_trades if total_trades > 0 else 0.0
         
-        # 平均涨幅权重：30%（相对于基准涨幅）
-        rise_weight = scoring_config.get('rise_weight', 0.3)
-        rise_benchmark = scoring_config.get('rise_benchmark', 0.1)  # 10%基准
-        rise_score = min(avg_rise / rise_benchmark, 1.0) * rise_weight
+        # 收益率统计
+        trade_returns = valid_trades['trade_return']
+        avg_return = trade_returns.mean()
+        total_return = (1 + trade_returns).prod() - 1  # 复合收益率
         
-        # 平均天数权重：20%（天数越少越好，以基准天数为准）
-        days_weight = scoring_config.get('days_weight', 0.2)
-        days_benchmark = scoring_config.get('days_benchmark', 10.0)  # 10天基准
-        if avg_days > 0:
-            days_score = min(days_benchmark / avg_days, 1.0) * days_weight
+        # 胜率统计（正收益交易比例）
+        positive_trades = valid_trades[valid_trades['trade_return'] > 0]
+        win_rate = len(positive_trades) / total_trades if total_trades > 0 else 0.0
+        
+        # 计算总利润值（替代夏普比率）
+        total_profit = trade_returns.sum()
+        
+        # 计算最大回撤
+        cumulative_returns = (1 + trade_returns).cumprod()
+        running_max = cumulative_returns.expanding().max()
+        drawdown = (cumulative_returns - running_max) / running_max
+        max_drawdown = drawdown.min()
+        
+        # 平均持有天数统计
+        all_holding_days = []
+        for _, trade in valid_trades.iterrows():
+            if trade['days_to_target'] > 0:
+                all_holding_days.append(trade['days_to_target'])
+            else:
+                # 未达到目标的交易，使用max_days作为持有期
+                all_holding_days.append(self.max_days)
+        
+        avg_holding_days = np.mean(all_holding_days) if all_holding_days else 0.0
+        
+        # 新增：利润因子（Profit Factor）
+        trades_nonzero = trade_returns[trade_returns != 0]
+        total_gains = trades_nonzero[trades_nonzero > 0].sum()
+        total_losses = abs(trades_nonzero[trades_nonzero < 0].sum())
+        if total_gains == 0 and total_losses == 0:
+            profit_factor = 0.0
+        elif total_losses == 0:
+            profit_factor = 999.0
         else:
-            days_score = 0.0
-            
-        total_score = success_score + rise_score + days_score
-        return total_score
+            profit_factor = float(total_gains / total_losses)
         
-    def visualize_backtest(self, backtest_results: pd.DataFrame, save_path: Optional[str] = None) -> str:
-        """
-        可视化回测结果
+        # 基于PF与交易次数的统一打分（供AI优化与报告使用）
+        min_trades_threshold = int(self.config.get('optimization_constraints', {}).get('min_trades_threshold', 10))
+        if total_trades < min_trades_threshold:
+            pf_score = 0.0
+        else:
+            pf_score = float(profit_factor * np.log1p(total_trades))
         
-        参数:
-        backtest_results: 回测结果
-        save_path: 保存路径，如果为None则自动生成
+        self.logger.info(f"策略评估完成 - 信号数: {total_low_points}, 交易数: {total_trades}, 成功率: {success_rate:.2%}")
         
-        返回:
-        str: 图表文件路径
-        """
-        self.logger.info("可视化回测结果")
+        result = {
+            'total_signals': total_low_points,       # 总信号数
+            'total_trades': total_trades,            # 总交易数
+            'success_count': success_count,          # 成功交易数
+            'success_rate': success_rate,            # 成功率
+            'avg_return': avg_return,                # 平均收益率
+            'total_return': total_return,            # 总收益率
+            'total_profit': total_profit,            # 总利润值
+            'max_drawdown': max_drawdown,            # 最大回撤
+            'win_rate': win_rate,                    # 胜率
+            'avg_holding_days': avg_holding_days,    # 平均持有天数
+            'profit_factor': profit_factor,          # 新增：利润因子
+            'pf_score': pf_score,                    # 保留：PF×log(交易数) 作为参考
+            'score': float(total_profit)             # 统一得分改为：总利润值（按用户要求）
+        }
+        # 缓存以供打分函数使用
+        self._last_evaluation = result
+        return result
         
-        try:
-            # 创建图表
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-            fig.suptitle('回测结果分析', fontsize=16, fontweight='bold')
-            
-            # 1. 价格曲线和相对低点
-            ax1 = axes[0, 0]
-            ax1.plot(backtest_results['date'], backtest_results['close'], 
-                    label='收盘价', linewidth=1, alpha=0.8)
-            
-            # 标记相对低点
-            low_points = backtest_results[backtest_results['is_low_point']]
-            if len(low_points) > 0:
-                ax1.scatter(low_points['date'], low_points['close'], 
-                          color='red', marker='^', s=50, label='相对低点', zorder=5)
-            
-            ax1.set_title(f'价格走势与相对低点\n(涨幅阈值: {self.rise_threshold:.1%}, 最大观察天数: {self.max_days}天)')
-            ax1.set_xlabel('日期')
-            ax1.set_ylabel('价格')
-            ax1.legend()
-            ax1.grid(True, alpha=0.3)
-            
-            # 2. 涨幅分布
-            ax2 = axes[0, 1]
-            if len(low_points) > 0:
-                rises = low_points['future_max_rise'] * 100
-                ax2.hist(rises, bins=20, alpha=0.7, color='skyblue', edgecolor='black')
-                ax2.axvline(x=self.rise_threshold * 100, color='red', linestyle='--', 
-                          label=f'目标涨幅: {self.rise_threshold:.1%}')
-                ax2.set_title(f'相对低点后的最大涨幅分布\n(目标: {self.rise_threshold:.1%}, 最大观察: {self.max_days}天)')
-                ax2.set_xlabel('涨幅 (%)')
-                ax2.set_ylabel('频次')
-                ax2.legend()
-                ax2.grid(True, alpha=0.3)
-            else:
-                ax2.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
-                        transform=ax2.transAxes, fontsize=14)
-                ax2.set_title(f'相对低点后的最大涨幅分布\n(目标: {self.rise_threshold:.1%}, 最大观察: {self.max_days}天)')
-            
-            # 3. 达到目标涨幅的天数分布
-            ax3 = axes[1, 0]
-            if len(low_points) > 0:
-                successful_points = low_points[low_points['days_to_rise'] > 0]
-                if len(successful_points) > 0:
-                    days = successful_points['days_to_rise']
-                    ax3.hist(days, bins=range(1, self.max_days + 2), alpha=0.7, 
-                           color='lightgreen', edgecolor='black')
-                    ax3.axvline(x=self.max_days, color='orange', linestyle='--', 
-                              label=f'最大观察天数: {self.max_days}天')
-                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-                    ax3.set_xlabel('天数')
-                    ax3.set_ylabel('频次')
-                    ax3.legend()
-                    ax3.grid(True, alpha=0.3)
-                else:
-                    ax3.text(0.5, 0.5, '无成功案例', ha='center', va='center', 
-                            transform=ax3.transAxes, fontsize=14)
-                    ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-            else:
-                ax3.text(0.5, 0.5, '无相对低点数据', ha='center', va='center', 
-                        transform=ax3.transAxes, fontsize=14)
-                ax3.set_title(f'达到目标涨幅所需天数分布\n(目标涨幅: {self.rise_threshold:.1%})')
-            
-            # 4. 策略评估指标
-            ax4 = axes[1, 1]
-            evaluation = self.evaluate_strategy(backtest_results)
-            
-            metrics = ['成功率', '平均涨幅', '平均天数', '综合得分']
-            values = [
-                evaluation['success_rate'],
-                evaluation['avg_rise'],
-                evaluation['avg_days'] / self.max_days,  # 标准化
-                evaluation['score']
-            ]
-            
-            bars = ax4.bar(metrics, values, color=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99'])
-            ax4.set_title(f'策略评估指标\n(涨幅阈值: {self.rise_threshold:.1%}, 最大天数: {self.max_days}天)')
-            ax4.set_ylabel('数值')
-            ax4.set_ylim(0, 1)
-            
-            # 在柱状图上添加数值标签
-            for bar, value, metric in zip(bars, values, metrics):
-                height = bar.get_height()
-                if metric == '平均天数':
-                    label = f'{evaluation["avg_days"]:.1f}天'
-                elif metric == '平均涨幅':
-                    label = f'{value:.1%}'
-                elif metric == '成功率':
-                    label = f'{value:.1%}'
-                else:
-                    label = f'{value:.3f}'
-                ax4.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                        label, ha='center', va='bottom')
-            
-            ax4.grid(True, alpha=0.3)
-            
-            # 在图表底部添加策略参数信息
-            confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
-            param_info = f"策略参数: 涨幅阈值={self.rise_threshold:.1%}, 最大观察天数={self.max_days}天, RSI超卖阈值={confidence_weights.get('rsi_oversold_threshold', 30)}, RSI偏低阈值={confidence_weights.get('rsi_low_threshold', 40)}, 置信度阈值={confidence_weights.get('final_threshold', 0.5):.2f}"
-            plt.figtext(0.5, 0.02, param_info, ha='center', fontsize=10, 
-                       bbox=dict(facecolor='lightgray', alpha=0.8))
-            
-            plt.tight_layout()
-            plt.subplots_adjust(bottom=0.08)  # 为底部参数信息留出空间
-            
-            # 保存图表
-            if save_path is None:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                
-                # 创建子目录结构
-                charts_dir = os.path.join(self.results_dir, 'charts')
-                strategy_dir = os.path.join(charts_dir, 'strategy_analysis')
-                
-                for directory in [self.results_dir, charts_dir, strategy_dir]:
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
-                        
-                save_path = os.path.join(strategy_dir, f'backtest_analysis_{timestamp}.png')
-            
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            plt.close()
-            
-            self.logger.info("回测结果可视化完成，保存到: %s", save_path)
-            return save_path
-            
-        except Exception as e:
-            self.logger.error("可视化回测结果失败: %s", str(e))
-            raise
-            
+    # 已移除：visualize_backtest 方法（主类不再提供图表可视化）
+
     def update_params(self, params: Dict[str, Any]) -> None:
         """
         更新策略参数
@@ -675,11 +629,11 @@ class StrategyModule:
         if 'max_days' in params:
             self.max_days = params['max_days']
         
-        # 确保confidence_weights存在
-        if 'confidence_weights' not in self.config['strategy']:
-            self.config['strategy']['confidence_weights'] = {}
+        # 确保根级别 confidence_weights 存在
+        if 'confidence_weights' not in self.config:
+            self.config['confidence_weights'] = {}
         
-        # 定义所有可能的参数及其存储位置
+        # 定义所有可能的参数及其存储位置（统一写入根级别 confidence_weights）
         confidence_weight_params = [
             'rsi_oversold_threshold', 'rsi_low_threshold', 'final_threshold',
             'dynamic_confidence_adjustment', 'market_sentiment_weight', 'trend_strength_weight',
@@ -687,23 +641,16 @@ class StrategyModule:
             'volume_panic_bonus', 'volume_surge_bonus', 'volume_shrink_penalty',
             'bb_lower_near', 'price_decline_threshold', 'decline_threshold',
             'rsi_uptrend_min', 'rsi_uptrend_max', 'rsi_pullback_threshold',
-            'rsi_uptrend_pullback', 'rsi_overbought_correction'
+            'rsi_uptrend_pullback', 'rsi_overbought_correction',
+            # 阈值与权重（在 strategy.yaml 中也位于 confidence_weights 下）
+            'bb_near_threshold', 'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold',
+            'volume_weight', 'price_momentum_weight'
         ]
         
-        strategy_level_params = [
-            'volume_weight', 'price_momentum_weight', 'bb_near_threshold',
-            'volume_panic_threshold', 'volume_surge_threshold', 'volume_shrink_threshold'
-        ]
-        
-        # 更新confidence_weights中的参数
+        # 将上述参数全部更新到根级别 confidence_weights
         for param in confidence_weight_params:
             if param in params:
-                self.config['strategy']['confidence_weights'][param] = params[param]
-        
-        # 更新strategy级别的参数
-        for param in strategy_level_params:
-            if param in params:
-                self.config['strategy'][param] = params[param]
+                self.config['confidence_weights'][param] = params[param]
         
         # 参数更新完成
         self.logger.debug("策略参数更新完成")
@@ -715,7 +662,7 @@ class StrategyModule:
         返回:
         dict: 当前参数
         """
-        confidence_weights = self.config.get('strategy', {}).get('confidence_weights', {})
+        confidence_weights = self.config.get('confidence_weights', {})
         
         # 获取所有可用的参数，包括新增的AI优化参数
         params = {

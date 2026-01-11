@@ -163,8 +163,7 @@ def save_prediction_results(prediction_result, predict_date_str, config, market_
                     ai_decision = detailed_analysis['ai_decision']
                     f.write(f"### 预测概率分布\n")
                     f.write(f"- **非低点概率**: {ai_decision.get('non_low_prob', 0):.4f} ({ai_decision.get('non_low_prob', 0):.2%})\n")
-                    f.write(f"- **低点概率**: {ai_decision.get('low_prob', 0):.4f} ({ai_decision.get('low_prob', 0):.2%})\n")
-                    f.write(f"- **置信度评级**: {ai_decision.get('confidence_level', 'N/A')}\n\n")
+                    f.write(f"- **低点概率**: {ai_decision.get('low_prob', 0):.4f} ({ai_decision.get('low_prob', 0):.2%})\n\n")
                 
                 # 决策依据分析
                 if detailed_analysis.get('decision_basis'):
@@ -396,6 +395,13 @@ def predict_with_trained_model(
         if os.path.exists(latest_model_path):
             with open(latest_model_path, 'r') as f:
                 model_path = f.read().strip()
+                
+                # 如果是相对路径，转换为绝对路径（相对于项目根目录）
+                if not os.path.isabs(model_path):
+                    # 获取项目根目录（从当前文件位置向上两级：examples/predict_single_day.py -> 项目根目录）
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    model_path = os.path.join(project_root, model_path)
+                
                 model_file = os.path.basename(model_path)
                 model_analysis['model_file'] = model_file
                 # 从文件名提取时间戳
@@ -546,7 +552,7 @@ def predict_with_trained_model(
         
         is_predicted_low_point = prediction_result.get("is_low_point")
         confidence = prediction_result.get("confidence")
-        final_confidence = prediction_result.get("final_confidence", confidence)
+        # final_confidence 已废弃，统一使用 confidence
         prediction_proba = prediction_result.get("prediction_proba", [])
         
         # 收集模型分析数据
@@ -561,15 +567,10 @@ def predict_with_trained_model(
             logger.info(f"   非低点概率: {prediction_proba[0]:.4f} ({prediction_proba[0]:.2%})")
             logger.info(f"   低点概率:   {prediction_proba[1]:.4f} ({prediction_proba[1]:.2%})")
         
-        # 置信度评级
-        confidence_level = "极低" if confidence < 0.3 else "较低" if confidence < 0.5 else "中等" if confidence < 0.7 else "较高" if confidence < 0.85 else "很高"
-        logger.info(f"   置信度评级: {confidence_level} ({confidence:.2%})")
-        
         # 收集AI决策分析数据
         ai_decision = {
             'non_low_prob': prediction_proba[0] if len(prediction_proba) >= 2 else 0,
             'low_prob': prediction_proba[1] if len(prediction_proba) >= 2 else 0,
-            'confidence_level': confidence_level,
             'confidence_value': confidence
         }
         detailed_analysis['ai_decision'] = ai_decision
@@ -713,8 +714,8 @@ def predict_with_trained_model(
         logger.info("📊 历史验证分析")
         logger.info("="*80)
         
-        end_date_for_validation = predict_date + timedelta(days=config["strategy"]["max_days"] + 10)
-        start_date_for_validation = predict_date - timedelta(days=config["strategy"]["max_days"] + 10)
+        end_date_for_validation = predict_date + timedelta(days=config["default_strategy"]["max_days"] + 10)
+        start_date_for_validation = predict_date - timedelta(days=config["default_strategy"]["max_days"] + 10)
         
         validation_data = data_module.get_history_data(
             start_date=start_date_for_validation.strftime('%Y-%m-%d'),
@@ -728,7 +729,6 @@ def predict_with_trained_model(
                 predicted_low_point=is_predicted_low_point,
                 actual_low_point=None,
                 confidence=confidence,
-                final_confidence=final_confidence,
                 future_max_rise=None,
                 days_to_rise=None,
                 prediction_correct=None,
@@ -811,10 +811,10 @@ def predict_with_trained_model(
 
         # 获取预测日的index
         predict_index = predict_date_data.iloc[0]['index']
-        max_rise = 0.0
+        max_rise = float('-inf')
         days_to_rise = 0
-        rise_threshold = config["strategy"]["rise_threshold"]
-        max_days = config["strategy"]["max_days"]
+        rise_threshold = config["default_strategy"]["rise_threshold"]
+        max_days = config["default_strategy"]["max_days"]
         
         logger.info(f"📈 未来{max_days}天表现追踪:")
         logger.info(f"   预测日价格: {predict_price:.2f}")
@@ -877,7 +877,6 @@ def predict_with_trained_model(
             predicted_low_point=is_predicted_low_point,
             actual_low_point=actual_is_low_point,
             confidence=confidence,
-            final_confidence=final_confidence,
             future_max_rise=max_rise,
             days_to_rise=days_to_rise,
             prediction_correct=prediction_correct,

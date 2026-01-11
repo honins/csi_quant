@@ -10,8 +10,11 @@ import os
 import sys
 from pathlib import Path
 
-# 添加src目录到Python路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# 将项目根目录添加到Python路径，确保可以 `import src.*`
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 
 def test_imports():
     """测试基本模块导入"""
@@ -34,6 +37,7 @@ def test_imports():
     except ImportError as e:
         print(f"❌ 模块导入失败: {e}")
         return False
+
 
 def test_config_loading():
     """测试配置文件加载"""
@@ -69,6 +73,7 @@ def test_config_loading():
         print(f"❌ 配置加载测试失败: {e}")
         return False
 
+
 def test_data_access():
     """测试数据访问"""
     print("\n📊 测试数据访问...")
@@ -99,6 +104,7 @@ def test_data_access():
         print(f"❌ 数据访问测试失败: {e}")
         return False
 
+
 def test_strategy_initialization():
     """测试策略模块初始化"""
     print("\n🎯 测试策略模块初始化...")
@@ -120,6 +126,7 @@ def test_strategy_initialization():
     except Exception as e:
         print(f"❌ 策略模块测试失败: {e}")
         return False
+
 
 def main():
     """主测试函数"""
@@ -158,6 +165,7 @@ def main():
     
     return all_passed
 
+
 if __name__ == '__main__':
     success = main()
-    sys.exit(0 if success else 1) 
+    sys.exit(0 if success else 1)

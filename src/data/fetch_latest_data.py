@@ -3,14 +3,13 @@
 
 """
 获取最新数据脚本
-获取000852和000905的最新数据并保存到data目录下的CSV文件中
+获取000905的最新数据并保存到data目录下的CSV文件中
 """
 
 import os
 import sys
 import logging
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import yaml
@@ -80,7 +79,7 @@ class DataFetcher:
         获取指数数据
         
         参数:
-        symbol: 指数代码 (如 '000852', '000905')
+        symbol: 指数代码 (如 '000905')
         start_date: 开始日期 (YYYY-MM-DD)，默认为一年前
         end_date: 结束日期 (YYYY-MM-DD)，默认为今天
         
@@ -96,12 +95,8 @@ class DataFetcher:
         
         try:
             # 使用akshare获取指数数据
-            # 000852: 中证1000指数
             # 000905: 中证500指数
-            if symbol == '000852':
-                # 中证1000指数
-                df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
-            elif symbol == '000905':
+            if symbol == '000905':
                 # 中证500指数
                 df = ak.stock_zh_index_daily(symbol=f"sh{symbol}")
             else:
@@ -233,8 +228,8 @@ class DataFetcher:
         """
         results = {}
         
-        # 获取000852和000905的数据
-        symbols = ['000852', '000905']
+        # 获取000905的数据
+        symbols = ['000905']
         
         for symbol in symbols:
             self.logger.info(f"开始处理指数: {symbol}")
@@ -322,4 +317,4 @@ def main():
     return response
 
 if __name__ == "__main__":
-    main() 
+    main()

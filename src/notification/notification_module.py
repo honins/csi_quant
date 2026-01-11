@@ -8,11 +8,8 @@
 
 import os
 import logging
-import smtplib
 from datetime import datetime
 from typing import Dict, Any, List
-from email.mime import text as MimeTextModule
-from email.mime import multipart as MimeMultipartModule
 
 class NotificationModule:
     """通知模块类"""
