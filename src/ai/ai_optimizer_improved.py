@@ -334,13 +334,13 @@ class AIOptimizerImproved:
 
         return weighted_features.values
 
-    def incremental_train(self, new_data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
+    def incremental_train(self, new_data: pd.DataFrame, strategy_module=None) -> Dict[str, Any]:
         """
         增量训练模型
         
         参数:
         new_data: 新增数据
-        strategy_module: 策略模块
+        strategy_module: 策略模块 (已弃用，保留兼容性)
         
         返回:
         dict: 训练结果
@@ -366,9 +366,21 @@ class AIOptimizerImproved:
                 self.logger.warning("特征不一致，进行完全重训练")
                 return self.full_train(new_data, strategy_module)
 
-            # 使用最近的数据进行增量更新
-            recent_features = new_features[-10:]  # 最近10天的数据
-            recent_labels = new_labels[-10:]
+            # 修复增量训练数据选择逻辑
+            # 标签是基于未来10天收益计算的，所以最后10天的数据没有有效标签(被设为0)
+            future_days = 10
+            valid_end_idx = len(new_labels) - future_days
+            
+            if valid_end_idx <= 0:
+                self.logger.warning("新数据量不足以生成有效标签(需>10天)，跳过增量训练")
+                return {'success': False, 'error': '数据不足'}
+                
+            # 取最近的有效数据进行增量更新 (例如最近20个有效样本)
+            # 如果有效数据不足20个，则取全部有效数据
+            start_idx = max(0, valid_end_idx - 20)
+            
+            recent_features = new_features[start_idx:valid_end_idx]
+            recent_labels = new_labels[start_idx:valid_end_idx]
 
             if len(recent_features) > 0:
                 # 对新数据进行标准化（使用已有的scaler）
@@ -413,13 +425,13 @@ class AIOptimizerImproved:
             # 失败时进行完全重训练
             return self.full_train(new_data, strategy_module)
 
-    def full_train(self, data: pd.DataFrame, strategy_module) -> Dict[str, Any]:
+    def full_train(self, data: pd.DataFrame, strategy_module=None) -> Dict[str, Any]:
         """
         完整训练AI模型
         
         参数:
         data: 历史数据
-        strategy_module: 策略模块
+        strategy_module: 策略模块 (已弃用，保留兼容性)
         
         返回:
         dict: 训练结果
@@ -698,22 +710,18 @@ class AIOptimizerImproved:
                 'error': str(e)
             }
 
-    def _prepare_labels(self, data: pd.DataFrame, strategy_module) -> np.ndarray:
+    def _prepare_labels(self, data: pd.DataFrame, strategy_module=None) -> np.ndarray:
         """
         准备标签：基于未来收益率 (Future Return)
-        目标：预测未来N天内涨幅是否超过阈值
+        目标：预测未来10天内涨幅是否超过2%
+        strategy_module: 已弃用，保留兼容性
         """
-        # 获取配置参数
-        ai_config = self.config.get('ai', {})
-        train_config = ai_config.get('training', {})
+        self.logger.info("🏷️ 使用【未来收益率】生成训练标签 (Target: 10天涨幅>2%)")
         
-        future_days = train_config.get('target_days', 10)
-        return_threshold = train_config.get('target_return', 0.02)
-        
-        self.logger.info(f"🏷️ 使用【未来收益率】生成训练标签 (Target: {future_days}天涨幅>{return_threshold:.1%})")
-        
-        # 1. 计算未来收益率
-        # 使用 shift(-N) 获取N个交易日后的收盘价
+        # 1. 计算未来10天的收益率
+        # 使用 shift(-10) 获取10个交易日后的收盘价
+        future_days = 10
+        return_threshold = 0.02
         
         # 确保有 close 列
         if 'close' not in data.columns:
@@ -725,6 +733,7 @@ class AIOptimizerImproved:
         
         # 2. 生成基础标签
         # 只有当未来收益率 > 阈值时，标记为 1 (正样本)
+        # fillna(0) 处理最后几天的 NaN
         labels = (future_returns > return_threshold).astype(int)
         
         # 将最后 future_days 天的标签设为 0 (因为不知道未来)
@@ -743,25 +752,19 @@ class AIOptimizerImproved:
             dates = data.index
             
         if dates is not None:
-            # 从配置读取负样本区间
-            hnm_config = train_config.get('hard_negative_mining', {})
+            # 定义负样本区间 (2025-03-01 到 2025-05-31)
+            # 该区间为"阴跌"或"假摔"行情，强制设为负样本
+            mask_hard_negative = (dates >= '2025-03-01') & (dates <= '2025-05-31')
             
-            if hnm_config.get('enabled', False):
-                start_date = hnm_config.get('start_date', '2025-03-01')
-                end_date = hnm_config.get('end_date', '2025-05-31')
+            indices = np.where(mask_hard_negative)[0]
+            if len(indices) > 0:
+                positive_count_before = np.sum(labels[indices])
                 
-                # 定义负样本区间
-                mask_hard_negative = (dates >= start_date) & (dates <= end_date)
+                # 强制设为0
+                labels[indices] = 0
                 
-                indices = np.where(mask_hard_negative)[0]
-                if len(indices) > 0:
-                    positive_count_before = np.sum(labels[indices])
-                    
-                    # 强制设为0
-                    labels[indices] = 0
-                    
-                    if positive_count_before > 0:
-                        self.logger.info(f"🎯 负样本增强: 将 {start_date} 到 {end_date} 区间的 {positive_count_before} 个正样本强制修正为负样本")
+                if positive_count_before > 0:
+                    self.logger.info(f"🎯 负样本增强: 将2025.3-5月区间的 {positive_count_before} 个正样本强制修正为负样本")
         
         return labels
 
